@@ -118,7 +118,7 @@ describe('step', () => {
   });
   it('觸發點：once 只觸發一次（記旗標）', () => {
     const r = step(map, st(3, 1), 'down', data);
-    expect(r.event).toEqual({ type: 'trigger', id: 'trg_once', dialogue: 'dlg_once' });
+    expect(r.event).toEqual({ type: 'trigger', id: 'trg_once', dialogue: 'dlg_once', from: { x: 3, y: 1, dir: 'down' } });
     expect(r.state.flags[onceFlag('attic', 'trg_once')]).toBe(true);
     const back = step(map, r.state, 'up', data);
     const again = step(map, back.state, 'down', data);
@@ -165,9 +165,14 @@ describe('觸發點 battle', () => {
   const at = (x, y, dir, flags = {}) => ({ location: { map: 'dock', x, y, dir }, flags, items: {}, echo: { charges: 0 } });
   it('踩到有 battle 的觸發點 → 事件帶 battle（dialogue 可省略，省略時為 null）', () => {
     const r = step(bmap, at(3, 1, 'down'), 'down', bdata);
-    expect(r.event).toEqual({ type: 'trigger', id: 'trg_fight', dialogue: null, battle: 'enc_one' });
+    expect(r.event).toEqual({ type: 'trigger', id: 'trg_fight', dialogue: null, battle: 'enc_one', from: { x: 3, y: 1, dir: 'down' } });
     expect(r.state.flags[onceFlag('dock', 'trg_fight')]).toBe(true);
     const r2 = step(bmap, at(2, 1, 'down'), 'down', bdata);
-    expect(r2.event).toEqual({ type: 'trigger', id: 'trg_talk_fight', dialogue: 'dlg_x', battle: 'enc_two' });
+    expect(r2.event).toEqual({ type: 'trigger', id: 'trg_talk_fight', dialogue: 'dlg_x', battle: 'enc_two', from: { x: 2, y: 1, dir: 'down' } });
+  });
+  it('規格補充 2 第 9 條：trigger 事件帶踩上前的位置 from（逃跑後畫面把玩家放回這一格）', () => {
+    const r = step(bmap, at(4, 2, 'up'), 'left', bdata);
+    expect(r.event.from).toEqual({ x: 4, y: 2, dir: 'left' });
+    expect(r.state.location).toMatchObject({ x: 3, y: 2 });
   });
 });

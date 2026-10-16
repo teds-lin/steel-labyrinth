@@ -4,6 +4,7 @@
     "name": "攻擊",
     "desc": "用手邊的武器打過去。",
     "target": "enemy",
+    "menu": "root",
     "effects": [
       {
         "type": "damage",
@@ -16,6 +17,7 @@
     "name": "防禦",
     "desc": "擺好架勢，到下次行動前受到的傷害減半。",
     "target": "self",
+    "menu": "root",
     "effects": [
       {
         "type": "status",
@@ -33,6 +35,7 @@
       "ammo": 1
     },
     "target": "enemy",
+    "menu": "root",
     "effects": [
       {
         "type": "damage",
@@ -86,7 +89,7 @@
     "cost": {
       "sp": 6
     },
-    "target": "ally",
+    "target": "self",
     "effects": [
       {
         "type": "collapse",

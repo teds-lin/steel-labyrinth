@@ -6,7 +6,7 @@ import { checkCondition } from './conditions.js';
 import { checkEffect } from './effects.js';
 import { DIRS } from './grid.js';
 import { ECHO_TAG } from './echo.js';
-import { STAT_KEYS, HERO_ID } from './stats.js';
+import { STAT_KEYS, HERO_ID, MAX_PARTY } from './stats.js';
 import { checkBattleEffect } from './battle/effects.js';
 import { checkBattleCondition } from './battle/ai.js';
 
@@ -20,6 +20,11 @@ const isBool = (v) => typeof v === 'boolean';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const SKILL_TARGETS = ['enemy', 'enemy_all', 'ally', 'ally_all', 'self'];
 const ON_LOSE = ['retry', 'continue'];
+/** 規格補充 2 第 10 條：遭遇的初始敵人上限、含召喚時同時在場的上限。 */
+const MAX_ENCOUNTER_ENEMIES = 3;
+const MAX_ENEMIES_ON_FIELD = 4;
+/** 規格補充 2 第 5 條：階段對話只能用的效果。 */
+const PHASE_DIALOGUE_EFFECTS = ['set_flag', 'clear_flag'];
 /** 物件裡不在 allowed 清單的鍵（_ 開頭的私有註記發布前會剝除，這裡放行）。 */
 const extraKeys = (obj, allowed) => Object.keys(obj).filter((k) => !allowed.includes(k) && !k.startsWith('_'));
 
@@ -102,6 +107,8 @@ function run(bundle, errors) {
   for (const en of enemies.values()) checkEnemy(en, ctx);
   for (const enc of encounters.values()) checkEncounter(enc, ctx);
   arr(bundle.story).forEach((story) => { if (isObj(story) && isStr(story.id)) checkStoryMeta(story, errors, ctx); });
+  checkPartySkills(ctx);
+  checkPartyLimit(bundle, ctx);
   for (const map of maps.values()) checkMap(map, ctx);
   for (const { dlg, file } of dialogues.values()) checkDialogue(dlg, file, ctx);
 }
@@ -114,6 +121,7 @@ function checkLineage(lin, errors, ctx) {
     errors.push(`${W}：譜系「${lin.id}」的 ranks 必須是陣列`);
     return;
   }
+  if (lin.show_resonance !== undefined && !isBool(lin.show_resonance)) errors.push(`${W}：譜系「${lin.id}」的 show_resonance 必須是 true/false`);
   const seen = new Set();
   lin.ranks.forEach((r, i) => {
     if (!isObj(r) || !Number.isInteger(r.rank)) {
@@ -217,6 +225,83 @@ function checkCharacters(characters, ctx) {
     checkSkillList(c.skills, where, ctx);
     if (c.id === HERO_ID && c.lineage !== undefined) errors.push(`${where}：主角的 lineage 來自遊戲狀態（喝下靈劑），不可寫在 characters.json`);
     else if (c.lineage !== undefined) checkLineageRef(c.lineage, where, ctx);
+    // 規格補充 2 第 10 條：至少一個不消耗資源的技能（只看 characters.skills：譜系技能可能還沒開放）
+    if (Array.isArray(c.skills) && c.skills.every((id) => isStr(id) && ctx.skills.has(id))
+      && !c.skills.some((id) => isFreeSkill(ctx.skills.get(id)))) {
+      errors.push(`${where}：skills 裡至少要有一個不消耗任何資源（沒有 sp／ammo 花費）的技能`);
+    }
+    checkRankStats(c, where, ctx);
+  }
+}
+
+const isFreeSkill = (sk) => !isObj(sk.cost) || Object.values(sk.cost).every((v) => v === 0);
+
+/**
+ * 規格補充 2 第 10 條：角色在任何已開放階位的能力值都必須合法（hp、spd ≥ 1，其他 ≥ 0）。
+ * 主角：沒有譜系、以及每個譜系的每個階位；隊友：自己譜系的每個階位。能力值＝base＋該階位以上（rank ≥）各階的 stats。
+ */
+function checkRankStats(c, where, ctx) {
+  if (!isObj(c.base)) return;
+  const cases = [];
+  if (c.id === HERO_ID) {
+    cases.push({ label: '沒有譜系時', lin: null, rank: null });
+    for (const lin of ctx.lineages.values()) for (const r of arr(lin.ranks)) if (isObj(r) && Number.isInteger(r.rank)) cases.push({ lin, rank: r.rank });
+  } else if (isObj(c.lineage) && ctx.lineages.has(c.lineage.id)) {
+    const lin = ctx.lineages.get(c.lineage.id);
+    for (const r of arr(lin.ranks)) if (isObj(r) && Number.isInteger(r.rank)) cases.push({ lin, rank: r.rank });
+  }
+  const who = c.id === HERO_ID ? `${where}（主角）` : where;
+  for (const k of cases) {
+    const st = {};
+    for (const key of STAT_KEYS) st[key] = isNum(c.base[key]) ? c.base[key] : 0;
+    if (k.lin) {
+      for (const r of arr(k.lin.ranks)) {
+        if (!isObj(r) || !Number.isInteger(r.rank) || r.rank < k.rank || !isObj(r.stats)) continue;
+        for (const key of STAT_KEYS) if (isNum(r.stats[key])) st[key] += r.stats[key];
+      }
+    }
+    const label = k.lin ? `譜系「${k.lin.id}」rank ${k.rank} 時` : k.label;
+    for (const key of STAT_KEYS) {
+      const min = key === 'hp' || key === 'spd' ? 1 : 0;
+      if (st[key] < min) ctx.errors.push(`${who}：${label} ${key} 為 ${st[key]}（hp、spd 至少 1，其他不得為負）`);
+    }
+  }
+}
+
+/** 規格補充 2 第 10 條：我方技能（角色 skills、任何譜系階位的 skills）不能有 summon。 */
+function checkPartySkills(ctx) {
+  const ids = new Set();
+  for (const c of ctx.characters.values()) for (const id of arr(c.skills)) ids.add(id);
+  for (const lin of ctx.lineages.values()) for (const r of arr(lin.ranks)) if (isObj(r)) for (const id of arr(r.skills)) ids.add(id);
+  for (const id of ids) {
+    const sk = isStr(id) ? ctx.skills.get(id) : undefined;
+    if (sk && arr(sk.effects).some((e) => isObj(e) && e.type === 'summon')) {
+      ctx.errors.push(`skills.json 技能「${id}」：我方技能（角色或譜系可用）不能有 summon`);
+    }
+  }
+}
+
+/** 所有劇情效果陣列（對話節點與選項、遭遇 on_win、道具 field_effects）。 */
+function allStoryEffects(bundle, ctx) {
+  const out = [];
+  for (const { dlg } of ctx.dialogues.values()) {
+    for (const n of arr(dlg.nodes)) {
+      if (!isObj(n)) continue;
+      out.push(...arr(n.effects));
+      for (const ch of arr(n.choices)) if (isObj(ch)) out.push(...arr(ch.effects));
+    }
+  }
+  for (const enc of ctx.encounters.values()) if (isObj(enc.on_win)) out.push(...arr(enc.on_win.effects));
+  for (const it of ctx.items.values()) out.push(...arr(it.field_effects));
+  return out;
+}
+
+/** 規格補充 2 第 10 條：join_party 可能加入的隊友（不重複）加上主角，靜態上限不超過 MAX_PARTY。 */
+function checkPartyLimit(bundle, ctx) {
+  const joins = new Set();
+  for (const e of allStoryEffects(bundle, ctx)) if (has(e, 'join_party') && isStr(e.join_party) && e.join_party !== HERO_ID) joins.add(e.join_party);
+  if (joins.size + 1 > MAX_PARTY) {
+    ctx.errors.push(`join_party：可能加入的隊友（${[...joins].join('、')}）加上主角共 ${joins.size + 1} 人，超過隊伍上限 ${MAX_PARTY}`);
   }
 }
 
@@ -232,10 +317,11 @@ function checkSkill(sk, ctx) {
     if (!ok) errors.push(`${where}：cost 必須是 { sp?, ammo? }（非負整數），實際為 ${JSON.stringify(sk.cost)}`);
   }
   if (sk.tags !== undefined && !(Array.isArray(sk.tags) && sk.tags.every(isStr))) errors.push(`${where}：tags 必須是字串陣列`);
+  if (sk.menu !== undefined && sk.menu !== 'root') errors.push(`${where}：menu 只能是 "root"（顯示在戰鬥指令第一層），實際為 ${JSON.stringify(sk.menu)}`);
   checkBattleEffectList(sk.effects, sk.target, where, 'effects', ctx);
 }
 
-function checkAiRule(rule, where, ctx) {
+function checkAiRule(rule, where, ctx, own) {
   const { errors } = ctx;
   if (!isObj(rule)) {
     errors.push(`${where}：必須是物件`);
@@ -243,6 +329,7 @@ function checkAiRule(rule, where, ctx) {
   }
   for (const k of extraKeys(rule, ['skill', 'weight', 'if'])) errors.push(`${where}：不認得的欄位「${k}」`);
   if (!isStr(rule.skill) || !ctx.skills.has(rule.skill)) errors.push(`${where}：skill 引用不存在的技能「${q(rule.skill)}」`);
+  else if (Array.isArray(own) && !own.includes(rule.skill)) errors.push(`${where}：skill「${rule.skill}」不在這名敵人的 skills 裡`);
   if (!isNum(rule.weight) || rule.weight <= 0) errors.push(`${where}：weight 必須是正數，實際為 ${JSON.stringify(rule.weight)}`);
   if (rule.if !== undefined) for (const m of checkBattleCondition(rule.if, 'if')) errors.push(`${where}：${m}`);
 }
@@ -252,13 +339,14 @@ function checkEnemy(en, ctx) {
   const where = `enemies.json 敵人「${en.id}」`;
   if (!isStr(en.name)) errors.push(`${where}：name 必須是非空字串`);
   if (en.sprite !== undefined && !isStr(en.sprite)) errors.push(`${where}：sprite 必須是字串`);
+  if (en.summon_text !== undefined && !isStr(en.summon_text)) errors.push(`${where}：summon_text 必須是非空字串`);
   if (!Number.isInteger(en.rank)) errors.push(`${where}：rank 必須是整數`);
   checkStatBlock(en.stats, `${where} 的 stats`, errors);
   checkSkillList(en.skills, where, ctx);
   if (!Array.isArray(en.ai) || en.ai.length === 0) {
     errors.push(`${where}：ai 必須是至少一條規則的陣列`);
   } else {
-    en.ai.forEach((rule, i) => checkAiRule(rule, `${where} ai[${i}]`, ctx));
+    en.ai.forEach((rule, i) => checkAiRule(rule, `${where} ai[${i}]`, ctx, en.skills));
     if (!en.ai.some((rule) => isObj(rule) && rule.if === undefined)) errors.push(`${where}：ai 至少要有一條沒有 if 的規則（確保永遠有行動可選）`);
   }
   if (en.phases !== undefined) {
@@ -270,9 +358,10 @@ function checkEnemy(en, ctx) {
       if (!isNum(ph.hp_lte_pct) || ph.hp_lte_pct < 0 || ph.hp_lte_pct > 100) errors.push(`${pw}：hp_lte_pct 必須是 0～100 的數字`);
       if (ph.add_ai !== undefined) {
         if (!Array.isArray(ph.add_ai)) errors.push(`${pw}：add_ai 必須是陣列`);
-        else ph.add_ai.forEach((rule, j) => checkAiRule(rule, `${pw} add_ai[${j}]`, ctx));
+        else ph.add_ai.forEach((rule, j) => checkAiRule(rule, `${pw} add_ai[${j}]`, ctx, en.skills));
       }
       refDialogue(ph.dialogue, pw, 'dialogue', ctx);
+      checkPhaseDialogue(ph.dialogue, pw, ctx);
     });
   }
   if (en.drops !== undefined) {
@@ -286,11 +375,51 @@ function checkEnemy(en, ctx) {
   }
 }
 
+/** 規格補充 2 第 5 條：階段對話（戰鬥中播放）只能有 set_flag／clear_flag 效果。 */
+function checkPhaseDialogue(id, where, ctx) {
+  if (!isStr(id) || !ctx.dialogues.has(id)) return;
+  const { dlg } = ctx.dialogues.get(id);
+  const bad = new Set();
+  for (const n of arr(dlg.nodes)) {
+    if (!isObj(n)) continue;
+    const effs = [...arr(n.effects), ...arr(n.choices).flatMap((c) => (isObj(c) ? arr(c.effects) : []))];
+    for (const e of effs) if (isObj(e)) for (const k of Object.keys(e)) if (!PHASE_DIALOGUE_EFFECTS.includes(k)) bad.add(k);
+  }
+  if (bad.size) ctx.errors.push(`${where}：dialogue「${id}」是階段對話，只能有 set_flag／clear_flag 效果，實際有「${[...bad].join('」「')}」`);
+}
+
+/**
+ * 規格補充 2 第 10 條：遭遇「同時在場」敵人數的靜態上限。每種敵人最多＝max(初始數量, 任何會在場的敵人召喚它的 max)，
+ * 召喚出來的敵人若也會召喚，一併展開；合計即上限。
+ */
+function maxEnemiesOnField(ids, ctx) {
+  const cap = new Map();
+  for (const id of ids) cap.set(id, (cap.get(id) ?? 0) + 1);
+  for (let changed = true, guard = 0; changed && guard < 100; guard++) {
+    changed = false;
+    for (const id of [...cap.keys()]) {
+      const en = ctx.enemies.get(id);
+      for (const sid of arr(en?.skills)) {
+        for (const e of arr(ctx.skills.get(sid)?.effects)) {
+          if (!isObj(e) || e.type !== 'summon' || !isStr(e.enemy) || !Number.isInteger(e.max)) continue;
+          if ((cap.get(e.enemy) ?? 0) < e.max) { cap.set(e.enemy, e.max); changed = true; }
+        }
+      }
+    }
+  }
+  return [...cap.values()].reduce((a, b) => a + b, 0);
+}
+
 function checkEncounter(enc, ctx) {
   const { errors } = ctx;
   const where = `encounters.json 遭遇「${enc.id}」`;
   if (!Array.isArray(enc.enemies) || enc.enemies.length === 0) errors.push(`${where}：enemies 必須至少一名敵人`);
-  else for (const id of enc.enemies) if (!isStr(id) || !ctx.enemies.has(id)) errors.push(`${where}：enemies 引用不存在的敵人「${q(id)}」`);
+  else {
+    for (const id of enc.enemies) if (!isStr(id) || !ctx.enemies.has(id)) errors.push(`${where}：enemies 引用不存在的敵人「${q(id)}」`);
+    if (enc.enemies.length > MAX_ENCOUNTER_ENEMIES) errors.push(`${where}：enemies 最多 ${MAX_ENCOUNTER_ENEMIES} 名，實際 ${enc.enemies.length} 名`);
+    const n = maxEnemiesOnField(enc.enemies.filter(isStr), ctx);
+    if (n > MAX_ENEMIES_ON_FIELD) errors.push(`${where}：含召喚，同時在場的敵人最多可能有 ${n} 名，超過 ${MAX_ENEMIES_ON_FIELD}`);
+  }
   if (enc.bg !== undefined && !isStr(enc.bg)) errors.push(`${where}：bg 必須是字串`);
   if (enc.can_flee !== undefined && !isBool(enc.can_flee)) errors.push(`${where}：can_flee 必須是 true/false`);
   if (enc.on_lose !== undefined && !ON_LOSE.includes(enc.on_lose)) errors.push(`${where}：on_lose「${q(enc.on_lose)}」必須是 retry 或 continue`);

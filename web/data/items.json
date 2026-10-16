@@ -36,6 +36,11 @@
         "type": "collapse",
         "amount": -15
       }
+    ],
+    "field_effects": [
+      {
+        "collapse": -15
+      }
     ]
   },
   {

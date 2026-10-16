@@ -252,3 +252,90 @@ describe('免費可達性：goto 與 set_lineage', () => {
     expect(validateBundle(b)).toEqual([]);
   });
 });
+
+// ───────────── 規格補充 2（2026-10-17）：新欄位與 validate 新規則，每條各一組反例 ─────────────
+const noErrorLike = (b, re) => {
+  const errs = validateBundle(b);
+  expect(errs.filter((e) => re.test(e)), errs.join('\n')).toEqual([]);
+};
+
+describe('規格補充 2：新欄位（menu／summon_text／show_resonance）', () => {
+  it('合法寫法不報錯', () => {
+    const b = mut((x) => {
+      find(x, 'skills', 'attack').menu = 'root';
+      find(x, 'enemies', 'fogwalker').summon_text = '從霧裡出現了！';
+      find(x, 'lineages', 'trace').show_resonance = true;
+    });
+    expect(validateBundle(b)).toEqual([]);
+  });
+  it('技能 menu 只能是 "root"', () => {
+    expectError(mut((x) => { find(x, 'skills', 'attack').menu = 'skill'; }), /技能「attack」.*menu/);
+  });
+  it('敵人 summon_text 必須是非空字串', () => {
+    expectError(mut((x) => { find(x, 'enemies', 'fogwalker').summon_text = ''; }), /敵人「fogwalker」.*summon_text/);
+  });
+  it('譜系 show_resonance 必須是 true/false', () => {
+    expectError(mut((x) => { find(x, 'lineages', 'trace').show_resonance = 'yes'; }), /譜系「trace」.*show_resonance/);
+  });
+});
+
+describe('規格補充 2 第 5 條：phases[].dialogue 只能有 set_flag／clear_flag', () => {
+  it('階段對話用 set_flag／clear_flag 合法', () => {
+    const b = mut((x) => { dlgOf(x, 'dlg_phase').nodes[0].effects = [{ set_flag: 'a' }, { clear_flag: 'a' }]; });
+    expect(validateBundle(b)).toEqual([]);
+  });
+  it('節點效果有其他效果 → 報錯', () => {
+    expectError(mut((x) => { dlgOf(x, 'dlg_phase').nodes[0].effects = [{ give_ammo: 3 }]; }), /dlg_phase.*階段.*give_ammo/);
+  });
+  it('選項效果有其他效果 → 報錯', () => {
+    expectError(mut((x) => {
+      dlgOf(x, 'dlg_phase').nodes = [{ id: 'n1', text: 'x', choices: [{ text: 'a', next: 'END', effects: [{ collapse: 5 }] }] }];
+    }), /dlg_phase.*階段.*collapse/);
+  });
+});
+
+describe('規格補充 2 第 10 條：validate 新增', () => {
+  it('每名角色至少有一個不消耗資源的技能', () => {
+    expectError(mut((x) => { find(x, 'characters', 'herb').skills = ['shoot']; }), /角色「herb」.*不消耗/);
+  });
+  it('只看 characters.skills：譜系技能免費不算（例：隊友只有花費技能）', () => {
+    noErrorLike(m2(), /不消耗/);
+  });
+  it('join_party 的隊伍人數靜態上限 ≤ 3', () => {
+    const b = mut((x) => {
+      x.characters.push({ ...find(x, 'characters', 'herb'), id: 'zed', name: '傑德' });
+      dlgOf(x, 'dlg_ch1_start').nodes[0].effects = [{ join_party: 'herb' }, { join_party: 'zed' }];
+    });
+    expectError(b, /join_party.*隊伍.*3/);
+  });
+  it('join_party 加到剛好 3 人合法', () => {
+    noErrorLike(mut((x) => { dlgOf(x, 'dlg_ch1_start').nodes[0].effects = [{ join_party: 'herb' }]; }), /join_party/);
+  });
+  it('敵人 ai（含 phases.add_ai）只能引用自己 skills 裡的技能', () => {
+    expectError(mut((x) => { find(x, 'enemies', 'fogwalker').ai.push({ skill: 'deep', weight: 1 }); }), /敵人「fogwalker」.*ai\[2\].*skills/);
+    expectError(mut((x) => { find(x, 'enemies', 'porter').skills = ['attack', 'whisper_minor']; }), /敵人「porter」.*add_ai\[0\].*skills/);
+  });
+  it('我方技能（characters.skills、譜系技能）不能有 summon', () => {
+    expectError(mut((x) => { find(x, 'characters', 'herb').skills = ['attack', 'call_fog']; }), /call_fog.*我方.*summon/);
+    expectError(mut((x) => { find(x, 'lineages', 'dream').ranks[0].skills = ['call_fog']; }), /call_fog.*我方.*summon/);
+  });
+  it('角色在任何已開放階位的能力值：hp、spd 至少 1，其他不得為負', () => {
+    expectError(mut((x) => { find(x, 'lineages', 'trace').ranks[1].stats = { spd: -10 }; }), /主角.*trace.*rank 8.*spd/);
+    expectError(mut((x) => { find(x, 'lineages', 'dream').ranks[1].stats = { hp: -50 }; }), /角色「ada」.*dream.*rank 8.*hp/);
+    expectError(mut((x) => { find(x, 'lineages', 'dream').ranks[0].stats = { will: -30 }; }), /角色「ada」.*rank 8.*will/);
+  });
+  it('遭遇最多 3 名敵人', () => {
+    expectError(mut((x) => { find(x, 'encounters', 'enc_two').enemies = ['fogwalker', 'fogwalker', 'fogwalker', 'fogwalker']; }), /遭遇「enc_two」.*最多 3/);
+  });
+  it('含召喚上限，同時在場的敵人合計不超過 4', () => {
+    // porter ＋ 霧行者 ×2（初始）＋ porter 會召喚霧行者（max 3）→ 最多 1＋3＝4：合法；max 4 → 5 名：報錯
+    noErrorLike(mut((x) => {
+      find(x, 'encounters', 'enc_boss').enemies = ['porter', 'fogwalker', 'fogwalker'];
+      find(x, 'skills', 'call_fog').effects[0].max = 3;
+    }), /同時在場/);
+    expectError(mut((x) => {
+      find(x, 'encounters', 'enc_boss').enemies = ['porter', 'fogwalker', 'fogwalker'];
+      find(x, 'skills', 'call_fog').effects[0].max = 4;
+    }), /遭遇「enc_boss」.*同時在場.*5/);
+  });
+});

@@ -2,6 +2,7 @@
   "id": "trace",
   "source": "mirror",
   "nature": "看穿真相",
+  "show_resonance": true,
   "ranks": [
     {
       "rank": 9,

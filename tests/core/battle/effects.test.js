@@ -44,7 +44,7 @@ describe('checkBattleEffect（效果積木的寫法）', () => {
 });
 
 describe('公式', () => {
-  it('傷害：攻擊方 stat × power ÷ 100 − 目標 def × 0.5，再乘亂數、暴擊 ×1.5、防禦中 ×0.5，round，最少 1', () => {
+  it('傷害：攻擊方 stat × power ÷ 100 − 目標 def × 0.5，再乘亂數、爆擊 ×1.5、防禦中 ×0.5，round，最少 1', () => {
     expect(damageAmount({ atk: 10, power: 100, def: 4, mult: 1 })).toBe(8);
     expect(damageAmount({ atk: 10, power: 100, def: 4, mult: 1.1 })).toBe(9); // 8.8
     expect(damageAmount({ atk: 10, power: 100, def: 4, mult: 1, crit: true })).toBe(12);
@@ -87,16 +87,16 @@ describe('applyBattleEffect（不可變）', () => {
     expect(r.log.find((e) => e.type === 'damage')).toMatchObject({ type: 'damage', source: 'p0', target: 'e0' });
     expect(byUid(r.battle, 'e0').hp).toBe(40 - r.log.find((e) => e.type === 'damage').amount);
   });
-  it('damage：數值落在亂數範圍內（8 × 0.9～1.1，或暴擊 ×1.5）', () => {
+  it('damage：數值落在亂數範圍內（8 × 0.9～1.1，或爆擊 ×1.5）', () => {
     const amounts = new Set();
     for (const s of seeds(300)) {
       const r = applyBattleEffect({ ...base(), rng: createRng(s) }, { type: 'damage', power: 100 }, 'p0', 'e0', data);
       amounts.add(r.log.find((e) => e.type === 'damage').amount);
     }
     expect([...amounts].every((a) => [7, 8, 9, 11, 12, 13].includes(a))).toBe(true);
-    expect([...amounts].some((a) => a >= 11)).toBe(true); // 300 次裡有暴擊
+    expect([...amounts].some((a) => a >= 11)).toBe(true); // 300 次裡有爆擊
   });
-  it('damage：暴擊會先送出 crit 事件；fixed 是固定值（不受亂數、暴擊、防禦影響）', () => {
+  it('damage：爆擊會先送出 crit 事件；fixed 是固定值（不受亂數、爆擊、防禦影響）', () => {
     let found = false;
     for (const s of seeds(300)) {
       const r = applyBattleEffect({ ...base(), rng: createRng(s) }, { type: 'damage', power: 100 }, 'p0', 'e0', data);
@@ -207,7 +207,7 @@ describe('applyBattleEffect（不可變）', () => {
     byUid(b, 'e0').intent = { skill: 'attack', target: 'p1' };
     const r = applyBattleEffect(b, { type: 'reveal_intent' }, 'p0', 'e0', data);
     expect(byUid(r.battle, 'e0').revealed).toBe(true);
-    expect(r.log).toEqual([{ type: 'intent_revealed', source: 'p0', target: 'e0', skill: 'attack', intent_target: 'p1' }]);
+    expect(r.log).toEqual([{ type: 'intent_revealed', source: 'p0', target: 'e0', target_name: 'e0', skill: 'attack', skill_name: '攻擊', intent_target: 'p1', intent_target_name: 'p1' }]);
   });
   it('collapse：依主角（隊伍裡的 hero）will 減免，夾在 0～100；達 100 → lost_control 並結束戰鬥', () => {
     let r = applyBattleEffect(base(), { type: 'collapse', amount: 10 }, 'e0', 'p1', data);

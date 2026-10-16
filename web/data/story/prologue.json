@@ -550,6 +550,9 @@
                   "give_item": "revolver"
                 },
                 {
+                  "give_ammo": 3
+                },
+                {
                   "set_flag": "got_revolver"
                 }
               ],
@@ -565,6 +568,12 @@
           "id": "take",
           "speaker": null,
           "text": "你把左輪手槍收進外套內袋。沉甸甸的重量，讓人莫名安心。",
+          "next": "take2"
+        },
+        {
+          "id": "take2",
+          "speaker": null,
+          "text": "（取得左輪手槍與子彈 3 發。）",
           "next": "END"
         },
         {

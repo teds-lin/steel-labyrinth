@@ -26,6 +26,22 @@ const game = new Phaser.Game({
   scene: [BootScene, TitleScene, NameScene, MapScene, UIScene, BattleScene, GameOverScene, MenuScene, ChapterEndScene],
 });
 
+// 旋轉或改變視窗大小（例如遊戲中 375×667 → 667×375）：讓 FIT 重新計算畫布大小。
+// 行動裝置旋轉時 innerWidth／innerHeight 可能晚一點才更新，所以下一幀與稍後各再算一次。
+{
+  const refit = () => {
+    try { game.scale.refresh(); } catch { /* 遊戲尚未初始化完成時略過 */ }
+  };
+  const onResize = () => {
+    refit();
+    requestAnimationFrame(refit);
+    setTimeout(refit, 250);
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  window.visualViewport?.addEventListener('resize', onResize);
+}
+
 function deepFreeze(o) {
   if (o && typeof o === 'object' && !Object.isFrozen(o)) {
     Object.freeze(o);

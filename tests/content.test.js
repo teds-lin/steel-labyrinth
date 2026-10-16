@@ -4,11 +4,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { loadBundle } from '../tools/lib/bundle.mjs';
 import { NO_CHARGE_MESSAGE } from '../web/src/core/interact.js';
-import { simulate, finishBattle } from '../web/src/core/battle/engine.js';
+import { simulate, finishBattle, prepareRetry, RETRY_COLLAPSE_CAP } from '../web/src/core/battle/engine.js';
 import { migrations, sanitizeLoadedState, serialize, CURRENT_VERSION } from '../web/src/core/save.js';
 import { deriveStats } from '../web/src/core/stats.js';
 import { Sim as BaseSim, DEFAULT_NAME, playPrologue, playChapter1, playChapter2 } from './lib/sim.js';
-import { makeSmartPolicy } from './lib/policies.js';
+import { makeSmartPolicy, smartPolicy } from './lib/policies.js';
 
 const DATA_DIR = fileURLToPath(new URL('../web/data/', import.meta.url));
 const NAME = DEFAULT_NAME;
@@ -384,5 +384,91 @@ describe('M2 內容：從新遊戲一路玩到第二章結束（不使用任何�
     sim.continueChapter();
     playChapter2(sim);
     expectChapter2Done(sim, record);
+  });
+});
+
+// ───────────── M2 修正輪（規格補充 2）：子彈一致、重新挑戰 ─────────────
+
+/** 記下每場戰鬥的戰前狀態，再交給 inner 解析。 */
+const recordingResolver = (pre, inner) => (encId, state, sim) => { pre.set(encId, structuredClone(state)); return inner(encId, state, sim); };
+
+describe('M2 修正輪：子彈與重新挑戰', () => {
+  it('新遊戲在序章撿起左輪（帶在身上）→ 子彈 3 發（與 v1 遷移一致）；教學戰時子彈 ≥ 1', () => {
+    const pre = new Map();
+    const sim = new BaseSim(data, { battle: recordingResolver(pre, noItemResolver([])) });
+    sim.start();
+    sim.choiceRules = ['帶在身上'];
+    sim.investigate('obj_bed');
+    expect(sim.state.items.revolver).toBe(1);
+    expect(sim.state.ammo).toBe(3);
+    sim.choiceRules = [];
+    sim.investigate('obj_bed'); // 再調查一次不會重複給子彈
+    expect(sim.state.ammo).toBe(3);
+    playPrologue(Object.assign(sim, { start: () => sim }), 'key');
+    sim.continueChapter();
+    playChapter1(sim);
+    expect(pre.get('enc_sparring').items.revolver).toBe(1);
+    expect(pre.get('enc_sparring').ammo).toBeGreaterThanOrEqual(1);
+    expect(pre.get('enc_sparring').ammo).toBe(3);
+  });
+
+  it('有槍但 0 發（例如修正前的存檔）→ 教學戰前馬洛補子彈，教學戰時子彈 ≥ 1', () => {
+    const prologue = playPrologue(new BaseSim(data), 'key').state;
+    const state = { ...prologue, items: { ...prologue.items, revolver: 1 }, ammo: 0 };
+    const pre = new Map();
+    const sim = new BaseSim(data, { state, battle: recordingResolver(pre, noItemResolver([])) });
+    sim.continueChapter();
+    playChapter1(sim);
+    expect(pre.get('enc_sparring').ammo).toBeGreaterThanOrEqual(1);
+  });
+
+  it('第二章工寮的補給箱：一次性給子彈 3 發（過橋前）', () => {
+    const pre = new Map();
+    const sim = new BaseSim(data, { battle: recordingResolver(pre, noItemResolver([])) });
+    playPrologue(sim, 'key');
+    sim.continueChapter();
+    playChapter1(sim);
+    sim.continueChapter();
+    const ammo0 = sim.state.ammo;
+    sim.investigate('obj_shed_box');
+    expect(sim.state.ammo).toBe(ammo0 + 3);
+    sim.investigate('obj_shed_box');
+    expect(sim.state.ammo).toBe(ammo0 + 3);
+  });
+
+  it('Boss 刻意輸一次 → prepareRetry（全隊回滿、崩解 ≤ 60）→ 重新挑戰後打完第二章', () => {
+    const record = [];
+    const retries = [];
+    const loser = (battle, cmds) => ({ type: 'skill', skill: 'guard' }); // 只防禦：一定打不贏
+    const resolver = (encId, state) => {
+      if (encId !== 'enc_boss') return noItemResolver(record)(encId, state);
+      const lost = simulate(encId, state, data, CONTENT_SEED, loser);
+      const f = finishBattle(lost.battle, state, data);
+      expect(['defeat', 'lost_control']).toContain(f.outcome);
+      expect(f.next).toEqual({ type: 'retry' });
+      expect(f.state).toBe(state); // 戰敗不改變狀態：重新挑戰從戰前狀態算
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const retry = prepareRetry(state, data);
+        retries.push(retry);
+        const r = simulate(encId, retry, data, CONTENT_SEED + attempt, smartPolicy);
+        const g = finishBattle(r.battle, retry, data);
+        if (g.next?.type !== 'retry') { record.push({ encounter: encId, attempts: attempt + 1, outcome: g.outcome }); return g; }
+      }
+      throw new Error('重新挑戰仍然過不了');
+    };
+    const sim = new BaseSim(data, { battle: resolver });
+    playPrologue(sim, 'echo');
+    sim.continueChapter();
+    playChapter1(sim);
+    sim.continueChapter();
+    playChapter2(sim, { wife: 'lie' });
+    expect(retries.length).toBeGreaterThanOrEqual(1);
+    for (const s of retries) {
+      expect(s.collapse).toBeLessThanOrEqual(RETRY_COLLAPSE_CAP);
+      for (const m of s.party) expect([m.hp, m.sp]).toEqual([deriveStats(m.id, s, data).hp, deriveStats(m.id, s, data).sp]);
+    }
+    expect(record.find((r) => r.encounter === 'enc_boss').attempts).toBeGreaterThanOrEqual(2);
+    expect(sim.state.flags.boss_done).toBe(true);
+    expect(sim.state.chapter_done).toContain('chapter2');
   });
 });

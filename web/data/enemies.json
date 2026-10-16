@@ -55,6 +55,7 @@
     "id": "fogwalker",
     "name": "霧行者",
     "sprite": "fogwalker",
+    "summon_text": "從霧裡出現了！",
     "rank": 9,
     "stats": {
       "hp": 32,
@@ -105,7 +106,7 @@
     "stats": {
       "hp": 170,
       "sp": 0,
-      "atk": 21,
+      "atk": 18,
       "def": 2,
       "spd": 8,
       "will": 45,

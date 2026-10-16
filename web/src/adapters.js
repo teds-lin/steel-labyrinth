@@ -32,7 +32,7 @@ const WARNING_TEXT = {
 /** 讀檔警告（core 給的是除錯用的詳細訊息）轉成給玩家看的提示，詳細內容留在 console。 */
 export function loadNotice(warnings) {
   if (!Array.isArray(warnings) || warnings.length === 0) return null;
-  console.warn('讀檔時修正了存檔內容：', warnings);
+  console.warn(`讀檔時修正了存檔內容：\n${warnings.map((w) => `- ${w?.message ?? w?.code ?? String(w)}`).join('\n')}`);
   const msgs = new Set(warnings.map((w) => WARNING_TEXT[w?.code] ?? '存檔有部分內容異常，已自動修正'));
   return [...msgs].join('\n');
 }

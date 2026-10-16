@@ -15,6 +15,9 @@ export const DEF_FACTOR = 0.5;
 export const RAND_MIN = 0.9;
 export const RAND_MAX = 1.1;
 export const COLLAPSE_MAX = 100;
+/** 規格補充 2 第 3 條：執行被預兆揭露的意圖時，對我方的傷害與崩解增加量乘上這個值（其他減免之後；round，最少 1）。 */
+export const FORESEEN_MULT = 0.5;
+const foresee = (v) => Math.max(1, Math.round(v * FORESEEN_MULT));
 /** 這些積木一次行動只作用一次（不分目標）；其他積木逐一作用在每個目標上。 */
 export const ONCE_PER_ACTION = Object.freeze(['collapse', 'summon']);
 
@@ -65,7 +68,7 @@ export function checkBattleEffect(e, path = 'effect') {
 
 // ---------- 公式（純數學，平衡測試共用） ----------
 
-/** 傷害：atk × power ÷ 100，未 ignoreDef 時 −def × 0.5；× mult、暴擊 ×1.5、防禦中 ×0.5；round，最少 1。 */
+/** 傷害：atk × power ÷ 100，未 ignoreDef 時 −def × 0.5；× mult、爆擊 ×1.5、防禦中 ×0.5；round，最少 1。 */
 export function damageAmount({ atk, power, def = 0, ignoreDef = false, mult = 1, crit = false, guard = false }) {
   let v = (atk * power) / 100;
   if (!ignoreDef) v -= def * DEF_FACTOR;
@@ -138,8 +141,9 @@ function defeat(draft, unit, data, log) {
 /**
  * 在 draft 上就地套用一個積木（engine 內部用）。sourceUid 是施放者；targetUid 是這個積木的目標
  * （collapse／summon 不看目標）。戰鬥已結束時不做任何事。
+ * opts.foreseen：這是被預兆揭露的敵人意圖 → 對我方的傷害、崩解增加量 × FORESEEN_MULT（事件帶 foreseen: true）。
  */
-export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log) {
+export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log, opts = {}) {
   const errs = checkBattleEffect(effect);
   if (errs.length) throw new Error(`效果積木不合法：${errs.join('；')}`);
   if (draft.outcome !== null) return;
@@ -167,10 +171,16 @@ export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log) {
         });
         if (crit) log.push({ type: 'crit', source: source.uid, target: target.uid });
       }
+      const foreseen = opts.foreseen === true && target.side === 'party';
+      if (foreseen) amount = foresee(amount);
       target.hp = Math.max(0, target.hp - amount);
-      log.push({ type: 'damage', source: source.uid, target: target.uid, amount, crit, hp: target.hp });
-      if (target.hp === 0) defeat(draft, target, data, log);
-      else if (target.side === 'enemy') checkPhases(draft, target, data, log);
+      log.push({ type: 'damage', source: source.uid, target: target.uid, amount, crit, hp: target.hp, ...(foreseen ? { foreseen: true } : {}) });
+      if (target.hp === 0) { defeat(draft, target, data, log); return; }
+      if (amount >= 1 && hasStatus(target, 'sleep')) { // 規格補充 2 第 2 條：受到傷害就醒
+        delete target.status.sleep;
+        log.push({ type: 'wake', uid: target.uid });
+      }
+      if (target.side === 'enemy') checkPhases(draft, target, data, log);
       return;
     }
     case 'heal': {
@@ -205,15 +215,25 @@ export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log) {
       log.push({ type: 'status', source: source.uid, target: target.uid, status: effect.status, turns: effect.turns });
       return;
     }
-    case 'reveal_intent':
+    case 'reveal_intent': {
       if (target.side !== 'enemy' || !target.intent) return;
       target.revealed = true;
-      log.push({ type: 'intent_revealed', source: source.uid, target: target.uid, skill: target.intent.skill, intent_target: target.intent.target });
+      // 畫面當下就要顯示「誰要對誰用什麼」，所以名稱一併帶上，不必之後再查。
+      const it = target.intent.target ? unitOf(draft, target.intent.target) : null;
+      const sk = Array.isArray(data?.skills) ? data.skills.find((x) => isObj(x) && x.id === target.intent.skill) : undefined;
+      log.push({
+        type: 'intent_revealed', source: source.uid, target: target.uid, target_name: target.name,
+        skill: target.intent.skill, skill_name: sk?.name ?? target.intent.skill,
+        intent_target: target.intent.target ?? null, intent_target_name: it ? it.name : null,
+      });
       return;
+    }
     case 'collapse': {
-      const amount = collapseAmount(effect.amount, heroWill(draft));
+      let amount = collapseAmount(effect.amount, heroWill(draft));
+      const foreseen = opts.foreseen === true && amount > 0;
+      if (foreseen) amount = foresee(amount);
       draft.collapse = Math.min(COLLAPSE_MAX, Math.max(0, draft.collapse + amount));
-      log.push({ type: 'collapse', source: source.uid, amount, total: draft.collapse });
+      log.push({ type: 'collapse', source: source.uid, amount, total: draft.collapse, ...(foreseen ? { foreseen: true } : {}) });
       if (draft.collapse >= COLLAPSE_MAX) {
         draft.outcome = 'lost_control';
         draft.actor = null;

@@ -197,6 +197,13 @@ describe('M2：loadBundle／collectStrings 支援 characters／skills／enemies�
     expect(rows.find((r) => r.unique_id === 'enemies.json#fog.name').text).toBe('霧行者');
     expect(() => assertUniqueIds(rows)).not.toThrow();
   });
+  it('字串匯出包含敵人的 summon_text（規格補充 2 第 7 條）', () => {
+    const rows = collectStrings({ enemies: [{ id: 'fog', name: '霧行者', summon_text: '從霧裡出現了！' }] });
+    expect(rows).toEqual([
+      { unique_id: 'enemies.json#fog.name', text: '霧行者' },
+      { unique_id: 'enemies.json#fog.summon_text', text: '從霧裡出現了！' },
+    ]);
+  });
   it('check-data 對含戰鬥資料的目錄照樣檢查（壞引用 → 結束碼 1）', () => {
     writeGood();
     battleFiles();

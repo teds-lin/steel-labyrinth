@@ -4,6 +4,8 @@ import { simulate, finishBattle } from '../../web/src/core/battle/engine.js';
 import { Sim, playPrologue, playChapter1, playChapter2 } from './sim.js';
 
 export const SEED_BASE = 20261016;
+/** 規格補充 2 後的 B9：多組種子基底（每組各自走一條劇情鏈），取平均並要求每組都在區間 ±5% 內。 */
+export const SEED_BASES = Object.freeze([0, 1, 2, 3, 4].map((i) => SEED_BASE + i * 100003));
 
 /** 「回合數」＝我方行動次數最多的那個人的行動次數（CTB 沒有整齊的回合，取玩家感受到的指令次數）。 */
 export const roundsOf = (battle) => Math.max(...battle.units.filter((u) => u.side === 'party').map((u) => u.acted));

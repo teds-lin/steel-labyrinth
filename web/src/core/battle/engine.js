@@ -15,6 +15,7 @@ import { applyEffectMut, hitChance, ONCE_PER_ACTION } from './effects.js';
 import { decideIntentMut, targetsFor, chooseTarget } from './ai.js';
 import { makePartyUnit, makeEnemyUnit } from './units.js';
 import { findIn, skillDef, enemyDef, unitOf, hasStatus, hpRatio } from './stat.js';
+import { deriveStats } from '../stats.js';
 
 export const BATTLE_VERSION = 1;
 export const FLEE_CHANCE = 50;
@@ -100,7 +101,7 @@ function endAction(draft, actor, data, log) {
 
 // ---------- 執行技能 ----------
 
-function performMut(draft, actor, skill, targetUid, data, log, extra = {}) {
+function performMut(draft, actor, skill, targetUid, data, log, extra = {}, opts = {}) {
   const targets = targetsFor(draft, actor, skill.target, targetUid);
   log.push({ type: 'action', uid: actor.uid, skill: skill.id, ...extra, target: SINGLE.includes(skill.target) ? (targetUid ?? null) : null, targets: targets.map((t) => t.uid) });
   if (extra.item) {
@@ -124,11 +125,14 @@ function performMut(draft, actor, skill, targetUid, data, log, extra = {}) {
     [hit, draft.rng] = chance(draft.rng, p);
     if (!hit) { missed.add(t.uid); log.push({ type: 'miss', source: actor.uid, target: t.uid }); }
   }
+  // 規格補充 2 第 4 條：所有目標都閃避時，這次行動的 collapse 不生效。
+  const allMissed = targets.length > 0 && targets.every((t) => missed.has(t.uid));
   for (const e of Array.isArray(skill.effects) ? skill.effects : []) {
     if (draft.outcome !== null) break;
-    if (e.on === 'self') applyEffectMut(draft, e, actor.uid, actor.uid, data, log);
-    else if (ONCE_PER_ACTION.includes(e.type)) applyEffectMut(draft, e, actor.uid, null, data, log);
-    else for (const t of targets) if (!missed.has(t.uid)) applyEffectMut(draft, e, actor.uid, t.uid, data, log);
+    if (e.on === 'self') applyEffectMut(draft, e, actor.uid, actor.uid, data, log, opts);
+    else if (ONCE_PER_ACTION.includes(e.type)) {
+      if (!(e.type === 'collapse' && allMissed)) applyEffectMut(draft, e, actor.uid, null, data, log, opts);
+    } else for (const t of targets) if (!missed.has(t.uid)) applyEffectMut(draft, e, actor.uid, t.uid, data, log, opts);
   }
 }
 
@@ -315,7 +319,8 @@ export function advanceEnemy(battle, data) {
   const skill = skillDef(data, actor.intent.skill);
   const log = [];
   const target = retarget(draft, actor, skill, actor.intent.target, log);
-  performMut(draft, actor, skill, target, data, log);
+  // 規格補充 2 第 3 條：被預兆揭露的意圖，執行時對我方的傷害與崩解減半。
+  performMut(draft, actor, skill, target, data, log, {}, { foreseen: actor.revealed === true });
   endAction(draft, actor, data, log);
   return { battle: draft, log };
 }
@@ -335,6 +340,24 @@ export function intentOf(battle, enemyUid, data) {
 export function turnOrder(battle, n = 6) {
   if (battle.outcome !== null) return [];
   return previewOrder(battle, n);
+}
+
+/** 重新挑戰時崩解的上限（規格補充 2 第 1 條）。 */
+export const RETRY_COLLAPSE_CAP = 60;
+
+/**
+ * 規格補充 2 第 1 條：「重新挑戰」的開戰狀態＝戰前狀態，但全隊生命、靈性回滿（寫成 deriveStats 的上限數值），
+ * 崩解改為 min(戰前崩解, 60)。其他（子彈、道具、旗標）照戰前。pending 清成 null。純函式，不修改輸入。
+ * 用法：GameOver「重新挑戰」→ startBattle(enc, prepareRetry(戰前自動存檔的 state, data), data, 新種子)。
+ */
+export function prepareRetry(preState, data) {
+  if (!isObj(preState)) throw new Error('prepareRetry：戰前狀態必須是物件');
+  const party = (Array.isArray(preState.party) ? preState.party : []).map((m) => {
+    const max = deriveStats(m.id, preState, data);
+    return { ...m, hp: max.hp, sp: max.sp };
+  });
+  const c = Number.isInteger(preState.collapse) ? preState.collapse : 0;
+  return { ...structuredClone(preState), party, collapse: Math.min(c, RETRY_COLLAPSE_CAP), pending: null };
 }
 
 function writeBack(battle, state, revive) {

@@ -23,6 +23,7 @@ export class MapScene extends Phaser.Scene {
     this.busy = false;
     this.flow = 0;
     this.queued = null;
+    this.triggerFrom = null;
     this.ended = false;
     const cam = this.cameras.main;
     cam.setViewport(MAP_VIEW.x, MAP_VIEW.y, MAP_VIEW.w, MAP_VIEW.h);
@@ -200,6 +201,7 @@ export class MapScene extends Phaser.Scene {
 
   tryStep(dir) {
     const map = this.mapDef;
+    const before = session.state.location;
     const r = step(map, session.state, dir, session.data);
     session.setState(r.state);
     this.player.setTexture(heroKey(dir));
@@ -216,18 +218,26 @@ export class MapScene extends Phaser.Scene {
       duration: MOVE_MS,
       onComplete: () => {
         this.moving = false;
-        this.handleEvent(r.event);
+        this.handleEvent(r.event, before);
       },
     });
   }
 
-  async handleEvent(ev) {
+  /** before：踩上這一格之前的位置（core 的 trigger 事件有 from 時以它為準）。 */
+  async handleEvent(ev, before = null) {
     if (!ev) return;
     if (ev.type === 'trigger' && (ev.dialogue || ev.battle)) {
-      await this.locked(async () => {
-        if (ev.dialogue) await this.runDialogue(ev.dialogue);
-        if (ev.battle && !this.ended) await this.doBattle(ev.battle);
-      });
+      // 觸發點引發的戰鬥：逃跑成功後回到踩上觸發點之前的那一格（規格補充 2 第 9 條）
+      const from = ev.from ?? before;
+      this.triggerFrom = from && before ? { map: before.map, x: from.x, y: from.y, dir: from.dir ?? before.dir } : null;
+      try {
+        await this.locked(async () => {
+          if (ev.dialogue) await this.runDialogue(ev.dialogue);
+          if (ev.battle && !this.ended) await this.doBattle(ev.battle);
+        });
+      } finally {
+        this.triggerFrom = null;
+      }
     } else if (ev.type === 'exit') {
       await this.locked(async () => {
         await this.fade(false);
@@ -330,6 +340,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   async doGoto(p) {
+    this.triggerFrom = null; // 換了地圖，觸發點的「前一格」就不適用了
     await this.fade(false, 300);
     let r;
     try {
@@ -359,11 +370,17 @@ export class MapScene extends Phaser.Scene {
     session.foldPlaytime();
     const snap = session.snapshot();
     // 戰前自動存檔：給「重新挑戰」用；儲存空間不能用時，GameOver 改用記憶體中的備份
-    const saved = session.storage.saveAuto(snap, { battle: encId });
-    if (!saved.ok && saved.code !== 'unavailable') console.warn('自動存檔失敗', saved.code, saved.reason);
+    const saved = session.saveBattleAuto(snap, encId);
     session.preBattle = { state: snap, encounter: encId };
+    const notice = saved.ok ? null : saved.notice;
+    const fleeBack = this.triggerFrom;
+    this.triggerFrom = null; // 只套用在觸發點引發的第一場戰鬥
     return new Promise((resolve) => {
       session.battleReturn = (res) => {
+        const loc = session.state?.location;
+        if (res?.outcome === 'fled' && fleeBack && loc?.map === fleeBack.map) {
+          session.setState({ ...session.state, location: { map: fleeBack.map, x: fleeBack.x, y: fleeBack.y, dir: fleeBack.dir } });
+        }
         this.scene.wake('UI');
         this.scene.wake();
         session.scene = 'Map';
@@ -376,7 +393,7 @@ export class MapScene extends Phaser.Scene {
         if (this.ended) return;
         this.scene.sleep('UI');
         this.scene.sleep();
-        this.scene.launch('Battle', { encounter: encId, seed: battleSeed() });
+        this.scene.launch('Battle', { encounter: encId, seed: battleSeed(), notice });
       };
       if (TEST_MODE) { go(); return; }
       this.cameras.main.flash(180, 240, 240, 255);

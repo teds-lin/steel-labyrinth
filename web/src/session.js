@@ -1,6 +1,6 @@
 // 遊戲階段（session）：畫面層唯一持有「目前 state」的地方。
 // core 的 state 不可變，這裡只負責「換成新的 state」並通知各場景重畫。
-import { createStorage, sanitizeLoadedState, SLOT_COUNT } from './core/save.js';
+import { createStorage, sanitizeLoadedState, SLOT_COUNT, AUTO_KEY } from './core/save.js';
 
 /** deserialize 的拒絕原因是否為「存檔版本比遊戲新」（core 的拒絕都帶 code）。 */
 const isNewerVersion = (r) => r?.code === 'newer';
@@ -60,6 +60,27 @@ export const session = {
     this.elapsed = 0;
     this.dialogueView = null;
     this.dialogueBusy = false;
+  },
+
+  /**
+   * 戰前自動存檔：成功回 { ok:true }。寫入失敗時把舊的自動存檔刪掉（避免之後被當成這場戰鬥的戰前狀態），
+   * 回 { ok:false, notice } 給畫面提示玩家。儲存空間本來就不能用時（unavailable）不提示，只靠記憶體備份。
+   */
+  saveBattleAuto(state, encounter) {
+    let r;
+    try {
+      r = this.storage.saveAuto(state, { battle: encounter });
+    } catch (e) {
+      r = { ok: false, code: 'storage_error', reason: String(e?.message ?? e) };
+    }
+    if (r?.ok || r?.code === 'unavailable') return { ok: true };
+    console.warn(`自動存檔失敗（${r?.code}）：${r?.reason}`);
+    try {
+      backend?.removeItem(AUTO_KEY);
+    } catch (e) {
+      console.warn(`無法清除舊的自動存檔：${e?.message ?? e}`);
+    }
+    return { ok: false, notice: '自動存檔失敗：重新整理頁面後將無法重新挑戰這場戰鬥' };
   },
 
   mapById(id) {

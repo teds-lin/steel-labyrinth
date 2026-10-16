@@ -50,7 +50,7 @@ export function battleData() {
         drops: [{ item: 'bandage', chance: 30 }] },
       { id: 'porter', name: '沉默的搬運工', sprite: 'porter', rank: 8,
         stats: { hp: 120, sp: 0, atk: 12, def: 6, spd: 8, will: 10, eva: 0 },
-        skills: ['attack', 'whisper_minor'],
+        skills: ['attack', 'whisper_minor', 'call_fog'],
         ai: [{ skill: 'attack', weight: 1 }],
         phases: [{ hp_lte_pct: 50, add_ai: [{ skill: 'call_fog', weight: 100, if: { allies_lte: 1 } }], dialogue: 'dlg_phase' }],
         drops: [{ item: 'pocket_watch', chance: 100 }] },

@@ -1289,10 +1289,13 @@
         {
           "id": "b1",
           "speaker": null,
-          "text": "牆角的木箱裡塞著工人的急救用品。你找到一卷還沒拆封的繃帶。",
+          "text": "牆角的木箱裡塞著工人的急救用品。你找到一卷還沒拆封的繃帶，底下還壓著一小盒子彈。",
           "effects": [
             {
               "give_item": "bandage"
+            },
+            {
+              "give_ammo": 3
             },
             {
               "set_flag": "got_shed_box"
@@ -1303,7 +1306,7 @@
         {
           "id": "b2",
           "speaker": null,
-          "text": "（取得繃帶。）",
+          "text": "（取得繃帶與子彈 3 發。）",
           "next": "END"
         },
         {

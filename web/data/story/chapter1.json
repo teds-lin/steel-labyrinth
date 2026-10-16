@@ -738,6 +738,21 @@
                 }
               },
               "next": "gun"
+            },
+            {
+              "if": {
+                "all": [
+                  {
+                    "item": "revolver"
+                  },
+                  {
+                    "not": {
+                      "ammo_gte": 1
+                    }
+                  }
+                ]
+              },
+              "next": "ammo"
             }
           ],
           "next": "s2"
@@ -760,6 +775,23 @@
           "id": "gun2",
           "speaker": null,
           "text": "（取得左輪手槍與子彈 3 發。）",
+          "next": "s2"
+        },
+        {
+          "id": "ammo",
+          "speaker": "馬洛",
+          "text": "槍是帶了，子彈呢？……空的？拿去，三發。對練用不完，記得還我。",
+          "effects": [
+            {
+              "give_ammo": 3
+            }
+          ],
+          "next": "ammo2"
+        },
+        {
+          "id": "ammo2",
+          "speaker": null,
+          "text": "（取得子彈 3 發。）",
           "next": "s2"
         },
         {

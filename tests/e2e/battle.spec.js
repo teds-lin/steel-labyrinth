@@ -291,7 +291,7 @@ test.describe('M2 戰鬥', () => {
     expect(go.items.map((i) => i.label)).toEqual(['重新挑戰', '回標題']);
     if (testInfo.project.name === 'mobile') await page.screenshot({ path: testInfo.outputPath('gameover-mobile.png') });
 
-    // 重新挑戰：生命、子彈、崩解與戰前相同
+    // 重新挑戰：戰前狀態經 prepareRetry——全隊生命、靈性回滿，崩解 min(戰前, 60)，子彈與戰前相同
     if (touch) {
       const r = go.items[0];
       await g.tap(r.x + r.w / 2, r.y + r.h / 2);
@@ -300,10 +300,13 @@ test.describe('M2 戰鬥', () => {
     }
     await g.waitScene('Battle');
     b = await g.battleWait();
-    expect(unitSnapshot(b)).toEqual(start1);
-    const st = await g.st();
-    expect(st.ammo).toBe(start1.ammo);
-    expect(st.collapse).toBe(start1.collapse);
+    expect(b.encounter).toBe('enc_boss');
+    for (const u of b.units.filter((x) => x.side === 'party')) {
+      expect(u.hp).toBe(u.maxHp);
+      expect(u.sp).toBe(u.maxSp);
+    }
+    expect(b.ammo).toBe(start1.ammo);
+    expect(b.collapse).toBe(Math.min(start1.collapse, 60));
 
     // 第二次：認真打
     const win = await g.fightBattle(basicPolicy, { maxTurns: 300 });
@@ -353,13 +356,11 @@ test.describe('M2 戰鬥', () => {
     await seedSaves(page, { 1: bossSave({ location: { map: 'warehouse', x: 7, y: 9, dir: 'down' }, collapse: 40 }) });
     const g = game(page, { touch });
     await page.goto(TEST_URL);
-    await g.waitScene('Title', 15_000);
-    // 目前資料沒有地圖上能用的道具：測試裡替鎮靜香加上 field_effects（只改頁面記憶體裡的資料）
-    await page.evaluate(async () => {
-      const { session } = await import('./src/session.js');
-      const it = session.data.items.find((x) => x.id === 'sedative_incense');
-      it.field_effects = [{ collapse: -15 }];
-    });
+    // 鎮靜香的 field_effects 用真實資料（不在頁面記憶體裡改資料）；期望的崩解從資料算
+    const incense0 = readData('items.json').find((x) => x.id === 'sedative_incense');
+    const drop = incense0.field_effects.reduce((a, e) => a + (e.collapse ?? 0), 0);
+    expect(drop).toBeLessThan(0);
+    const after = Math.max(0, 40 + drop);
     await loadSlot(g, 1);
     await g.waitScene('Map');
     await g.act('menu');
@@ -374,7 +375,7 @@ test.describe('M2 戰鬥', () => {
     await g.pickMenu('鎮靜香');
     await page.waitForFunction(() => /使用了/.test(window.__SL.menu()?.note ?? ''));
     let s = await g.st();
-    expect(s.collapse).toBe(25);
+    expect(s.collapse).toBe(after);
     expect(s.items.sedative_incense).toBeUndefined();
     m = await sl(page, () => window.__SL.menu());
     expect(m.items.some((i) => i.label.startsWith('鎮靜香'))).toBe(false);
@@ -392,7 +393,7 @@ test.describe('M2 戰鬥', () => {
     for (const id of ['hypnosis', 'requiem']) expect(m.note).toContain(skills.find((x) => x.id === id).name);
     expect(m.note).toContain('安眠師');
     s = await g.st();
-    expect(s.collapse).toBe(25);
+    expect(s.collapse).toBe(after);
   });
 
   test('資料裡出現的 sprite／tile／戰鬥背景都有專屬貼圖', async ({ page }) => {

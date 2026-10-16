@@ -16,7 +16,10 @@ export function collectStrings(bundle) {
     add('skills.json', `${s.id}.name`, s.name);
     add('skills.json', `${s.id}.desc`, s.desc);
   }
-  for (const e of arr(bundle.enemies)) add('enemies.json', `${e.id}.name`, e.name);
+  for (const e of arr(bundle.enemies)) {
+    add('enemies.json', `${e.id}.name`, e.name);
+    add('enemies.json', `${e.id}.summon_text`, e.summon_text); // 規格補充 2 第 7 條：召喚訊息
+  }
   for (const story of arr(bundle.story)) {
     const file = `story/${story.id}.json`;
     for (const dlg of arr(story.dialogues)) {

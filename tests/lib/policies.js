@@ -94,3 +94,15 @@ export function mashPolicy(battle, cmds) {
   const h = Math.imul((battle.seed >>> 0) ^ 0x9e3779b9, 31) + Math.imul(battle.seq + 1, 0x85ebca6b) + actor.uid.length;
   return { type: 'skill', skill: 'attack', target: targets[(h >>> 0) % targets.length] };
 }
+
+/**
+ * 催眠單一策略（規格補充 2 後的平衡斷言用）：艾妲只要靈性夠，就對生命上限最高的敵人（Boss）催眠——不管它睡著沒有；
+ * 其他時候（以及主角）一律普攻生命比例最低的敵人。不用道具、預兆、子彈。睡眠受傷就醒，所以這招不該比合理策略強。
+ */
+export function hypnosisPolicy(battle, cmds) {
+  const actor = unitOf(battle, cmds.actor);
+  const enemies = battle.units.filter((u) => u.side === 'enemy' && u.alive);
+  const boss = enemies.reduce((a, b) => (a === null || b.stats.hp > a.stats.hp ? b : a), null);
+  if (boss && cmds.skills.some((s) => s.id === 'hypnosis' && s.usable)) return { type: 'skill', skill: 'hypnosis', target: boss.uid };
+  return { type: 'skill', skill: 'attack', target: chooseTarget(battle, actor, 'enemy') };
+}

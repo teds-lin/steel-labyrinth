@@ -55,11 +55,32 @@ export const reasonText = (reason) => (reason ? REASON_TEXT[reason] ?? '現在�
 export function intentText(battle, uid, data, labels = unitLabels(battle)) {
   const it = intentOf(battle, uid, data);
   if (!it) return null;
-  const skill = findIn(data?.skills, it.skill);
-  const name = it.skill_name ?? skill?.name ?? it.skill;
+  return formatIntent({ uid, skill: it.skill, skill_name: it.skill_name, target: it.target }, data, labels);
+}
+
+/**
+ * 意圖 → 「下一步：重擊 → 雷恩」。intent：{ uid（敵人自己）, skill, skill_name?, target?, target_name? }。
+ * 目標名稱優先用畫面標籤（同名敵人有 A、B），沒有時用 target_name。
+ */
+export function formatIntent(intent, data, labels = {}) {
+  const skill = findIn(data?.skills, intent.skill);
+  const name = intent.skill_name ?? skill?.name ?? intent.skill ?? '';
   if (skill?.target === 'enemy_all') return `下一步：${name} → 全體`;
-  if (it.target && labels[it.target] && it.target !== uid) return `下一步：${name} → ${labels[it.target]}`;
+  const t = intent.target;
+  const tName = (t && labels[t]) || intent.target_name || null;
+  if (t && tName && t !== intent.uid) return `下一步：${name} → ${tName}`;
   return `下一步：${name}`;
+}
+
+/** intent_revealed 事件 → 意圖（給 formatIntent）。 */
+export const revealedIntent = (ev) => ({
+  uid: ev.target, skill: ev.skill, skill_name: ev.skill_name, target: ev.intent_target ?? null, target_name: ev.intent_target_name ?? null,
+});
+
+/** 召喚訊息：敵人的 summon_text（可含 {name}；不含時接在名字後面），沒有時「{name}出現了！」。 */
+export function summonText(name, def) {
+  const t = typeof def?.summon_text === 'string' && def.summon_text.trim() ? def.summon_text : '{name}出現了！';
+  return t.includes('{name}') ? t.split('{name}').join(name) : `${name}${t}`;
 }
 
 /** log 事件 → 訊息列的文字；不需要文字的事件回 null。 */
@@ -77,7 +98,7 @@ export function describe(ev, labels, data) {
     case 'confused': return `${n(ev.uid)}陷入混亂，搞錯了目標！`;
     case 'retarget': return `目標已經倒下，改向${n(ev.to)}出手`;
     case 'miss': return `${n(ev.target)}閃開了！`;
-    case 'crit': return '暴擊！';
+    case 'crit': return '爆擊！';
     case 'damage': return `${n(ev.target)}受到 ${ev.amount} 點傷害`;
     case 'heal': return `${n(ev.target)}回復了 ${ev.amount} 點生命`;
     case 'sp': return ev.amount >= 0 ? `${n(ev.target)}回復了 ${ev.amount} 點靈性` : `${n(ev.target)}失去了 ${-ev.amount} 點靈性`;
@@ -85,9 +106,9 @@ export function describe(ev, labels, data) {
     case 'debuff': return `${n(ev.target)}的${STAT_NAMES[ev.stat] ?? ev.stat}下降了`;
     case 'status': return ev.status === 'guard' ? `${n(ev.target)}擺好了防禦架勢` : `${n(ev.target)}陷入${STATUS_NAMES[ev.status] ?? ev.status}`;
     case 'status_resisted': return `${n(ev.target)}抵抗了${STATUS_NAMES[ev.status] ?? ev.status}`;
-    case 'intent_revealed': return `看穿了${n(ev.target)}的下一步！`;
+    case 'intent_revealed': return `看穿了${n(ev.target)}的${formatIntent(revealedIntent(ev), data, labels)}`;
     case 'collapse': return ev.amount >= 0 ? `崩解上升了 ${ev.amount}` : `崩解下降了 ${-ev.amount}`;
-    case 'summon': return `${n(ev.uid)}從霧裡出現了！`;
+    case 'summon': return summonText(n(ev.uid), findIn(data?.enemies, ev.enemy));
     case 'summon_failed': return '但是什麼也沒有出現';
     case 'phase': return null;
     case 'defeated': return `${n(ev.uid)}倒下了`;

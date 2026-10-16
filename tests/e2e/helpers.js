@@ -8,6 +8,12 @@ export const START_ECHO = MANIFEST.start?.echo_charges ?? 0;
 
 export { expect };
 
+/** 戰鬥第一層的技能（資料的 menu: "root"）；每次重讀，資料重建後不會用到舊值。 */
+export function rootSkillIds() {
+  const skills = JSON.parse(readFileSync(new URL('../../web/data/skills.json', import.meta.url), 'utf8'));
+  return new Set(skills.filter((x) => x.menu === 'root').map((x) => x.id));
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const TEST_URL = './?test=1';
 
@@ -397,7 +403,7 @@ export function game(page, { touch = false } = {}) {
 
   /**
    * 下一個指令：{ skill, target? }／{ item, target? }／{ flee:true }。
-   * 攻擊／開槍／防禦在根選單；其他技能在「技能」，道具在「道具」。
+   * menu: root 的技能（攻擊／開槍／防禦）在根選單；其他技能在「技能」，道具在「道具」。
    */
   async function battleCommand(cmd) {
     const b = await battleWait();
@@ -409,7 +415,7 @@ export function game(page, { touch = false } = {}) {
       const s = c.skills.find((x) => x.id === cmd.skill);
       if (!s) throw new Error(`行動者沒有技能 ${cmd.skill}`);
       needTarget = s.target === 'enemy' || s.target === 'ally';
-      if (['attack', 'shoot', 'guard'].includes(s.id)) {
+      if (rootSkillIds().has(s.id)) {
         await battleButton(s.name);
       } else {
         await battleButton('技能');

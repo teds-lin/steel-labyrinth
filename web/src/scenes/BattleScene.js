@@ -9,11 +9,11 @@ import { session, claimKey } from '../session.js';
 import { addText, Button, panel, fitText } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import {
-  startBattle, currentActor, isPlayerTurn, commands, act, advanceEnemy, turnOrder, finishBattle,
+  startBattle, currentActor, isPlayerTurn, commands, act, advanceEnemy, turnOrder, finishBattle, intentOf,
 } from '../core/battle/engine.js';
 import { battleSpriteKey, battleSpriteSize, bgKey, spriteKey, BG_H } from '../textures.js';
 import {
-  unitLabels, shortLabel, intentText, describe, costText, reasonText, rewardLines, STATUS_NAMES, STAT_NAMES, OUTCOME_TITLE,
+  unitLabels, shortLabel, formatIntent, revealedIntent, describe, costText, reasonText, rewardLines, STATUS_NAMES, STAT_NAMES, OUTCOME_TITLE,
 } from '../battle-view.js';
 
 // ---------- 版面（邏輯座標） ----------
@@ -25,8 +25,9 @@ const PARTY = { y0: 340, h: 34, x: 8, w: WIDTH - 16 };
 const RES_Y = 446;
 const CMD = { top: 462, colX: [94, 266], w: 164, h: 54, gapY: 8 };
 const LIST = { top: 330, w: WIDTH - 24, h: 50, gap: 6, perPage: 4 };
-/** 根選單的固定技能（其他技能放進「技能」子選單）。 */
-const ROOT_SKILLS = ['attack', 'shoot', 'guard'];
+/** 技能是否放在第一層指令（資料的 menu: "root"）；其他技能放進「技能」子選單。 */
+const isRootSkill = (id) => (session.data?.skills ?? []).find((s) => s?.id === id)?.menu === 'root';
+const HISTORY_MAX = 300;
 const DEPTH = { field: 1, units: 5, fx: 20, ui: 30, overlay: 40, cmd: 45 };
 const MS = (ms) => (TEST_MODE ? 0 : ms);
 
@@ -36,6 +37,7 @@ export class BattleScene extends Phaser.Scene {
   init(data) {
     this.encounterId = data?.encounter ?? null;
     this.seed = Number.isFinite(data?.seed) ? data.seed : 1;
+    this.notice = typeof data?.notice === 'string' && data.notice ? data.notice : null;
   }
 
   create() {
@@ -57,6 +59,12 @@ export class BattleScene extends Phaser.Scene {
     this.allLog = [];
     this.message = '';
     this.cursor = null;
+    // 被預兆揭露的意圖：uid → 意圖（施放當下由 intent_revealed 事件寫入，該敵人行動或倒下時移除）
+    this.revealed = new Map();
+    // E2E 用的歷程：畫面出現過的訊息、敵人頭上出現過的意圖、提示
+    this.msgHistory = [];
+    this.intentHistory = [];
+    this.notices = [];
     this.cameras.main.setBackgroundColor(COLORS.bg);
     const data = session.data;
     this.enc = (data.encounters ?? []).find((e) => e.id === this.encounterId) ?? null;
@@ -89,6 +97,7 @@ export class BattleScene extends Phaser.Scene {
     this.dispCollapse = this.b.collapse;
     this.buildUnits();
     this.refreshAll();
+    if (this.notice) this.toast(this.notice, 3200);
     this.cameras.main.fadeIn(MS(250), 0, 0, 0);
     this.run().catch((e) => {
       console.warn('戰鬥流程發生錯誤', e);
@@ -226,7 +235,9 @@ export class BattleScene extends Phaser.Scene {
       v.bar.fillStyle(0x0d1015, 0.9).fillRect(-bw / 2 - 1, by - 1, bw + 2, 8);
       v.bar.fillStyle(ratio > 0.5 ? 0xc0563a : 0xe0703a, 1).fillRect(-bw / 2, by, Math.round(bw * ratio), 6);
       v.status.setText(u.alive ? this.statusLine(u) : '');
-      const it = u.alive ? intentText(this.b, u.uid, session.data, this.labels) : null;
+      const rv = u.alive ? this.revealed.get(u.uid) : null;
+      const it = rv ? formatIntent(rv, session.data, this.labels) : null;
+      if (it && it !== v.intentStr) this.pushHistory(this.intentHistory, { uid: u.uid, text: it });
       v.intentStr = it;
       v.intent.setText(it ? `◆ ${it}` : '');
       v.img.setTint(actor ? 0xffe2b0 : 0xffffff);
@@ -293,9 +304,26 @@ export class BattleScene extends Phaser.Scene {
   setMessage(str) {
     this.message = str ?? '';
     this.msgText.setText(this.message);
+    if (this.message) this.pushHistory(this.msgHistory, this.message);
+  }
+
+  pushHistory(list, item) {
+    list.push(item);
+    if (list.length > HISTORY_MAX) list.splice(0, list.length - HISTORY_MAX);
+  }
+
+  /** 播完一段 log 後，以 core 的狀態校正揭露的意圖（例如睡著、被召喚取代等事件沒有逐一對應時）。 */
+  syncRevealed() {
+    for (const u of this.b.units) {
+      if (u.side !== 'enemy') continue;
+      const it = u.alive ? intentOf(this.b, u.uid, session.data) : null;
+      if (it) this.revealed.set(u.uid, { uid: u.uid, skill: it.skill, skill_name: it.skill_name, target: it.target ?? null, target_name: this.revealed.get(u.uid)?.target_name ?? null });
+      else this.revealed.delete(u.uid);
+    }
   }
 
   toast(msg, ms = 1400) {
+    this.pushHistory(this.notices, msg);
     this.toastText.setText(msg).setVisible(true).setAlpha(1);
     this.toastTimer?.remove();
     this.toastTimer = this.time.delayedCall(ms, () => this.toastText.setVisible(false));
@@ -344,6 +372,7 @@ export class BattleScene extends Phaser.Scene {
       await this.playEvent(ev);
     }
     this.syncDisplay();
+    this.syncRevealed();
     this.refreshAll();
   }
 
@@ -361,6 +390,8 @@ export class BattleScene extends Phaser.Scene {
         this.refreshAll();
         return;
       case 'action': {
+        // 揭露的意圖一直顯示到該敵人真的行動
+        if (this.revealed.delete(ev.uid)) this.refreshAll();
         this.setMessage(msg);
         const v = this.unitViews.get(ev.uid);
         if (v?.side === 'enemy' && !TEST_MODE) this.tweens.add({ targets: v.img, scale: v.img.scale * 1.12, duration: 110, yoyo: true });
@@ -380,7 +411,7 @@ export class BattleScene extends Phaser.Scene {
         await this.wait(380);
         return;
       case 'crit':
-        this.floatText(ev.target, '暴擊！', '#ffd870', 16);
+        this.floatText(ev.target, '爆擊！', '#ffd870', 16);
         await this.wait(160);
         return;
       case 'damage': {
@@ -433,6 +464,8 @@ export class BattleScene extends Phaser.Scene {
         this.refreshAll();
         return;
       case 'intent_revealed':
+        // 施放當下就顯示（訊息列＋敵人頭上），不依賴之後再查詢 core
+        this.revealed.set(ev.target, revealedIntent(ev));
         this.setMessage(msg);
         this.refreshAll();
         if (!TEST_MODE) {
@@ -481,6 +514,7 @@ export class BattleScene extends Phaser.Scene {
         }
         return;
       case 'defeated': {
+        this.revealed.delete(ev.uid);
         const d = this.disp[ev.uid];
         if (d) d.hp = 0;
         this.setMessage(msg);
@@ -650,18 +684,22 @@ export class BattleScene extends Phaser.Scene {
       const sub = s.usable ? (s.cost.ammo > 0 ? `子彈 ${this.b.ammo}` : null) : reasonText(s.reason);
       entries.push({ label: s.name, sub, enabled: s.usable, reason: reasonText(s.reason), onSelect: () => this.chooseSkill(s, 'root') });
     };
-    skillEntry('attack');
-    const others = c.skills.filter((s) => !ROOT_SKILLS.includes(s.id));
-    entries.push({
+    // 第一層：menu: root 的技能依序排進 2 欄格子，「技能」「道具」固定在第 2、4 格（例如 攻擊｜技能／開槍｜道具／防禦）
+    const roots = c.skills.filter((s) => isRootSkill(s.id)).map((s) => s.id);
+    const others = c.skills.filter((s) => !isRootSkill(s.id));
+    const skillsEntry = () => entries.push({
       label: '技能', sub: others.length ? null : '沒有技能', enabled: others.length > 0, reason: '沒有可以使用的技能',
       onSelect: () => this.showSkills(0),
     });
-    skillEntry('shoot');
-    entries.push({
+    const itemsEntry = () => entries.push({
       label: '道具', sub: c.items.length ? null : '沒有道具', enabled: c.items.length > 0, reason: '沒有可以使用的道具',
       onSelect: () => this.showItems(0),
     });
-    skillEntry('guard');
+    if (roots[0]) skillEntry(roots[0]);
+    skillsEntry();
+    if (roots[1]) skillEntry(roots[1]);
+    itemsEntry();
+    roots.slice(2).forEach(skillEntry);
     if (c.canFlee) entries.push({ label: '逃跑', onSelect: () => this.submit({ type: 'flee' }) });
     this.buildMenu('root', entries);
   }
@@ -685,7 +723,7 @@ export class BattleScene extends Phaser.Scene {
 
   showSkills(page) {
     const a = this.unitById(this.b.actor);
-    const list = this.cmds.skills.filter((s) => !ROOT_SKILLS.includes(s.id));
+    const list = this.cmds.skills.filter((s) => !isRootSkill(s.id));
     const entries = this.pageEntries(list, page, (s) => ({
       label: s.name,
       sub: s.usable ? `${costText(s.cost)}｜${s.desc}` : `${costText(s.cost)}｜${reasonText(s.reason)}`,
@@ -859,6 +897,9 @@ export class BattleScene extends Phaser.Scene {
       ammo: b.ammo,
       collapse: b.collapse,
       message: this.message,
+      messages: this.msgHistory,
+      intentShown: this.intentHistory,
+      notices: this.notices,
       units: b.units.map((u) => {
         const v = this.unitViews?.get(u.uid);
         const hit = v?.hit;

@@ -79,9 +79,10 @@ export class UIScene extends Phaser.Scene {
     g.fillRect(bx + 1, by + 1, Math.round((bw - 2) * col.ratio), 6);
     g.lineStyle(1, COLORS.line, 1);
     g.strokeRect(bx, by, bw, 8);
-    // 子彈與共鳴度（讀痕者才有共鳴度）
+    // 子彈與共鳴度（主角的譜系有 show_resonance 時才顯示共鳴度）
     const ammo = ammoHud(s.ammo, { hasGun: (s.items?.revolver ?? 0) > 0 });
-    const reso = s.lineage?.id === 'trace' ? resonanceHud(s.resonance) : null;
+    const lineageDef = (session.data?.lineages ?? []).find((l) => l?.id === s.lineage?.id);
+    const reso = lineageDef?.show_resonance === true ? resonanceHud(s.resonance) : null;
     this.hudInfo = { ammo: ammo.show ? ammo.text : null, resonance: reso ? reso.text : null };
     this.infoText.setText([this.hudInfo.ammo, this.hudInfo.resonance].filter(Boolean).join('　'));
     // 隊伍生命
