@@ -119,32 +119,71 @@ function checkStoryMeta(story, errors) {
 
 // ---------- fallback 可達性 ----------
 
+const fallbackItemOf = (lock) => {
+  const m = isObj(lock) && typeof lock.fallback === 'string' ? /^item:(.+)$/.exec(lock.fallback) : null;
+  return m ? m[1] : null;
+};
+
 /**
- * 不經過任何 lock 的 on_tag、也不花殘響就能取得的道具。
- * 入口：manifest.start.dialogue、地圖 on_enter、觸發點、出口 blocked、物件 look、lock 的 on_item／locked。
- * 物件 echo 與 lock.on_tag 不算；沒人引用的孤兒對話不算。
- * 在對話內沿 next／branches／choices 走；帶 use_echo 的節點或選項視為要花殘響，不往下走、不算它的效果。
+ * 在「免費世界」裡，條件有沒有可能成立（保守的靜態判斷）。
+ * 免費世界＝殘響 0、沒有任何譜系；flags／items 是目前已證明能免費取得的集合。
+ * - flag／item：在集合裡才可能成立。
+ * - echo_gte：值 ≤ 0 才成立（殘響 0）；lineage／rank_lte：一律不成立（沒有譜系）。
+ * - not_flag／not：一律視為可能成立（避免誤報；旗標可能根本沒設）。
+ * - any：任一子條件可能成立；all：每個子條件都可能成立。
+ * 寫法不合法的條件當作不成立（另有檢查會報錯）。
+ */
+function maybeTrue(cond, world) {
+  if (!isObj(cond)) return false;
+  const keys = Object.keys(cond);
+  if (keys.length !== 1) return false;
+  const [k] = keys;
+  const v = cond[k];
+  switch (k) {
+    case 'flag': return world.flags.has(v);
+    case 'item': return world.items.has(v);
+    case 'not_flag': return true;
+    case 'not': return true;
+    case 'echo_gte': return typeof v === 'number' && v <= 0;
+    case 'lineage': return false;
+    case 'rank_lte': return false;
+    case 'any': return Array.isArray(v) && v.some((c) => maybeTrue(c, world));
+    case 'all': return Array.isArray(v) && v.every((c) => maybeTrue(c, world));
+    default: return false;
+  }
+}
+const maybe = (cond, world) => cond === undefined || maybeTrue(cond, world);
+
+/**
+ * 不經過任何 lock 的 on_tag、也不花殘響就能取得的道具（免費世界的不動點）。
+ * 初始：殘響 0、沒有譜系、旗標與道具都是空集合、只有起始地圖。反覆擴張直到不再變化：
+ * - 入口：manifest.start.dialogue；可達地圖的 on_enter、if 可能成立的觸發點、有 requires 的出口 blocked、
+ *   可見（if 可能成立）物件的 look 與 lock.locked；lock 的 on_item 只有在「該 lock 的 fallback 道具已在集合中」時才算，
+ *   同時把 lock.flag 加入旗標集合（用道具開鎖會設這個旗標）。
+ * - 出口 requires 可能成立 → 目的地圖可達。
+ * - 對話內沿 next／branches／choices 走；branch／choice 的 if 要可能成立才走；帶 use_echo 的節點或選項不往下走、不算它的效果。
+ * - 收集 set_flag／give_item。
+ * 物件 echo 與 lock.on_tag 從不算入口；沒人引用的孤兒對話不算。
  */
 function freeGivenItems(bundle, ctx) {
-  const entries = new Set();
-  const add = (id) => { if (isStr(id)) entries.add(id); };
-  if (isObj(bundle.manifest) && isObj(bundle.manifest.start)) add(bundle.manifest.start.dialogue);
-  for (const map of ctx.maps.values()) {
-    add(map.on_enter);
-    for (const t of arr(map.triggers)) if (isObj(t)) add(t.dialogue);
-    for (const ex of arr(map.exits)) if (isObj(ex)) add(ex.blocked);
-    for (const obj of arr(map.objects)) {
-      if (!isObj(obj)) continue;
-      add(obj.look);
-      if (isObj(obj.lock)) { add(obj.lock.on_item); add(obj.lock.locked); }
-    }
-  }
+  const world = { flags: new Set(), items: new Set() };
+  const reachableMaps = new Set();
+  const start = isObj(bundle.manifest) && isObj(bundle.manifest.start) ? bundle.manifest.start : {};
+  if (ctx.maps.has(start.map)) reachableMaps.add(start.map);
   const costly = (effects) => arr(effects).some((e) => has(e, 'use_echo'));
-  const gives = (effects, out) => { for (const e of arr(effects)) if (has(e, 'give_item') && isStr(e.give_item)) out.add(e.give_item); };
-  const out = new Set();
-  for (const id of entries) {
-    const dlg = ctx.dialogues.get(id)?.dlg;
-    if (!dlg || !Array.isArray(dlg.nodes)) continue;
+  let changed = true;
+  const collect = (effects) => {
+    for (const e of arr(effects)) {
+      if (has(e, 'give_item') && isStr(e.give_item) && !world.items.has(e.give_item)) { world.items.add(e.give_item); changed = true; }
+      if (has(e, 'set_flag') && isStr(e.set_flag) && !world.flags.has(e.set_flag)) { world.flags.add(e.set_flag); changed = true; }
+    }
+  };
+  const addFlag = (f) => { if (isStr(f) && !world.flags.has(f)) { world.flags.add(f); changed = true; } };
+  const addMap = (id) => { if (ctx.maps.has(id) && !reachableMaps.has(id)) { reachableMaps.add(id); changed = true; } };
+
+  const walk = (id) => {
+    const dlg = isStr(id) ? ctx.dialogues.get(id)?.dlg : undefined;
+    if (!dlg || !Array.isArray(dlg.nodes)) return;
     const nodes = new Map(dlg.nodes.filter((n) => isObj(n) && isStr(n.id)).map((n) => [n.id, n]));
     const seen = new Set();
     const stack = [dlg.start];
@@ -154,17 +193,43 @@ function freeGivenItems(bundle, ctx) {
       seen.add(nid);
       const n = nodes.get(nid);
       if (costly(n.effects)) continue;
-      gives(n.effects, out);
+      collect(n.effects);
       if (isStr(n.next)) stack.push(n.next);
-      for (const b of arr(n.branches)) if (isObj(b) && isStr(b.next)) stack.push(b.next);
+      for (const b of arr(n.branches)) if (isObj(b) && isStr(b.next) && maybe(b.if, world)) stack.push(b.next);
       for (const c of arr(n.choices)) {
-        if (!isObj(c) || costly(c.effects)) continue;
-        gives(c.effects, out);
+        if (!isObj(c) || costly(c.effects) || !maybe(c.if, world)) continue;
+        collect(c.effects);
         if (isStr(c.next)) stack.push(c.next);
       }
     }
+  };
+
+  while (changed) {
+    changed = false;
+    walk(start.dialogue);
+    for (const mapId of [...reachableMaps]) {
+      const map = ctx.maps.get(mapId);
+      walk(map.on_enter);
+      for (const t of arr(map.triggers)) if (isObj(t) && maybe(t.if, world)) walk(t.dialogue);
+      for (const ex of arr(map.exits)) {
+        if (!isObj(ex)) continue;
+        if (ex.requires !== undefined) walk(ex.blocked);
+        if (maybe(ex.requires, world)) addMap(ex.to);
+      }
+      for (const obj of arr(map.objects)) {
+        if (!isObj(obj) || !maybe(obj.if, world)) continue;
+        walk(obj.look);
+        if (!isObj(obj.lock)) continue;
+        walk(obj.lock.locked);
+        const fb = fallbackItemOf(obj.lock);
+        if (fb !== null && world.items.has(fb)) {
+          addFlag(obj.lock.flag);
+          walk(obj.lock.on_item);
+        }
+      }
+    }
   }
-  return out;
+  return world.items;
 }
 
 // ---------- 共用：條件、效果、引用 ----------
@@ -357,7 +422,13 @@ function checkMap(map, ctx) {
   const triggers = indexById(map.triggers ?? [], W, '觸發點', errors);
   for (const trg of triggers.values()) {
     const where = `${W} 觸發點「${trg.id}」`;
-    checkPos(trg, `觸發點「${trg.id}」`);
+    if (checkPos(trg, `觸發點「${trg.id}」`)) {
+      for (const obj of objects.values()) {
+        if (obj.x === trg.x && obj.y === trg.y && obj.solid === true) {
+          errors.push(`${where}：與 solid 物件「${obj.id}」重疊，永遠踩不到`);
+        }
+      }
+    }
     refDialogue(trg.dialogue, where, 'dialogue', ctx, true);
     if (trg.if !== undefined) checkCond(trg.if, where, ctx);
   }
@@ -379,7 +450,7 @@ function checkLock(lock, where, ctx) {
     if (!m) errors.push(`${where}：lock.fallback「${q(lock.fallback)}」寫法不支援（目前只支援 item:<id>）`);
     else if (!ctx.items.has(m[1])) errors.push(`${where}：lock.fallback 引用不存在的道具「${m[1]}」`);
     else if (!ctx.freeItems.has(m[1])) {
-      errors.push(`${where}：lock.fallback 道具「${m[1]}」無法從免費入口取得（需要 start／on_enter／觸發點／look／on_item／locked 對話裡有 give_item；物件 echo、lock.on_tag、要花殘響的選項、孤兒對話都不算）`);
+      errors.push(`${where}：lock.fallback 道具「${m[1]}」無法從免費入口取得（不花殘響、沒有譜系時，必須能從 start／可達地圖的 on_enter／觸發點／look／locked、或已能用道具開的鎖的 on_item 對話裡拿到；條件不可能成立的選項／branch／物件／觸發點／出口、物件 echo、lock.on_tag、要花殘響的選項、孤兒對話、以及只靠這道鎖自己 on_item 的循環都不算）`);
     }
   }
   if (lock.on_tag !== undefined) {
@@ -396,6 +467,15 @@ function checkLock(lock, where, ctx) {
 }
 
 // ---------- 對話 ----------
+
+const usesEcho = (effects) => arr(effects).some((e) => has(e, 'use_echo'));
+/** 條件成立時是否保證殘響 ≥ 1：echo_gte ≥ 1 的葉，或 all 裡任一子條件保證。any／not 不算。 */
+function guaranteesEcho(cond) {
+  if (!isObj(cond)) return false;
+  if (has(cond, 'echo_gte')) return typeof cond.echo_gte === 'number' && cond.echo_gte >= 1;
+  if (has(cond, 'all') && Array.isArray(cond.all)) return cond.all.some(guaranteesEcho);
+  return false;
+}
 
 function checkDialogue(dlg, file, ctx) {
   const W = `${file} 對話「${dlg.id}」`;
@@ -457,6 +537,9 @@ function checkDialogue(dlg, file, ctx) {
           else out.push(target(cw, 'next', c.next));
           if (c.if !== undefined) checkCond(c.if, cw, ctx);
           checkEffects(c.effects, cw, ctx);
+          if (usesEcho(c.effects) && !guaranteesEcho(c.if)) {
+            errors.push(`${cw}：有 use_echo 的選項必須用 if 保證 echo_gte ≥ 1（例如 { "echo_gte": 1 }），否則殘響 0 時選了會出錯`);
+          }
         });
         if (n.choices.every((c) => isObj(c) && c.if !== undefined)) {
           errors.push(`${where}：至少要有一個沒有 if 的選項，確保永遠有路可走`);
@@ -466,6 +549,9 @@ function checkDialogue(dlg, file, ctx) {
     if (n.text !== undefined && n.text !== null && typeof n.text !== 'string') errors.push(`${where}：text 必須是字串`);
     if (n.speaker !== undefined && n.speaker !== null && typeof n.speaker !== 'string') errors.push(`${where}：speaker 必須是字串或 null`);
     checkEffects(n.effects, where, ctx);
+    if (usesEcho(n.effects)) {
+      errors.push(`${where}：use_echo 只能放在選項上（並以 if 的 echo_gte ≥ 1 守門），不可放在節點的 effects`);
+    }
     edges.set(n.id, out.filter((t) => t !== null));
   }
 

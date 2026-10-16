@@ -189,13 +189,13 @@ test.describe('序章', () => {
   });
 
   test('(e) 正常模式（不帶 test 參數）下 window.__SL 不存在', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForSelector('canvas');
     await page.waitForTimeout(2500); // 讓遊戲完成載入
     expect(await page.evaluate(() => typeof window.__SL)).toBe('undefined');
     expect(await page.evaluate(() => 'window' in globalThis && Object.getOwnPropertyNames(window).includes('__SL'))).toBe(false);
     // test=0 也不暴露
-    await page.goto('/?test=0');
+    await page.goto('./?test=0');
     await page.waitForSelector('canvas');
     await page.waitForTimeout(1000);
     expect(await page.evaluate(() => typeof window.__SL)).toBe('undefined');

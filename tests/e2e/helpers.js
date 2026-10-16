@@ -9,7 +9,7 @@ export const START_ECHO = MANIFEST.start?.echo_charges ?? 0;
 export { expect };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-export const TEST_URL = '/?test=1';
+export const TEST_URL = './?test=1';
 
 /** 每個測試都自動蒐集 console error 與 pageerror，測試結束時必須為空（忽略 GL Driver Message）。 */
 export const test = base.extend({

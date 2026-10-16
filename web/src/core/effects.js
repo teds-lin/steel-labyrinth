@@ -12,7 +12,7 @@ const RULES = Object.freeze(Object.assign(Object.create(null), {
   take_item: isNonEmptyStr,
   resonance: isNonEmptyStr,
   chapter_end: isNonEmptyStr,
-  collapse: (v) => typeof v === 'number' && Number.isFinite(v),
+  collapse: (v) => Number.isInteger(v), // 必須是整數：存檔的 collapse 只接受 0～100 整數，小數會產生讀不回來的存檔
   use_echo: (v) => v === true,
 }));
 /** 只讀自有屬性的計數（不吃原型鏈）；不是數字時當 0。 */

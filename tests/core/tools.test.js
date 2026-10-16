@@ -133,6 +133,11 @@ describe('build-data：剝除 _ 開頭的私有欄位', () => {
   it('單一字元的「_」不是私有欄位（地圖 legend 用它當地形字元）', () => {
     expect(stripPrivate({ legend: { _: 'threshold', '#': 'wall' } })).toEqual({ legend: { _: 'threshold', '#': 'wall' } });
   });
+  it('「_」只在地圖 legend 物件裡放行，其他層級的「_」照樣剝除（N4b）', () => {
+    const src = { _: '根層私有', id: 'attic', legend: { _: 'threshold', '#': 'wall', _x: 'floor' },
+      objects: [{ id: 'o', _: '物件私有' }], meta: { _: 1, legend: { _: 'x' } } };
+    expect(stripPrivate(src)).toEqual({ id: 'attic', legend: { _: 'threshold', '#': 'wall' }, objects: [{ id: 'o' }], meta: { legend: {} } });
+  });
   it('CLI：輸出的檔案裡沒有任何 _ 欄位', () => {
     const design = join(dir, 'design');
     const chap = join(design, 'story', 'prologue');

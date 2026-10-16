@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 8091; // 8080 被別的伺服器占用，E2E 專用 8091
-const BASE_URL = `http://localhost:${PORT}`;
+// 設定 E2E_BASE_URL 可以改測線上版本（例如 GitHub Pages），此時不啟動本機伺服器。
+const REMOTE = process.env.E2E_BASE_URL;
+const BASE_URL = REMOTE || `http://localhost:${PORT}/`;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -16,7 +18,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: {
+  webServer: REMOTE ? undefined : {
     command: 'node tools/serve.mjs',
     env: { PORT: String(PORT) },
     url: BASE_URL,

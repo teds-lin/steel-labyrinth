@@ -348,7 +348,12 @@ describe('fallback 可達性（R6）：鑰匙必須能從免費入口拿到', ()
       (b) => { attic(b).on_enter = 'dlg_give'; },
       (b) => { attic(b).triggers[0].dialogue = 'dlg_give'; },
       (b) => { attic(b).objects[1].lock.locked = 'dlg_give'; },
-      (b) => { attic(b).objects[1].lock.on_item = 'dlg_give'; },
+      // on_item：只有「該 lock 的 fallback 道具本身拿得到」時才算入口——這裡用另一個鎖（箱子），它的鑰匙（pin）由抽屜給
+      (b) => {
+        b.items.push({ id: 'pin', name: '髮夾', desc: '細鐵絲' });
+        dlgOf(b, 'dlg_drawer').nodes[0].effects = [{ give_item: 'pin' }];
+        attic(b).objects.push({ id: 'obj_box', x: 3, y: 2, solid: false, lock: { flag: 'box_open', fallback: 'item:pin', on_item: 'dlg_give' } });
+      },
     ];
     for (const [i, hook] of entries.entries()) {
       const b = withDrawer();
@@ -365,5 +370,207 @@ describe('fallback 可達性（R6）：鑰匙必須能從免費入口拿到', ()
       { text: '看穿', if: { echo_gte: 1 }, effects: [{ use_echo: true }, { give_item: 'attic_key' }], next: 'END' },
     ] };
     expectError(b, /obj_door.*attic_key.*取得/);
+  });
+});
+
+// ───────────── 第二輪審查 N1：免費世界不動點 ─────────────
+describe('fallback 可達性（N1）：免費世界的不動點分析', () => {
+  // 同 R6 的 withDrawer：抽屜（look）給鑰匙
+  const withDrawer = () => {
+    const b = fixture();
+    dlgOf(b, 'dlg_vial_look').nodes[1].effects = [{ set_flag: 'got_key' }];
+    attic(b).objects.push({ id: 'obj_drawer', x: 1, y: 2, solid: true, look: 'dlg_drawer' });
+    attic(b).triggers = attic(b).triggers.filter((t) => t.id !== 'trg_window');
+    b.story[0].dialogues.push({ id: 'dlg_drawer', start: 'n1', nodes: [
+      { id: 'n1', text: '抽屜卡住了。', choices: [{ text: '算了', next: 'END' }, { text: '撬開', next: 'pry' }] },
+      { id: 'pry', text: '抽屜裡有鑰匙。', effects: [{ give_item: 'attic_key' }], next: 'END' },
+    ] });
+    return b;
+  };
+  const pry = (b) => dlgOf(b, 'dlg_drawer').nodes[0].choices[1];
+  const KEY_ERR = /obj_door.*attic_key.*取得/;
+  // 只會在殘響相關對話裡設的旗標 echo_only：四種來源
+  const echoOnlyFlagSources = {
+    '物件 echo 對話': (b) => { dlgOf(b, 'dlg_vial_echo').nodes[1].effects = [{ collapse: 5 }, { set_flag: 'echo_only' }]; },
+    'lock.on_tag 對話': (b) => { dlgOf(b, 'dlg_door_echo').nodes[0].effects = [{ set_flag: 'echo_only' }]; },
+    '帶 use_echo 的選項': (b) => {
+      dlgOf(b, 'dlg_door_look').nodes[0] = { id: 'n1', text: '門。', choices: [
+        { text: '算了', next: 'END' },
+        { text: '看穿', if: { echo_gte: 1 }, effects: [{ use_echo: true }, { set_flag: 'echo_only' }], next: 'END' },
+      ] };
+    },
+    'use_echo 選項之後的節點': (b) => {
+      dlgOf(b, 'dlg_door_look').nodes = [
+        { id: 'n1', text: '門。', choices: [{ text: '算了', next: 'END' }, { text: '看穿', if: { echo_gte: 1 }, effects: [{ use_echo: true }], next: 'n2' }] },
+        { id: 'n2', text: '你看見了。', effects: [{ set_flag: 'echo_only' }], next: 'END' },
+      ];
+    },
+  };
+
+  it('基準：撬抽屜的選項沒有條件 → 合法', () => {
+    expect(validateBundle(withDrawer())).toEqual([]);
+  });
+  it('反例 1：撬抽屜的選項加 if:{echo_gte:1}（不花殘響也一樣）→ 報錯', () => {
+    const b = withDrawer(); pry(b).if = { echo_gte: 1 };
+    expectError(b, KEY_ERR);
+  });
+  it('反例 2：選項 if:{flag:X}，X 只在殘響相關對話裡設 → 報錯', () => {
+    for (const [name, setup] of Object.entries(echoOnlyFlagSources)) {
+      const b = withDrawer(); setup(b); pry(b).if = { flag: 'echo_only' };
+      const errs = validateBundle(b);
+      expect(errs.some((e) => KEY_ERR.test(e)), `${name}：\n${errs.join('\n')}`).toBe(true);
+    }
+  });
+  it('反例 3：鑰匙只在某個 branch 裡，branch 的 if 依賴殘響才設的旗標 → 報錯', () => {
+    for (const [name, setup] of Object.entries(echoOnlyFlagSources)) {
+      const b = withDrawer(); setup(b);
+      dlgOf(b, 'dlg_drawer').nodes = [
+        { id: 'n1', branches: [{ if: { flag: 'echo_only' }, next: 'pry' }], next: 'no' },
+        { id: 'no', text: '打不開。', next: 'END' },
+        { id: 'pry', text: '抽屜裡有鑰匙。', effects: [{ give_item: 'attic_key' }], next: 'END' },
+      ];
+      const errs = validateBundle(b);
+      expect(errs.some((e) => KEY_ERR.test(e)), `${name}：\n${errs.join('\n')}`).toBe(true);
+    }
+  });
+  it('反例 4：抽屜物件本身的 if 依賴殘響才設的旗標 → 報錯', () => {
+    for (const [name, setup] of Object.entries(echoOnlyFlagSources)) {
+      const b = withDrawer(); setup(b);
+      attic(b).objects.find((o) => o.id === 'obj_drawer').if = { flag: 'echo_only' };
+      const errs = validateBundle(b);
+      expect(errs.some((e) => KEY_ERR.test(e)), `${name}：\n${errs.join('\n')}`).toBe(true);
+    }
+  });
+  it('反例 5：鑰匙只由該門自己的 on_item 給（循環）→ 報錯', () => {
+    const b = withDrawer();
+    delete dlgOf(b, 'dlg_drawer').nodes[1].effects;
+    dlgOf(b, 'dlg_door_key').nodes[0].effects = [{ give_item: 'attic_key' }];
+    expectError(b, KEY_ERR);
+  });
+  it('反例 5b：兩道鎖互相給對方的鑰匙（循環）→ 兩個都報錯', () => {
+    const b = withDrawer();
+    delete dlgOf(b, 'dlg_drawer').nodes[1].effects;
+    b.items.push({ id: 'pin', name: '髮夾', desc: '細鐵絲' });
+    b.story[0].dialogues.push({ id: 'dlg_box_open', start: 'n1', nodes: [{ id: 'n1', text: '箱子開了。', effects: [{ give_item: 'attic_key' }], next: 'END' }] });
+    attic(b).objects.push({ id: 'obj_box', x: 3, y: 2, solid: false, lock: { flag: 'box_open', fallback: 'item:pin', on_item: 'dlg_box_open' } });
+    dlgOf(b, 'dlg_door_key').nodes[0].effects = [{ give_item: 'pin' }];
+    expectError(b, KEY_ERR);
+    expectError(b, /obj_box.*pin.*取得/);
+  });
+  it('觸發點的 if 依賴殘響才設的旗標 → 不算', () => {
+    const b = withDrawer();
+    delete dlgOf(b, 'dlg_drawer').nodes[1].effects;
+    echoOnlyFlagSources['物件 echo 對話'](b);
+    b.story[0].dialogues.push({ id: 'dlg_give', start: 'n1', nodes: [{ id: 'n1', text: '給你。', effects: [{ give_item: 'attic_key' }], next: 'END' }] });
+    attic(b).triggers.push({ id: 'trg_give', x: 2, y: 2, dialogue: 'dlg_give', if: { flag: 'echo_only' } });
+    expectError(b, KEY_ERR);
+  });
+  it('只能經過有條件的出口才到得了的地圖：出口條件不可能成立 → 該地圖的 on_enter 不算', () => {
+    const b = withDrawer();
+    delete dlgOf(b, 'dlg_drawer').nodes[1].effects;
+    b.story[0].dialogues.push({ id: 'dlg_stairs', start: 'n1', nodes: [{ id: 'n1', text: '樓梯間。', effects: [{ give_item: 'attic_key' }], next: 'END' }] });
+    b.maps[1].on_enter = 'dlg_stairs';
+    // 出口需要 door_open，而 door_open 只有開門（需要鑰匙）或殘響（on_tag）才會設 → 循環
+    expectError(b, KEY_ERR);
+  });
+
+  // ── 不可誤報：免費路線確實存在的寫法 ──
+  it('旗標由免費對話設下後才出現的選項／branch／物件 → 合法', () => {
+    const setups = [
+      (b) => { pry(b).if = { flag: 'got_key' }; }, // got_key 由瓶子 look 設（免費）
+      (b) => {
+        dlgOf(b, 'dlg_drawer').nodes[0] = { id: 'n1', text: '抽屜。', branches: [{ if: { flag: 'got_key' }, next: 'pry' }], next: 'END' };
+      },
+      (b) => { attic(b).objects.find((o) => o.id === 'obj_drawer').if = { flag: 'got_key' }; },
+    ];
+    for (const [i, setup] of setups.entries()) {
+      const b = withDrawer(); setup(b);
+      expect(validateBundle(b), `寫法 ${i}`).toEqual([]);
+    }
+  });
+  it('not_flag／not 一律當作可能成立；echo_gte ≤ 0 成立；any 只要一個子條件可能成立', () => {
+    for (const cond of [{ not_flag: 'got_key' }, { not: { flag: 'x' } }, { not: { echo_gte: 1 } }, { echo_gte: 0 },
+      { any: [{ echo_gte: 1 }, { flag: 'got_key' }] }, { all: [{ flag: 'got_key' }, { not_flag: 'y' }] }, { item: 'attic_key' }]) {
+      const b = withDrawer(); pry(b).if = cond;
+      // item:attic_key 的情況：鑰匙要先有才撬得到 → 不可能（下面另測）
+      if (cond.item) { expectError(b, KEY_ERR); continue; }
+      expect(validateBundle(b), JSON.stringify(cond)).toEqual([]);
+    }
+  });
+  it('lineage／rank_lte 一律不成立；all 只要一個子條件不可能就不成立', () => {
+    for (const cond of [{ lineage: 'trace' }, { rank_lte: 9 }, { all: [{ flag: 'got_key' }, { echo_gte: 1 }] }, { any: [{ lineage: 'trace' }, { echo_gte: 2 }] }]) {
+      const b = withDrawer(); pry(b).if = cond;
+      expectError(b, KEY_ERR);
+    }
+  });
+  it('道具條件：先免費拿到的道具可以當條件', () => {
+    const b = withDrawer();
+    b.items.push({ id: 'pin', name: '髮夾', desc: '細鐵絲' });
+    dlgOf(b, 'dlg_opening').nodes[0].effects = [{ give_item: 'pin' }];
+    pry(b).if = { item: 'pin' };
+    expect(validateBundle(b)).toEqual([]);
+  });
+  it('鎖鏈：用免費鑰匙開的鎖，其 on_item 給下一道鎖的鑰匙 → 合法；開鎖設下的 lock.flag 也算免費旗標', () => {
+    const b = withDrawer();
+    b.items.push({ id: 'pin', name: '髮夾', desc: '細鐵絲' });
+    dlgOf(b, 'dlg_drawer').nodes[1].effects = [{ give_item: 'pin' }];
+    b.story[0].dialogues.push({ id: 'dlg_box_open', start: 'n1', nodes: [{ id: 'n1', text: '箱子開了。', effects: [{ give_item: 'attic_key' }], next: 'END' }] });
+    attic(b).objects.push({ id: 'obj_box', x: 3, y: 2, solid: false, lock: { flag: 'box_open', fallback: 'item:pin', on_item: 'dlg_box_open' } });
+    expect(validateBundle(b)).toEqual([]);
+    // 鑰匙改成「箱子開了之後」再調查抽屜才出現（依 lock.flag）
+    const b2 = withDrawer();
+    b2.items.push({ id: 'pin', name: '髮夾', desc: '細鐵絲' });
+    dlgOf(b2, 'dlg_opening').nodes[0].effects = [{ give_item: 'pin' }];
+    attic(b2).objects.push({ id: 'obj_box', x: 3, y: 2, solid: false, lock: { flag: 'box_open', fallback: 'item:pin' } });
+    pry(b2).if = { flag: 'box_open' };
+    expect(validateBundle(b2)).toEqual([]);
+  });
+  it('出口條件可能成立時，目的地圖的 on_enter 算免費入口', () => {
+    const b = withDrawer();
+    b.items.push({ id: 'pin', name: '髮夾', desc: '細鐵絲' });
+    b.maps[1].tiles = ['#.#', '#..'];
+    b.story[0].dialogues.push({ id: 'dlg_stairs', start: 'n1', nodes: [{ id: 'n1', text: '樓梯間。', effects: [{ give_item: 'pin' }], next: 'END' }] });
+    b.maps[1].on_enter = 'dlg_stairs';
+    b.maps[1].objects.push({ id: 'obj_box', x: 2, y: 1, solid: true, lock: { flag: 'box_open', fallback: 'item:pin' } });
+    expect(validateBundle(b)).toEqual([]); // 鑰匙開門 → door_open → 出口 → 樓梯間 on_enter 給 pin
+    attic(b).exits[0].requires = { flag: 'echo_only' };
+    expectError(b, /obj_box.*pin.*取得/);
+  });
+});
+
+// ───────────── 第二輪審查 N3：use_echo 必須有 echo_gte 守門 ─────────────
+describe('use_echo 守門（N3）', () => {
+  const withChoice = (choice) => {
+    const b = fixture();
+    dlgOf(b, 'dlg_vial_echo').nodes[0].choices[1] = { text: '看穿', next: 'n2', ...choice };
+    return b;
+  };
+  it('選項有 use_echo 且 if 保證 echo_gte ≥ 1 → 合法（含 all 包住）', () => {
+    expect(validateBundle(withChoice({ if: { echo_gte: 1 }, effects: [{ use_echo: true }] }))).toEqual([]);
+    expect(validateBundle(withChoice({ if: { all: [{ not_flag: 'x' }, { echo_gte: 1 }] }, effects: [{ use_echo: true }] }))).toEqual([]);
+  });
+  it('選項有 use_echo 卻沒有 echo_gte 守門 → 報錯', () => {
+    for (const cond of [undefined, { flag: 'x' }, { echo_gte: 0 }, { any: [{ echo_gte: 1 }, { flag: 'x' }] }, { not: { echo_gte: 1 } }]) {
+      const choice = { effects: [{ use_echo: true }] };
+      if (cond) choice.if = cond;
+      expectError(withChoice(choice), /dlg_vial_echo.*n1.*choices\[1\].*use_echo.*echo_gte/);
+    }
+  });
+  it('節點層的 use_echo 一律報錯（只能放在有 echo_gte 守門的選項上）', () => {
+    const b = fixture();
+    dlgOf(b, 'dlg_vial_echo').nodes[1].effects = [{ use_echo: true }];
+    expectError(b, /dlg_vial_echo.*節點 n2.*use_echo.*選項/);
+  });
+});
+
+// ───────────── 第二輪審查 N4a：觸發點不可放在 solid 物件上 ─────────────
+describe('觸發點與 solid 物件（N4a）', () => {
+  it('觸發點與 solid 物件重疊 → 報錯；非 solid 物件可以', () => {
+    const b = fixture();
+    attic(b).objects.push({ id: 'obj_crate', x: 1, y: 2, solid: true });
+    expectError(b, /trg_window.*obj_crate.*重疊/);
+    const b2 = fixture();
+    attic(b2).objects.push({ id: 'obj_rug', x: 1, y: 2, solid: false });
+    expect(validateBundle(b2)).toEqual([]);
   });
 });

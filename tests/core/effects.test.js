@@ -71,6 +71,11 @@ describe('checkEffect', () => {
     expect(checkEffect({ use_echo: true })).toEqual([]);
     expect(checkEffect({ bogus: 1 }).length).toBe(1);
   });
+  it('collapse 必須是整數（N2：2.5 會產生讀不回來的存檔）', () => {
+    for (const v of [2.5, -0.1, 1e-9]) expect(checkEffect({ collapse: v }).length, String(v)).toBe(1);
+    for (const v of [5, -5, 0]) expect(checkEffect({ collapse: v }), String(v)).toEqual([]);
+    expect(() => applyEffect({ collapse: 2.5 }, base())).toThrow();
+  });
 });
 
 describe('原型鍵不可繞過檢查', () => {

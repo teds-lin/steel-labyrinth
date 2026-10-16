@@ -10,10 +10,10 @@ const dlg = (nodes, start = nodes[0].id) => ({ id: 'dlg_t', start, nodes });
 describe('對話執行器：基本流程', () => {
   it('依 next 前進、代入名字、到 END 結束', () => {
     const r = startDialogue(dlg([
-      { id: 'n1', speaker: null, text: '桌上有一只空藥瓶。', next: 'n2' },
+      { id: 'n1', speaker: null, text: '桌上有一個空藥瓶。', next: 'n2' },
       { id: 'n2', speaker: '{name}', text: '{name}喝的？', next: 'END' },
     ]), st());
-    expect(r.current()).toEqual({ id: 'n1', speaker: null, text: '桌上有一只空藥瓶。', choices: null });
+    expect(r.current()).toEqual({ id: 'n1', speaker: null, text: '桌上有一個空藥瓶。', choices: null });
     expect(r.done).toBe(false);
     r.advance();
     expect(r.current()).toMatchObject({ speaker: '艾琳', text: '艾琳喝的？' });
