@@ -32,6 +32,11 @@ function deepFreeze(o) {
 
 // E2E 掛勾：只在 ?test=1 時暴露，而且只給唯讀的複本
 if (TEST_MODE) {
+  const ro = (v) => (v === undefined || v === null ? null : deepFreeze(structuredClone(v)));
+  const activeScene = (key) => {
+    const sc = game.scene.getScene(key);
+    return sc && (sc.sys.isActive() || sc.sys.isPaused()) ? sc : null;
+  };
   const api = Object.freeze({
     getState: () => {
       const s = session.snapshot();
@@ -39,6 +44,31 @@ if (TEST_MODE) {
     },
     currentScene: () => session.scene,
     dialogue: () => (session.dialogueView ? deepFreeze(structuredClone(session.dialogueView)) : null),
+    /** 標題選單各項是否可用、是否顯示橫向提示。不在標題畫面時為 null。 */
+    title: () => ro(activeScene('Title')?.debugInfo()),
+    /** 選單目前頁面與各項（含邏輯座標）。選單沒開時為 null。 */
+    menu: () => ro(activeScene('Menu')?.debugInfo()),
+    /** HUD 顯示的文字。不在地圖時為 null。 */
+    hud: () => ro(activeScene('UI')?.debugInfo()),
+    /** 對話選項按鈕的位置（邏輯座標 360×640）。 */
+    choiceRects: () => ro(activeScene('UI')?.dialogue?.choiceRects() ?? []),
+    /** 名牌排版：給定名字時名牌實際顯示的文字與寬度。 */
+    nameplate: (name) => ro(activeScene('UI')?.dialogue?.nameplateLayout(String(name ?? '')) ?? null),
+    /** 除錯資訊：場景順序、監聽器數量、光暈數量、章節結束畫面文字。 */
+    debug: () => ro({
+      // 繪製順序（後面的畫在上面），包含暫停中但仍顯示的場景
+      sceneOrder: game.scene.scenes.filter((s) => s.sys.isActive() || s.sys.isPaused()).map((s) => s.sys.settings.key),
+      listeners: Object.fromEntries(['Map', 'Title', 'ChapterEnd', 'Menu', 'UI'].map((k) => {
+        const sc = game.scene.getScene(k);
+        return [k, {
+          resume: sc?.events?.listenerCount('resume') ?? 0,
+          keydown: sc?.input?.keyboard?.listenerCount('keydown') ?? 0,
+        }];
+      })),
+      stateListeners: session.events.listenerCount('state'),
+      glows: activeScene('Map')?.debugInfo().glows ?? null,
+      chapterEnd: activeScene('ChapterEnd')?.debugInfo() ?? null,
+    }),
   });
   Object.defineProperty(window, '__SL', { value: api, writable: false, configurable: false, enumerable: false });
 }

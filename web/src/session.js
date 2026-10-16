@@ -1,6 +1,9 @@
 // 遊戲階段（session）：畫面層唯一持有「目前 state」的地方。
 // core 的 state 不可變，這裡只負責「換成新的 state」並通知各場景重畫。
-import { createStorage } from './core/save.js';
+import { createStorage, sanitizeLoadedState, SLOT_COUNT } from './core/save.js';
+
+/** deserialize 的拒絕原因是否為「存檔版本比遊戲新」。 */
+const isNewerVersion = (r) => r?.code === 'newer' || /版本.*較新|newer/i.test(String(r?.reason ?? ''));
 
 function getLocalStorage() {
   try {
@@ -67,6 +70,52 @@ export const session = {
       if (d) return d;
     }
     return null;
+  },
+
+  /**
+   * 讀檔流程：storage.load（deserialize）→ sanitizeLoadedState。
+   * 回傳 { ok:true, state, warnings } 或 { ok:false, reason, kind:'empty'|'newer'|'broken' }。
+   */
+  loadSlot(slot) {
+    let r;
+    try {
+      r = this.storage.load(slot);
+    } catch (e) {
+      return { ok: false, kind: 'broken', reason: String(e?.message ?? e) };
+    }
+    if (!r.ok) {
+      if (r.reason === 'empty') return { ok: false, kind: 'empty', reason: '這個存檔槽是空的' };
+      return { ok: false, kind: isNewerVersion(r) ? 'newer' : 'broken', reason: String(r.reason ?? '存檔損壞') };
+    }
+    let s;
+    try {
+      s = sanitizeLoadedState(r.state, this.data);
+    } catch (e) {
+      return { ok: false, kind: 'broken', reason: `存檔內容有誤：${e?.message ?? e}` };
+    }
+    if (!s?.ok) return { ok: false, kind: 'broken', reason: String(s?.reason ?? '存檔內容有誤') };
+    return { ok: true, state: s.state, warnings: Array.isArray(s.warnings) ? s.warnings : [] };
+  },
+
+  /** 每個存檔槽的摘要（標題與讀取選單用）。kind：'ok'|'empty'|'newer'|'broken'。 */
+  slotSummaries() {
+    const out = [];
+    for (let slot = 1; slot <= SLOT_COUNT; slot++) {
+      const r = this.loadSlot(slot);
+      if (r.ok) {
+        const st = r.state;
+        out.push({ slot, kind: 'ok', name: st.player.name, map: st.location.map, playtime_s: st.playtime_s });
+      } else {
+        out.push({ slot, kind: r.kind, reason: r.reason });
+      }
+    }
+    return out;
+  },
+
+  /** 有沒有任何非空的存檔槽（包含損壞的）：標題「繼續」用。 */
+  hasAnySave() {
+    if (!this.storageAvailable) return false;
+    return this.slotSummaries().some((s) => s.kind !== 'empty');
   },
 
   mapName(id) {

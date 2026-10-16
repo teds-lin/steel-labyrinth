@@ -1,12 +1,14 @@
 // 從私有企劃 repo 把「已開放」的章節資料複製到 web/data/（防劇透：沒列在 release.json 的章節一律不會出現在公開 repo）。
-// 用法：npm run build:data   （企劃 repo 路徑可用環境變數 DESIGN_DIR 覆寫）
+// 用法：npm run build:data   （企劃 repo 路徑可用環境變數 DESIGN_DIR 覆寫；輸出目錄可用 OUT_DIR 覆寫，測試用）
+// 輸出前會遞迴剝除所有 `_` 開頭的私有欄位（見 lib/strip.mjs）。
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { stripPrivate } from './lib/strip.mjs';
 
 const repo = resolve(new URL('..', import.meta.url).pathname);
 const designDir = resolve(process.env.DESIGN_DIR || join(repo, '..', 'steel-labyrinth-design'));
 const release = JSON.parse(readFileSync(join(repo, 'tools', 'release.json'), 'utf8'));
-const out = join(repo, 'web', 'data');
+const out = resolve(process.env.OUT_DIR || join(repo, 'web', 'data'));
 
 const fail = (msg) => { console.error(`✗ ${msg}`); process.exit(1); };
 const readJson = (p) => {
@@ -50,7 +52,7 @@ if (!manifest) fail('沒有任何章節提供 manifest.json');
 // 寫出前清空 web/data/，確保舊的（可能是未開放的）檔案不會殘留。
 rmSync(out, { recursive: true, force: true });
 for (const kind of ['maps', 'story', 'lineages']) mkdirSync(join(out, kind), { recursive: true });
-const write = (p, data) => writeFileSync(join(out, p), JSON.stringify(data, null, 2) + '\n');
+const write = (p, data) => writeFileSync(join(out, p), JSON.stringify(stripPrivate(data), null, 2) + '\n');
 
 write('tiles.json', [...merged.tiles.values()]);
 write('items.json', [...merged.items.values()]);
@@ -60,4 +62,4 @@ write('manifest.json', {
   chapters: [...release.unlocked],
   files: { maps: [...merged.maps.keys()], story: [...merged.story.keys()], lineages: [...merged.lineages.keys()] },
 });
-console.log(`✓ 已輸出 ${release.unlocked.join('、')} 到 web/data/（地圖 ${merged.maps.size}、劇情 ${merged.story.size}、道具 ${merged.items.size}）`);
+console.log(`✓ 已輸出 ${release.unlocked.join('、')} 到 ${out}（地圖 ${merged.maps.size}、劇情 ${merged.story.size}、道具 ${merged.items.size}）`);

@@ -3,7 +3,7 @@ import { TILE, MAP_ZOOM, MAP_VIEW, COLORS } from '../config.js';
 import { session } from '../session.js';
 import { step, enterMap, mapSize, tileIdAt, objectVisible, isUnlocked } from '../core/grid.js';
 import { tileKey, spriteKey, heroKey } from '../textures.js';
-import { investigate, useEcho } from '../adapters.js';
+import { investigateFacing, echoFacing, loadNotice } from '../adapters.js';
 
 const MOVE_MS = 150;
 
@@ -12,6 +12,7 @@ export class MapScene extends Phaser.Scene {
 
   init(data) {
     this.intro = Array.isArray(data?.intro) ? data.intro : [];
+    this.notice = loadNotice(data?.notices);
   }
 
   create() {
@@ -42,24 +43,33 @@ export class MapScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       session.events.off('state', onState);
     });
-    this.events.on('resume', () => { session.scene = 'Map'; });
+    // resume 監聽器：場景的 events 跨 restart 保留，所以要在 shutdown 時拿掉，否則每次讀檔多一個
+    this.events.on('resume', this.onResume, this);
+    this.events.once('shutdown', () => this.events.off('resume', this.onResume, this));
+
+    if (this.notice) {
+      const msg = this.notice;
+      this.notice = null;
+      this.waitUi().then(() => { if (!this.ended) this.ui.toast(msg, 2600); });
+    }
 
     // 新遊戲的開場對話（UI 場景要等它 create 完）
     if (this.intro.length) {
       const list = this.intro;
       this.intro = [];
       this.busy = true;
-      this.time.delayedCall(0, async () => {
-        for (const id of list) {
-          if (this.ended) return;
-          await this.runDialogue(id);
-        }
-        this.busy = false;
-      });
+      this.time.delayedCall(0, () => this.runDialogues(list));
     }
   }
 
+  onResume() { session.scene = 'Map'; }
+
   get ui() { return this.scene.get('UI'); }
+
+  /** E2E 用的唯讀資訊。 */
+  debugInfo() {
+    return { glows: this.glowCount ?? 0, map: this.currentMapId ?? null };
+  }
 
   /** UI 場景是在本場景 create 時 launch 的，第一個畫格可能還沒建好。 */
   waitUi() {
@@ -94,11 +104,14 @@ export class MapScene extends Phaser.Scene {
         if (key) this.layer.add(this.add.image(x * TILE, y * TILE, key).setOrigin(0));
       }
     }
-    // 煤氣燈／壁燈的光暈
+    // 燈光光暈：tiles.json 裡 glow 為 true 的地形
+    const glowIds = new Set((session.data.tiles ?? []).filter((t) => t?.glow === true).map((t) => t.id));
+    this.glowCount = 0;
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const id = tileIdAt(map, x, y);
-        if (id === 'gas_lamp' || id === 'wall_lamp') {
+        if (glowIds.has(id)) {
+          this.glowCount += 1;
           this.layer.add(this.add.image(x * TILE + TILE / 2, y * TILE + TILE / 3, 'fx:glow').setScale(1.3).setAlpha(0.7).setBlendMode(Phaser.BlendModes.ADD));
         }
       }
@@ -223,7 +236,7 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     if (!this.canAct()) return;
-    const fn = name === 'echo' ? useEcho : investigate;
+    const fn = name === 'echo' ? echoFacing : investigateFacing;
     let r;
     try {
       r = fn(this.mapDef, session.state, session.data);
@@ -233,8 +246,18 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     session.setState(r.state);
-    if (r.dialogue) this.runDialogue(r.dialogue);
+    if (r.dialogues.length) this.runDialogues(r.dialogues);
     else if (r.message) this.ui.toast(r.message);
+  }
+
+  /** 依序播放多段對話（例如調查上鎖的門：look → on_item／locked）；章節結束就停。 */
+  async runDialogues(ids) {
+    this.busy = true;
+    for (const id of ids) {
+      if (this.ended) return;
+      await this.runDialogue(id);
+    }
+    if (!this.ended) this.busy = false;
   }
 
   /** 播放對話；結束後若發生 chapter_end 就進章節結束畫面。 */

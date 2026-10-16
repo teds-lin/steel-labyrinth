@@ -4,8 +4,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { loadBundle } from '../tools/lib/bundle.mjs';
 import { newGame } from '../web/src/core/state.js';
-import { step, canMove, enterMap, isUnlocked, DIRS } from '../web/src/core/grid.js';
-import { facingTarget, look, echo, tryUnlock, NO_CHARGE_MESSAGE } from '../web/src/core/interact.js';
+import { step, canMove, enterMap, DIRS } from '../web/src/core/grid.js';
+import { facingTarget, echo, investigate, NO_CHARGE_MESSAGE } from '../web/src/core/interact.js';
 import { startDialogue } from '../web/src/core/dialogue.js';
 
 const DATA_DIR = fileURLToPath(new URL('../web/data/', import.meta.url));
@@ -147,19 +147,17 @@ class Sim {
     return obj;
   }
 
-  /** 【調查】：lock 物件未解開時走 tryUnlock（自動選法），否則播 look 對話。 */
+  /** 【調查】：core 的 investigate 決定要依序播哪些對話（look 先播；鎖著時再試免費解法）。 */
   investigate(objId) {
     const obj = this.faceObject(objId);
-    if (obj.lock && !isUnlocked(obj, this.state)) {
-      const r = tryUnlock(obj, this.state, data);
-      this.state = r.state;
-      this.play(r.dialogue);
-      return r;
-    }
-    const r = look(obj, this.state);
-    this.play(r.dialogue);
+    const r = investigate(obj, this.state, data);
+    this.state = r.state;
+    for (const id of r.dialogues) this.play(id);
     return r;
   }
+
+  /** 某段對話在 log 裡播出的文字。 */
+  textsOf(dlgId) { return this.log.filter((l) => l.dialogue === dlgId).map((l) => l.text); }
 
   /** 【殘響】。 */
   echoOn(objId) {
@@ -229,10 +227,76 @@ function finishChapter(sim, L) {
 
 // ───────────── 測試 ─────────────
 describe('序章內容：用真實資料模擬遊玩', () => {
+  it('殘響次數來自 manifest.start.echo_charges（序章為 3）', () => {
+    expect(data.manifest.start.echo_charges).toBe(3);
+    expect(new Sim().state.echo.charges).toBe(data.manifest.start.echo_charges);
+  });
+
+  it('鎖著調查門：依序播放 look 與 locked 兩段、文字不重複，且不扣殘響', () => {
+    const L = findKeyLayout();
+    const sim = new Sim().start();
+    const before = { charges: sim.state.echo.charges, collapse: sim.state.collapse };
+    sim.dialoguesPlayed = [];
+    const r = sim.investigate(L.door.id);
+    expect(r.unlocked).toBe(false);
+    expect(sim.dialoguesPlayed).toEqual([L.door.look, L.door.lock.locked]);
+    expect(sim.state.echo.charges).toBe(before.charges);
+    expect(sim.state.collapse).toBe(before.collapse);
+    const lookTexts = sim.textsOf(L.door.look);
+    const lockedTexts = sim.textsOf(L.door.lock.locked);
+    expect(lookTexts.length).toBeGreaterThan(0);
+    expect(lockedTexts.length).toBeGreaterThan(0);
+    for (const t of lookTexts) expect(lockedTexts).not.toContain(t);
+    // look 是描述、locked 才說打不開：「鎖得死死的」這類句子只出現在 locked
+    // look 只描述門；「鎖」「鑰匙」等打不開的資訊只在 locked 說，避免描述與打不開重複
+    expect(lookTexts.join('')).not.toMatch(/鎖|鑰匙|轉不動/);
+    expect(lockedTexts.join('')).toMatch(/鎖/);
+  });
+
+  it('有鑰匙調查門：先播「關著」的描述再播開門；開門後再調查只播「開著」的描述', () => {
+    const L = findKeyLayout();
+    const sim = new Sim({ choiceRules: ['撬'] }).start();
+    sim.investigate(L.drawer.id);
+    sim.log = [];
+    sim.dialoguesPlayed = [];
+    const r = sim.investigate(L.door.id);
+    expect(r.unlocked).toBe(true);
+    expect(sim.dialoguesPlayed).toEqual([L.door.look, L.door.lock.on_item]);
+    const closedLook = sim.textsOf(L.door.look);
+    sim.log = [];
+    sim.dialoguesPlayed = [];
+    sim.investigate(L.door.id);
+    expect(sim.dialoguesPlayed).toEqual([L.door.look]);
+    const openLook = sim.textsOf(L.door.look);
+    expect(openLook.join('')).toMatch(/開著/);
+    expect(closedLook.join('')).not.toMatch(/開著/);
+    for (const t of openLook) expect(closedLook).not.toContain(t);
+  });
+
+  it('殘響開門後再調查門：只播「開著」的描述', () => {
+    const L = findKeyLayout();
+    const sim = new Sim().start();
+    sim.echoOn(L.door.id);
+    sim.log = [];
+    sim.dialoguesPlayed = [];
+    sim.investigate(L.door.id);
+    expect(sim.dialoguesPlayed).toEqual([L.door.look]);
+    expect(sim.textsOf(L.door.look).join('')).toMatch(/開著/);
+  });
+
   it('資料載入無誤，且開局能播完開場對話', () => {
     const sim = new Sim().start();
     expect(sim.dialoguesPlayed).toEqual([data.manifest.start.dialogue]);
     expect(sim.state.location.map).toBe(data.manifest.start.map);
+  });
+
+  it('1b. 有殘響時【調查】鎖著的門也不會偷用殘響', () => {
+    const L = findKeyLayout();
+    const sim = new Sim().start();
+    const r = sim.investigate(L.door.id);
+    expect(r.unlocked).toBe(false);
+    expect(sim.state.echo.charges).toBe(3);
+    expect(sim.state.flags[L.door.lock.flag]).toBeUndefined();
   });
 
   it('1. 完全不用殘響也能通關：找鑰匙 → 開門 → 下樓 → 房東 → 街道結尾', () => {
@@ -253,7 +317,7 @@ describe('序章內容：用真實資料模擬遊玩', () => {
     // 開門
     const opened = sim.investigate(L.door.id);
     expect(opened.unlocked).toBe(true);
-    expect(opened.via).toBe('item');
+    expect(sim.dialoguesPlayed.at(-1)).toBe(L.door.lock.on_item);
     expect(sim.state.flags[L.door.lock.flag]).toBe(true);
 
     // 下樓、處理房東、到街道結尾

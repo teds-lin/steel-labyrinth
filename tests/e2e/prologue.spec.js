@@ -1,5 +1,5 @@
 // 《鋼鐵迷都》序章 E2E：desktop 用鍵盤、mobile 用觸控按鈕操作移動與調查。
-import { test, expect, game, TEST_URL } from './helpers.js';
+import { test, expect, game, TEST_URL, START_ECHO } from './helpers.js';
 
 const isTouch = (testInfo) => testInfo.project.name === 'mobile';
 
@@ -14,7 +14,7 @@ test.describe('序章', () => {
     expect(opening.length).toBeGreaterThan(0);
     let s = await g.st();
     expect(s.flags['enter:attic']).toBe(true);
-    expect(s.echo.charges).toBe(3);
+    expect(s.echo.charges).toBe(START_ECHO);
     expect(s.collapse).toBe(0);
 
     // 對空地按殘響：不該扣次數、也不該開對話
@@ -22,14 +22,14 @@ test.describe('序章', () => {
     await g.act('echo');
     await g.sleep(250);
     expect(await g.dlg()).toBeNull();
-    expect((await g.st()).echo.charges).toBe(3);
+    expect((await g.st()).echo.charges).toBe(START_ECHO);
 
     // 沒有鑰匙先調查門：locked 對話，門不開、不扣殘響
     await g.useOn('obj_door');
     await g.finishDialogue();
     s = await g.st();
     expect(s.flags.door_open).toBeFalsy();
-    expect(s.echo.charges).toBe(3);
+    expect(s.echo.charges).toBe(START_ECHO);
 
     // 五斗櫃撬出鑰匙（選項 0：把底板撬起來）
     await g.useOn('obj_drawer');
@@ -41,7 +41,7 @@ test.describe('序章', () => {
     await g.finishDialogue();
     s = await g.st();
     expect(s.flags.door_open).toBe(true);
-    expect(s.echo.charges).toBe(3);
+    expect(s.echo.charges).toBe(START_ECHO);
     expect(s.collapse).toBe(0);
 
     // 走廊：對房東說實話
@@ -53,7 +53,7 @@ test.describe('序章', () => {
     expect(s.flags.told_truth).toBe(true);
     expect(s.flags.talked_landlady).toBe(true);
     expect(s.flags.lie_exposed).toBeFalsy();
-    expect(s.echo.charges).toBe(3);
+    expect(s.echo.charges).toBe(START_ECHO);
 
     // 樓梯下到街上，走進觸發點，結局對話
     await g.takeExit('street');
@@ -116,7 +116,7 @@ test.describe('序章', () => {
     await g.useOn('obj_vial', 'echo');
     await g.finishDialogue();
     let s = await g.st();
-    expect(s.echo.charges).toBe(2);
+    expect(s.echo.charges).toBe(START_ECHO - 1);
     expect(s.collapse).toBe(5);
     expect(s.flags.echo_vial).toBe(true);
 
@@ -124,7 +124,7 @@ test.describe('序章', () => {
     await g.useOn('obj_door', 'echo');
     await g.finishDialogue();
     s = await g.st();
-    expect(s.echo.charges).toBe(1);
+    expect(s.echo.charges).toBe(START_ECHO - 2);
     expect(s.collapse).toBe(10);
     expect(s.flags.door_open).toBe(true);
     expect(s.items.attic_key).toBe(1);
@@ -137,7 +137,7 @@ test.describe('序章', () => {
     expect(s.flags.told_lie).toBe(true);
     expect(s.flags.lie_exposed).toBe(true);
     expect(s.resonance.lie_exposed).toBe(1);
-    expect(s.echo.charges).toBe(0);
+    expect(s.echo.charges).toBe(START_ECHO - 3);
     expect(s.collapse).toBe(15);
 
     // 殘響用完：再按殘響只會提示，不開對話、不扣到負數

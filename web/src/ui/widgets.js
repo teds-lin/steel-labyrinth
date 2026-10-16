@@ -1,6 +1,36 @@
 // 共用介面元件：文字、按鈕、可用鍵盤操作的按鈕清單。
 // 所有字串一律經 Phaser Text 的 setText 顯示（不經過 HTML）。
 import { FONT, COLORS, TEXT_RESOLUTION } from '../config.js';
+import { graphemes } from '../core/name.js';
+
+export const ELLIPSIS = '…';
+
+/**
+ * 把 render(part) 的結果放進 textObj，寬度超過 maxW 時從 part 尾端一個字（grapheme）一個字砍，
+ * 補上「…」，直到放得下。只改顯示，不改資料。回傳最後顯示的字串。
+ * part 連一個字都放不下時顯示 render('…')。
+ */
+export function fitPart(textObj, part, render, maxW) {
+  const str = String(part ?? '');
+  textObj.setText(render(str));
+  if (textObj.width <= maxW) return textObj.text;
+  const g = graphemes(str);
+  // 二分搜尋可以保留的字數
+  let lo = 0;
+  let hi = g.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    textObj.setText(render(g.slice(0, mid).join('') + ELLIPSIS));
+    if (textObj.width <= maxW) lo = mid; else hi = mid - 1;
+  }
+  textObj.setText(render(g.slice(0, lo).join('') + ELLIPSIS));
+  return textObj.text;
+}
+
+/** 整段文字超出 maxW 時以「…」截斷。 */
+export function fitText(textObj, str, maxW) {
+  return fitPart(textObj, str, (x) => x, maxW);
+}
 
 /**
  * 建立文字。pixelArt 模式下 Phaser 每次重畫文字都會把貼圖設回 NEAREST，

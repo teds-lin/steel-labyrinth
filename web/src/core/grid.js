@@ -61,8 +61,8 @@ export function canMove(map, state, x, y, data) {
  * 走進出口後，畫面層應呼叫 enterMap(state, data, event.to, event.spawn)。
  */
 export function step(map, state, dir, data) {
+  if (typeof dir !== 'string' || !Object.hasOwn(DIRS, dir)) throw new Error(`未知的方向「${dir}」`);
   const d = DIRS[dir];
-  if (!d) throw new Error(`未知的方向「${dir}」`);
   const { x, y } = state.location;
   const nx = x + d.dx;
   const ny = y + d.dy;

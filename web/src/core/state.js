@@ -1,9 +1,10 @@
 // 遊戲事實狀態：建立新遊戲、計算探索標籤、推導能力值。
 import { sanitizeName } from './name.js';
 import { ECHO_TAG, hasEcho } from './echo.js';
-import { CURRENT_VERSION } from './save.js';
+import { CURRENT_VERSION, MAX_ECHO_CHARGES } from './save.js';
 
-export const DEFAULT_ECHO_CHARGES = 3;
+/** manifest.start.echo_charges 沒寫時的殘響次數。序章在 manifest 裡寫 3。 */
+export const DEFAULT_ECHO_CHARGES = 0;
 
 const findById = (list, id) => (Array.isArray(list) ? list.find((x) => x?.id === id) : undefined);
 
@@ -11,9 +12,13 @@ const findById = (list, id) => (Array.isArray(list) ? list.find((x) => x?.id ===
  * 建立初始狀態。maps（選填）用來把 start.spawn 解析成座標；
  * 未提供時 location 帶 spawn、x/y 為 null，由 grid.enterMap 解析。
  */
-export function newGame({ name, manifest, maps, echoCharges = DEFAULT_ECHO_CHARGES } = {}) {
+export function newGame({ name, manifest, maps } = {}) {
   const start = manifest?.start;
   if (!start || typeof start.map !== 'string') throw new Error('manifest 缺少 start.map');
+  const echoCharges = start.echo_charges ?? DEFAULT_ECHO_CHARGES;
+  if (!Number.isInteger(echoCharges) || echoCharges < 0 || echoCharges > MAX_ECHO_CHARGES) {
+    throw new Error(`manifest.start.echo_charges 必須是 0～${MAX_ECHO_CHARGES} 的整數，實際為 ${JSON.stringify(start.echo_charges)}`);
+  }
   let location = { map: start.map, spawn: start.spawn, x: null, y: null, dir: 'down' };
   if (maps !== undefined) {
     const map = findById(maps, start.map);

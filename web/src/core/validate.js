@@ -10,6 +10,8 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v) => typeof v === 'string' && v !== '';
 const arr = (v) => (Array.isArray(v) ? v : []);
 const q = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
+const has = (obj, k) => isObj(obj) && Object.hasOwn(obj, k); // 不用 in：避免原型鍵（toString…）混過
+const isBool = (v) => typeof v === 'boolean';
 
 /** 回傳錯誤字串陣列；空陣列代表資料合法。 */
 export function validateBundle(bundle) {
@@ -70,35 +72,110 @@ function run(bundle, errors) {
     });
   });
 
-  // 所有 give_item 的道具（fallback 必須拿得到）
-  const givenItems = new Set();
-  for (const { dlg } of dialogues.values()) {
-    for (const node of arr(dlg.nodes)) {
-      if (!isObj(node)) continue;
-      const effectLists = [node.effects, ...arr(node.choices).map((c) => (isObj(c) ? c.effects : undefined))];
-      for (const list of effectLists) for (const e of arr(list)) if (isObj(e) && isStr(e.give_item)) givenItems.add(e.give_item);
-    }
-  }
-
-  const ctx = { errors, tiles, items, maps, dialogues, givenItems };
+  const ctx = { errors, tiles, items, maps, dialogues, lineages, storyIds, freeItems: new Set() };
+  ctx.freeItems = freeGivenItems(bundle, ctx);
 
   checkManifest(bundle.manifest, ctx, storyIds, lineages);
   for (const tile of tiles.values()) {
-    if (tile.solid !== undefined && typeof tile.solid !== 'boolean') errors.push(`tiles.json：地形「${tile.id}」的 solid 必須是 true/false`);
+    if (!isBool(tile.solid)) errors.push(`tiles.json：地形「${tile.id}」的 solid 必須是 true/false`);
+    if (tile.glow !== undefined && !isBool(tile.glow)) errors.push(`tiles.json：地形「${tile.id}」的 glow 必須是 true/false`);
   }
+  for (const lin of lineages.values()) checkLineage(lin, errors);
+  arr(bundle.story).forEach((story) => { if (isObj(story) && isStr(story.id)) checkStoryMeta(story, errors); });
   for (const map of maps.values()) checkMap(map, ctx);
   for (const { dlg, file } of dialogues.values()) checkDialogue(dlg, file, ctx);
 }
 
+// ---------- 譜系、章節 ----------
+
+function checkLineage(lin, errors) {
+  const W = `lineages/${lin.id}.json`;
+  if (!Array.isArray(lin.ranks)) {
+    errors.push(`${W}：譜系「${lin.id}」的 ranks 必須是陣列`);
+    return;
+  }
+  const seen = new Set();
+  lin.ranks.forEach((r, i) => {
+    if (!isObj(r) || !Number.isInteger(r.rank)) {
+      errors.push(`${W}：譜系「${lin.id}」ranks[${i}] 的 rank 必須是整數`);
+      return;
+    }
+    if (seen.has(r.rank)) errors.push(`${W}：譜系「${lin.id}」的 rank ${r.rank} 重複`);
+    seen.add(r.rank);
+  });
+}
+
+function checkStoryMeta(story, errors) {
+  const W = `story/${story.id}.json`;
+  if (!isStr(story.title)) errors.push(`${W}：title 必須是非空字串`);
+  if (!isObj(story.end_screen)) {
+    errors.push(`${W}：缺少 end_screen（{ title, subtitle }）`);
+    return;
+  }
+  for (const k of ['title', 'subtitle']) {
+    if (!isStr(story.end_screen[k])) errors.push(`${W}：end_screen.${k} 必須是非空字串`);
+  }
+}
+
+// ---------- fallback 可達性 ----------
+
+/**
+ * 不經過任何 lock 的 on_tag、也不花殘響就能取得的道具。
+ * 入口：manifest.start.dialogue、地圖 on_enter、觸發點、出口 blocked、物件 look、lock 的 on_item／locked。
+ * 物件 echo 與 lock.on_tag 不算；沒人引用的孤兒對話不算。
+ * 在對話內沿 next／branches／choices 走；帶 use_echo 的節點或選項視為要花殘響，不往下走、不算它的效果。
+ */
+function freeGivenItems(bundle, ctx) {
+  const entries = new Set();
+  const add = (id) => { if (isStr(id)) entries.add(id); };
+  if (isObj(bundle.manifest) && isObj(bundle.manifest.start)) add(bundle.manifest.start.dialogue);
+  for (const map of ctx.maps.values()) {
+    add(map.on_enter);
+    for (const t of arr(map.triggers)) if (isObj(t)) add(t.dialogue);
+    for (const ex of arr(map.exits)) if (isObj(ex)) add(ex.blocked);
+    for (const obj of arr(map.objects)) {
+      if (!isObj(obj)) continue;
+      add(obj.look);
+      if (isObj(obj.lock)) { add(obj.lock.on_item); add(obj.lock.locked); }
+    }
+  }
+  const costly = (effects) => arr(effects).some((e) => has(e, 'use_echo'));
+  const gives = (effects, out) => { for (const e of arr(effects)) if (has(e, 'give_item') && isStr(e.give_item)) out.add(e.give_item); };
+  const out = new Set();
+  for (const id of entries) {
+    const dlg = ctx.dialogues.get(id)?.dlg;
+    if (!dlg || !Array.isArray(dlg.nodes)) continue;
+    const nodes = new Map(dlg.nodes.filter((n) => isObj(n) && isStr(n.id)).map((n) => [n.id, n]));
+    const seen = new Set();
+    const stack = [dlg.start];
+    while (stack.length) {
+      const nid = stack.pop();
+      if (seen.has(nid) || !nodes.has(nid)) continue;
+      seen.add(nid);
+      const n = nodes.get(nid);
+      if (costly(n.effects)) continue;
+      gives(n.effects, out);
+      if (isStr(n.next)) stack.push(n.next);
+      for (const b of arr(n.branches)) if (isObj(b) && isStr(b.next)) stack.push(b.next);
+      for (const c of arr(n.choices)) {
+        if (!isObj(c) || costly(c.effects)) continue;
+        gives(c.effects, out);
+        if (isStr(c.next)) stack.push(c.next);
+      }
+    }
+  }
+  return out;
+}
+
 // ---------- 共用：條件、效果、引用 ----------
 
-/** 找出條件裡引用的道具 id。 */
-function conditionItems(cond, out = []) {
+/** 找出條件裡引用的 key（item／lineage）值。 */
+function conditionRefs(cond, key, out = []) {
   if (!isObj(cond)) return out;
-  if (isStr(cond.item)) out.push(cond.item);
-  for (const c of arr(cond.all)) conditionItems(c, out);
-  for (const c of arr(cond.any)) conditionItems(c, out);
-  if (isObj(cond.not)) conditionItems(cond.not, out);
+  if (has(cond, key) && isStr(cond[key])) out.push(cond[key]);
+  for (const c of arr(has(cond, 'all') ? cond.all : undefined)) conditionRefs(c, key, out);
+  for (const c of arr(has(cond, 'any') ? cond.any : undefined)) conditionRefs(c, key, out);
+  if (has(cond, 'not') && isObj(cond.not)) conditionRefs(cond.not, key, out);
   return out;
 }
 
@@ -106,7 +183,8 @@ function checkCond(cond, where, ctx) {
   const errs = checkCondition(cond, 'if');
   for (const e of errs) ctx.errors.push(`${where}：${e}`);
   if (errs.length === 0) {
-    for (const id of conditionItems(cond)) if (!ctx.items.has(id)) ctx.errors.push(`${where}：條件引用不存在的道具「${id}」`);
+    for (const id of conditionRefs(cond, 'item')) if (!ctx.items.has(id)) ctx.errors.push(`${where}：條件引用不存在的道具「${id}」`);
+    for (const id of conditionRefs(cond, 'lineage')) if (!ctx.lineages.has(id)) ctx.errors.push(`${where}：條件引用不存在的譜系「${id}」`);
   }
 }
 
@@ -121,7 +199,10 @@ function checkEffects(effects, where, ctx) {
     for (const m of errs) ctx.errors.push(`${where}：${m}`);
     if (errs.length) return;
     for (const k of ['give_item', 'take_item']) {
-      if (k in e && !ctx.items.has(e[k])) ctx.errors.push(`${where}：effects[${i}] ${k} 引用不存在的道具「${e[k]}」`);
+      if (has(e, k) && !ctx.items.has(e[k])) ctx.errors.push(`${where}：effects[${i}] ${k} 引用不存在的道具「${e[k]}」`);
+    }
+    if (has(e, 'chapter_end') && !ctx.storyIds.has(e.chapter_end)) {
+      ctx.errors.push(`${where}：effects[${i}] chapter_end 引用沒有載入的章節（story）「${e.chapter_end}」`);
     }
   });
 }
@@ -153,6 +234,15 @@ function checkManifest(manifest, ctx, storyIds, lineages) {
       errors.push(`${W}：start.spawn「${q(start.spawn)}」不在地圖「${map.id}」裡`);
     }
     refDialogue(start.dialogue, W, 'start.dialogue', ctx);
+    if (has(start, 'echo_charges')) {
+      const v = start.echo_charges;
+      if (!Number.isInteger(v) || v < 0 || v > 99) errors.push(`${W}：start.echo_charges 必須是 0～99 的整數，實際為 ${JSON.stringify(v)}`);
+    }
+  }
+  if (!Array.isArray(manifest.chapters)) {
+    errors.push(`${W}：chapters 必須是陣列`);
+  } else {
+    for (const id of manifest.chapters) if (!isStr(id) || !storyIds.has(id)) errors.push(`${W}：chapters 列出的章節「${q(id)}」沒有對應的 story`);
   }
   const files = manifest.files;
   if (isObj(files)) {
@@ -192,12 +282,12 @@ function checkMap(map, ctx) {
     if (!ctx.tiles.has(tid)) errors.push(`${W}：legend「${ch}」引用不存在的地形「${q(tid)}」`);
   }
   const unknownChars = new Set();
-  rows.forEach((r) => r.forEach((ch) => { if (!(ch in legend)) unknownChars.add(ch); }));
+  rows.forEach((r) => r.forEach((ch) => { if (!Object.hasOwn(legend, ch)) unknownChars.add(ch); }));
   for (const ch of unknownChars) errors.push(`${W}：tiles 用到 legend 沒有定義的字元「${ch}」`);
 
   const solidTileAt = (x, y) => {
     const ch = rows[y]?.[x];
-    const t = ctx.tiles.get(legend[ch]);
+    const t = Object.hasOwn(legend, ch ?? '') ? ctx.tiles.get(legend[ch]) : undefined;
     return !t || t.solid === true; // 未知地形當作 solid
   };
   /** 檢查座標：整數、範圍內、不在 solid 地形。回傳是否在範圍內。 */
@@ -215,10 +305,13 @@ function checkMap(map, ctx) {
   };
 
   // spawns
+  const solidObjects = arr(map.objects).filter((o) => isObj(o) && o.solid === true);
   const spawnIds = indexById(map.spawns ?? [], W, 'spawn', errors);
   for (const sp of spawnIds.values()) {
-    checkPos(sp, `spawn「${sp.id}」`);
-    if (sp.dir !== undefined && !(sp.dir in DIRS)) errors.push(`${W}：spawn「${sp.id}」的 dir「${q(sp.dir)}」必須是 up/down/left/right`);
+    if (checkPos(sp, `spawn「${sp.id}」`)) {
+      for (const o of solidObjects) if (o.x === sp.x && o.y === sp.y) errors.push(`${W}：spawn「${sp.id}」放在 solid 物件「${o.id}」上`);
+    }
+    if (sp.dir !== undefined && !(typeof sp.dir === 'string' && Object.hasOwn(DIRS, sp.dir))) errors.push(`${W}：spawn「${sp.id}」的 dir「${q(sp.dir)}」必須是 up/down/left/right`);
   }
 
   refDialogue(map.on_enter, W, 'on_enter', ctx);
@@ -228,6 +321,7 @@ function checkMap(map, ctx) {
   for (const obj of objects.values()) {
     const where = `${W} 物件「${obj.id}」`;
     checkPos(obj, `物件「${obj.id}」`);
+    if (obj.solid !== undefined && !isBool(obj.solid)) errors.push(`${where}：solid 必須是 true/false`);
     if (obj.if !== undefined) checkCond(obj.if, where, ctx);
     refDialogue(obj.look, where, 'look', ctx);
     refDialogue(obj.echo, where, 'echo', ctx);
@@ -284,7 +378,9 @@ function checkLock(lock, where, ctx) {
     const m = typeof lock.fallback === 'string' ? /^item:(.+)$/.exec(lock.fallback) : null;
     if (!m) errors.push(`${where}：lock.fallback「${q(lock.fallback)}」寫法不支援（目前只支援 item:<id>）`);
     else if (!ctx.items.has(m[1])) errors.push(`${where}：lock.fallback 引用不存在的道具「${m[1]}」`);
-    else if (!ctx.givenItems.has(m[1])) errors.push(`${where}：lock.fallback 道具「${m[1]}」沒有任何 give_item 可以取得`);
+    else if (!ctx.freeItems.has(m[1])) {
+      errors.push(`${where}：lock.fallback 道具「${m[1]}」無法從免費入口取得（需要 start／on_enter／觸發點／look／on_item／locked 對話裡有 give_item；物件 echo、lock.on_tag、要花殘響的選項、孤兒對話都不算）`);
+    }
   }
   if (lock.on_tag !== undefined) {
     if (!isObj(lock.on_tag)) errors.push(`${where}：lock.on_tag 必須是物件`);

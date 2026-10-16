@@ -72,3 +72,20 @@ describe('checkEffect', () => {
     expect(checkEffect({ bogus: 1 }).length).toBe(1);
   });
 });
+
+describe('原型鍵不可繞過檢查', () => {
+  it('checkEffect 回報未知寫法；applyEffect 丟錯', () => {
+    for (const j of ['{"toString":"x"}', '{"constructor":"x"}', '{"__proto__":"x"}', '{"hasOwnProperty":"x"}']) {
+      const e = JSON.parse(j);
+      const errs = checkEffect(e);
+      expect(errs.length, j).toBe(1);
+      expect(errs[0], j).toMatch(/未知的效果寫法/);
+      expect(() => applyEffect(e, base()), j).toThrow(/未知的效果/);
+    }
+  });
+  it('道具／共鳴名稱是原型鍵時，計數從 0 開始而不是原型上的函式', () => {
+    expect(applyEffect({ give_item: 'constructor' }, base()).items.constructor).toBe(1);
+    expect(applyEffect({ resonance: 'toString' }, base()).resonance.toString).toBe(1);
+    expect(applyEffect({ take_item: 'constructor' }, base()).items).toEqual({ key: 1 });
+  });
+});

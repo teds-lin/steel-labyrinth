@@ -1,16 +1,28 @@
-// 章節結束：「序章 完」→「第一章 製作中」→ 提示存檔（開啟存檔選單）→ 回標題。
+// 章節結束：story 的 end_screen（標題、副標）→ 提示存檔（開啟存檔選單）→ 回標題。
 import { WIDTH, HEIGHT, COLORS, TEST_MODE } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, ButtonList } from '../ui/widgets.js';
-
-const CHAPTER_TITLES = { prologue: '序章' };
 
 export class ChapterEndScene extends Phaser.Scene {
   constructor() { super('ChapterEnd'); }
 
   init(data) {
-    this.chapter = data?.chapter ?? 'prologue';
+    this.chapter = data?.chapter ?? session.data?.manifest?.chapters?.[0] ?? null;
   }
+
+  /** 章節結束畫面的文字：story.end_screen，沒寫時用「<章名>　完」、無副標。 */
+  screenTexts() {
+    const story = session.data?.story?.find((c) => c?.id === this.chapter);
+    const name = story?.title ?? this.chapter ?? '';
+    const es = story?.end_screen;
+    return {
+      title: typeof es?.title === 'string' ? es.title : `${name}　完`,
+      subtitle: typeof es?.subtitle === 'string' ? es.subtitle : '',
+    };
+  }
+
+  /** E2E 用的唯讀資訊。 */
+  debugInfo() { return this.texts ?? null; }
 
   create() {
     session.scene = 'ChapterEnd';
@@ -18,10 +30,14 @@ export class ChapterEndScene extends Phaser.Scene {
     this.list = null;
     const fade = TEST_MODE ? 150 : 900;
 
-    const t1 = addText(this, WIDTH / 2, 230, `${CHAPTER_TITLES[this.chapter] ?? this.chapter}　完`, {
+    this.texts = this.screenTexts();
+    const t1 = addText(this, WIDTH / 2, 230, this.texts.title, {
       fontSize: '34px', fontStyle: 'bold', color: '#f0d2a0',
     }).setOrigin(0.5).setAlpha(0);
-    const t2 = addText(this, WIDTH / 2, 290, '第一章　製作中', { fontSize: '18px', color: COLORS.textDim }).setOrigin(0.5).setAlpha(0);
+    if (t1.width > WIDTH - 32) t1.setScale((WIDTH - 32) / t1.width);
+    const t2 = addText(this, WIDTH / 2, 290, this.texts.subtitle, {
+      fontSize: '18px', color: COLORS.textDim, align: 'center', wordWrap: { width: WIDTH - 48, useAdvancedWrap: true },
+    }).setOrigin(0.5).setAlpha(0);
     const t3 = addText(this, WIDTH / 2, 370, '要把目前的進度存檔嗎？', { fontSize: '15px', color: COLORS.text }).setOrigin(0.5).setAlpha(0);
 
     this.tweens.chain({
@@ -36,8 +52,11 @@ export class ChapterEndScene extends Phaser.Scene {
       if (ev.repeat || !claimKey(ev)) return;
       this.list?.handleKey(ev.code);
     });
-    this.events.on('resume', () => { session.scene = 'ChapterEnd'; });
+    this.events.on('resume', this.onResume, this);
+    this.events.once('shutdown', () => this.events.off('resume', this.onResume, this));
   }
+
+  onResume() { session.scene = 'ChapterEnd'; }
 
   showButtons() {
     this.list = new ButtonList(this, {

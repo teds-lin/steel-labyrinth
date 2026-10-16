@@ -5,7 +5,8 @@
   "start": {
     "map": "attic",
     "spawn": "default",
-    "dialogue": "dlg_opening"
+    "dialogue": "dlg_opening",
+    "echo_charges": 3
   },
   "files": {
     "maps": [

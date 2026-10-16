@@ -68,3 +68,23 @@ describe('checkCondition（靜態檢查，給 validate 用）', () => {
     expect(checkCondition({ any: [{ flag: 'a' }, { x: 1 }] }).length).toBe(1);
   });
 });
+
+describe('原型鍵不可繞過檢查', () => {
+  const protoKeys = ['{"toString":"x"}', '{"constructor":"x"}', '{"__proto__":"x"}', '{"hasOwnProperty":"x"}', '{"valueOf":1}'];
+  it('checkCondition 回報未知寫法；evalCondition 丟錯', () => {
+    for (const j of protoKeys) {
+      const c = JSON.parse(j);
+      const errs = checkCondition(c);
+      expect(errs.length, j).toBe(1);
+      expect(errs[0], j).toMatch(/未知的條件寫法/);
+      expect(() => evalCondition(c, st()), j).toThrow(/未知的條件/);
+    }
+  });
+  it('巢狀也一樣', () => {
+    expect(() => evalCondition({ any: [{ flag: 'door_open' }, JSON.parse('{"constructor":1}')] }, st())).toThrow();
+  });
+  it('flag／item 名稱是原型鍵時，求值不吃原型屬性', () => {
+    expect(evalCondition({ item: 'constructor' }, st())).toBe(false);
+    expect(evalCondition({ flag: 'constructor' }, st())).toBe(false);
+  });
+});

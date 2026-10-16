@@ -3,8 +3,9 @@ import { WIDTH, HUD_H, PANEL_Y, HEIGHT, COLORS } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, Button } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
-import { DEFAULT_ECHO_CHARGES } from '../core/state.js';
 import { COLLAPSE_MAX } from '../core/echo.js';
+import { echoAvailable } from '../core/interact.js';
+import { echoHud, collapseHud } from '../ui/hud.js';
 
 const DIR_KEYS = {
   ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
@@ -18,11 +19,10 @@ export class UIScene extends Phaser.Scene {
     this.buildHud();
     this.buildPanel();
     this.dialogue = new DialogueBox(this);
-    this.dialogue.root.setDepth(20);
-    this.dialogue.catcher.setDepth(15);
-    this.toastText = addText(this, WIDTH / 2, HUD_H + 26, '', {
+    this.toastText = addText(this, WIDTH / 2, HUD_H + 8, '', {
       fontSize: '15px', color: '#ffe2b0', backgroundColor: '#1a1f28ee', padding: { x: 14, y: 8 },
-    }).setOrigin(0.5).setDepth(40).setVisible(false);
+      align: 'center', wordWrap: { width: WIDTH - 60, useAdvancedWrap: true },
+    }).setOrigin(0.5, 0).setDepth(40).setVisible(false);
 
     this.input.keyboard.on('keydown', (ev) => this.onKey(ev));
     const onState = () => this.refreshHud();
@@ -49,12 +49,20 @@ export class UIScene extends Phaser.Scene {
   refreshHud() {
     const s = session.state;
     if (!s) return;
-    this.mapName.setText(session.mapName(s.location.map));
-    const n = s.echo?.charges ?? 0;
-    const max = Math.max(DEFAULT_ECHO_CHARGES, n);
-    this.echoText.setText(`殘響 ${'●'.repeat(n)}${'○'.repeat(max - n)}`);
-    const c = s.collapse ?? 0;
-    this.collapseText.setText(`崩解 ${c}/${COLLAPSE_MAX}`);
+    this.mapName.setText(session.mapName(s.location?.map));
+    // 殘響：依 core 的 echoAvailable（譜系提供 trace 時免費）；數值異常時由 echoHud 防呆
+    let view;
+    try {
+      view = echoAvailable(s, session.data);
+    } catch (e) {
+      console.warn('echoAvailable 失敗，HUD 改用 state 數值', e);
+      view = { free: false, charges: s.echo?.charges };
+    }
+    this.echoView = echoHud({ free: view?.free, charges: view?.charges, max: session.data?.manifest?.start?.echo_charges ?? 0 });
+    this.echoText.setText(this.echoView.text);
+    const col = collapseHud(s.collapse, COLLAPSE_MAX);
+    const c = col.value;
+    this.collapseText.setText(col.text);
     // 崩解條：放在文字左邊
     const bw = 64;
     const bx = WIDTH - 10 - this.collapseText.width - 6 - bw;
@@ -63,12 +71,12 @@ export class UIScene extends Phaser.Scene {
     g.clear();
     g.fillStyle(0x222832, 1);
     g.fillRect(bx, by, bw, 8);
-    g.fillStyle(c >= 60 ? COLORS.danger : COLORS.gas, 1);
-    g.fillRect(bx + 1, by + 1, Math.round(((bw - 2) * c) / COLLAPSE_MAX), 6);
+    g.fillStyle(col.danger ? COLORS.danger : COLORS.gas, 1);
+    g.fillRect(bx + 1, by + 1, Math.round((bw - 2) * col.ratio), 6);
     g.lineStyle(1, COLORS.line, 1);
     g.strokeRect(bx, by, bw, 8);
     // 地圖名稱太長時避免壓到右邊
-    const room = bx - 16;
+    const room = Math.min(bx, WIDTH - 10 - this.echoText.width) - 16;
     this.mapName.setScale(this.mapName.width > room ? room / this.mapName.width : 1);
   }
 
@@ -115,12 +123,22 @@ export class UIScene extends Phaser.Scene {
     this.heldDir = null;
   }
 
+  /** E2E 用的 HUD 唯讀資訊。 */
+  debugInfo() {
+    return {
+      echo: this.echoText.text,
+      echoFilled: this.echoView?.filled ?? 0,
+      collapse: this.collapseText.text,
+      toast: this.toastText.visible ? this.toastText.text : null,
+    };
+  }
+
   // ---------- 提示 ----------
-  toast(msg) {
+  toast(msg, ms = 1600) {
     this.toastText.setText(msg).setVisible(true).setAlpha(1);
     this.toastTween?.remove();
     this.toastTimer?.remove();
-    this.toastTimer = this.time.delayedCall(1600, () => {
+    this.toastTimer = this.time.delayedCall(ms, () => {
       this.toastTween = this.tweens.add({ targets: this.toastText, alpha: 0, duration: 300, onComplete: () => this.toastText.setVisible(false) });
     });
   }

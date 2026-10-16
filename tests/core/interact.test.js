@@ -95,16 +95,16 @@ describe('tryUnlock', () => {
     const s = st({ echo: { charges: 0 } });
     expect(tryUnlock(door, s, data)).toEqual({ state: s, dialogue: 'dlg_door_locked', unlocked: false, via: null });
   });
-  it('只有殘響：用標籤解開，扣殘響，設旗標，播 on_tag', () => {
+  it('只有殘響且 allowCost：用標籤解開，扣殘響，設旗標，播 on_tag', () => {
     const s = st();
-    const r = tryUnlock(door, s, data);
+    const r = tryUnlock(door, s, data, { allowCost: true });
     expect(r).toMatchObject({ unlocked: true, via: 'tag', tag: 'trace', dialogue: 'dlg_door_echo' });
     expect(r.state.flags.door_open).toBe(true);
     expect(r.state.echo.charges).toBe(1);
     expect(s.flags.door_open).toBeUndefined();
   });
-  it('有鑰匙也有殘響：預設優先用不花代價的道具，道具不消耗', () => {
-    const r = tryUnlock(door, st({ items: { attic_key: 1 } }), data);
+  it('有鑰匙也有殘響（即使 allowCost）：優先用不花代價的道具，道具不消耗', () => {
+    const r = tryUnlock(door, st({ items: { attic_key: 1 } }), data, { allowCost: true });
     expect(r).toMatchObject({ unlocked: true, via: 'item', item: 'attic_key', dialogue: 'dlg_door_key' });
     expect(r.state.echo.charges).toBe(2);
     expect(r.state.items.attic_key).toBe(1);
@@ -117,7 +117,7 @@ describe('tryUnlock', () => {
   });
   it('可指定解法；指定的解法不可用時當作打不開', () => {
     const s = st({ items: { attic_key: 1 } });
-    expect(tryUnlock(door, s, data, { method: 'tag', tag: 'trace' })).toMatchObject({ via: 'tag' });
+    expect(tryUnlock(door, s, data, { method: 'tag', tag: 'trace', allowCost: true })).toMatchObject({ via: 'tag' });
     expect(tryUnlock(door, st(), data, { method: 'item' })).toMatchObject({ unlocked: false, dialogue: 'dlg_door_locked' });
   });
   it('已解開：回 look 對話、不重複扣', () => {
@@ -126,11 +126,104 @@ describe('tryUnlock', () => {
   });
   it('標籤不在 solvable_by 不算數；on_tag 沒寫該標籤時對話為 null', () => {
     const d2 = { ...door, lock: { ...door.lock, solvable_by: ['force'], on_tag: {} } };
-    expect(tryUnlock(d2, st(), data).unlocked).toBe(false);
+    expect(tryUnlock(d2, st(), data, { allowCost: true }).unlocked).toBe(false);
     const r = tryUnlock(d2, st({ lineage: { id: 'smith', rank: 9 } }), data);
     expect(r).toMatchObject({ unlocked: true, via: 'tag', tag: 'force', dialogue: null });
   });
   it('非 lock 物件丟錯', () => {
     expect(() => tryUnlock(vial, st(), data)).toThrow(/lock/);
+  });
+});
+
+// ───────────── M1 審查修正 ─────────────
+import { investigate, echoAvailable, NO_CHARGE_MESSAGE } from '../../web/src/core/interact.js';
+
+describe('tryUnlock：allowCost（預設 false，不花殘響）', () => {
+  it('預設只考慮免費解法：只有殘響時回 locked、不扣次數', () => {
+    const s = st();
+    expect(tryUnlock(door, s, data)).toEqual({ state: s, dialogue: 'dlg_door_locked', unlocked: false, via: null });
+  });
+  it('allowCost:true 才會花殘響', () => {
+    const r = tryUnlock(door, st(), data, { allowCost: true });
+    expect(r).toMatchObject({ unlocked: true, via: 'tag', tag: 'trace' });
+    expect(r.state.echo.charges).toBe(1);
+  });
+  it('指定 method:tag 但沒 allowCost → 仍然不花殘響', () => {
+    expect(tryUnlock(door, st(), data, { method: 'tag', tag: 'trace' })).toMatchObject({ unlocked: false, dialogue: 'dlg_door_locked' });
+  });
+  it('道具與譜系標籤是免費的，預設就能用', () => {
+    expect(tryUnlock(door, st({ items: { attic_key: 1 } }), data)).toMatchObject({ via: 'item' });
+    expect(tryUnlock(door, st({ lineage: { id: 'hound', rank: 9 } }), data)).toMatchObject({ via: 'tag' });
+  });
+  it('on_tag 查表不吃原型鍵', () => {
+    const d = { ...door, lock: { ...door.lock, solvable_by: ['constructor'], on_tag: {} } };
+    const dataP = { ...data, lineages: [{ id: 'p', ranks: [{ rank: 9, field: ['constructor'] }] }] };
+    expect(tryUnlock(d, st({ lineage: { id: 'p', rank: 9 } }), dataP).dialogue).toBeNull();
+  });
+});
+
+describe('echo：譜系已提供 trace 時免費', () => {
+  const hound = { lineage: { id: 'hound', rank: 9 } };
+  it('一般物件：播 echo 對話、不扣次數、不加崩解', () => {
+    const r = echo(vial, st({ ...hound, echo: { charges: 0 } }), data);
+    expect(r.dialogue).toBe('dlg_vial_echo');
+    expect(r.message).toBeUndefined();
+    expect(r.state.echo.charges).toBe(0);
+    expect(r.state.collapse).toBe(0);
+  });
+  it('lock 物件：以 trace 免費解開', () => {
+    const r = echo(door, st({ ...hound, echo: { charges: 2 } }), data);
+    expect(r).toMatchObject({ unlocked: true, via: 'tag', dialogue: 'dlg_door_echo' });
+    expect(r.state.echo.charges).toBe(2);
+    expect(r.state.collapse).toBe(0);
+  });
+  it('次數 0 且譜系沒有 trace 才回 NO_CHARGE_MESSAGE', () => {
+    expect(echo(vial, st({ echo: { charges: 0 }, lineage: { id: 'smith', rank: 9 } }), data).message).toBe(NO_CHARGE_MESSAGE);
+    expect(echo(plain, st({ ...hound, echo: { charges: 0 } }), data).message).toBe(NO_TRACE_MESSAGE);
+  });
+  it('只有暫時殘響時，有鑰匙也照樣扣殘響（玩家選了殘響）', () => {
+    const r = echo(door, st({ items: { attic_key: 1 } }), data);
+    expect(r).toMatchObject({ via: 'tag' });
+    expect(r.state.echo.charges).toBe(1);
+  });
+});
+
+describe('investigate（調查）', () => {
+  it('一般物件：只播 look，unlocked 為 null', () => {
+    const s = st();
+    expect(investigate(vial, s, data)).toEqual({ state: s, dialogues: ['dlg_vial_look'], unlocked: null });
+    expect(investigate({ id: 'x' }, s, data)).toEqual({ state: s, dialogues: [], unlocked: null });
+  });
+  it('鎖著且沒有免費解法：look → locked，絕不扣殘響', () => {
+    const s = st();
+    expect(investigate(door, s, data)).toEqual({ state: s, dialogues: ['dlg_door_look', 'dlg_door_locked'], unlocked: false });
+  });
+  it('鎖著但有鑰匙：look → on_item，設旗標', () => {
+    const r = investigate(door, st({ items: { attic_key: 1 } }), data);
+    expect(r.dialogues).toEqual(['dlg_door_look', 'dlg_door_key']);
+    expect(r.unlocked).toBe(true);
+    expect(r.state.flags.door_open).toBe(true);
+    expect(r.state.echo.charges).toBe(2);
+  });
+  it('鎖著但譜系有 trace：look → on_tag，不扣殘響', () => {
+    const r = investigate(door, st({ lineage: { id: 'hound', rank: 9 } }), data);
+    expect(r.dialogues).toEqual(['dlg_door_look', 'dlg_door_echo']);
+    expect(r.state.echo.charges).toBe(2);
+  });
+  it('沒有 look 的鎖：locked 代替它', () => {
+    const { look: _l, ...noLook } = door;
+    expect(investigate(noLook, st(), data).dialogues).toEqual(['dlg_door_locked']);
+  });
+  it('已解開：只播 look', () => {
+    const s = st({ flags: { door_open: true } });
+    expect(investigate(door, s, data)).toEqual({ state: s, dialogues: ['dlg_door_look'], unlocked: true });
+  });
+});
+
+describe('echoAvailable（HUD 用）', () => {
+  it('次數、是否免費、是否可用', () => {
+    expect(echoAvailable(st(), data)).toEqual({ free: false, charges: 2, usable: true });
+    expect(echoAvailable(st({ echo: { charges: 0 } }), data)).toEqual({ free: false, charges: 0, usable: false });
+    expect(echoAvailable(st({ echo: { charges: 0 }, lineage: { id: 'hound', rank: 9 } }), data)).toEqual({ free: true, charges: 0, usable: true });
   });
 });

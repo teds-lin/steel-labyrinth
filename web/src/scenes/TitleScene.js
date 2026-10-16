@@ -19,7 +19,8 @@ export class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5);
     addText(this, WIDTH / 2, 222, '蒸汽與迷霧交織的城市', { fontSize: '15px', color: COLORS.textDim }).setOrigin(0.5);
 
-    const hasSave = session.storage.listSlots().some((s) => s.ok && !s.empty);
+    // 只要有任何非空的存檔槽（包含損壞、版本較新）就可以按「繼續」，在讀取選單裡看到狀態
+    const hasSave = session.hasAnySave();
     this.menu = new ButtonList(this, {
       x: WIDTH / 2, y: 380, w: 220, h: 52, gap: 14,
       items: [
@@ -33,13 +34,47 @@ export class TitleScene extends Phaser.Scene {
     addText(this, WIDTH / 2, HEIGHT - 52, '方向鍵／WASD 移動　空白鍵 調查　E 殘響　Esc 選單', {
       fontSize: '11px', color: COLORS.textDisabled,
     }).setOrigin(0.5);
-    addText(this, WIDTH / 2, HEIGHT - 30, '序章（開發中）', { fontSize: '11px', color: COLORS.textDisabled }).setOrigin(0.5);
+    const first = session.data?.manifest?.chapters?.[0];
+    const chapterTitle = session.data?.story?.find((c) => c?.id === first)?.title ?? first ?? '';
+    if (chapterTitle) {
+      addText(this, WIDTH / 2, HEIGHT - 30, `${chapterTitle}（開發中）`, { fontSize: '11px', color: COLORS.textDisabled }).setOrigin(0.5);
+    }
+
+    // 橫向手機（高度不夠）：本版沒有橫向版面，提示改用直向
+    this.landscapeHint = addText(this, WIDTH / 2, 28, '建議直向遊玩', {
+      fontSize: '14px', color: '#ffe2b0', backgroundColor: '#1a1f28dd', padding: { x: 12, y: 6 },
+    }).setOrigin(0.5).setDepth(50);
+    const onResize = () => this.updateLandscapeHint();
+    this.scale.on('resize', onResize);
+    window.addEventListener('resize', onResize);
+    this.events.once('shutdown', () => {
+      this.scale.off('resize', onResize);
+      window.removeEventListener('resize', onResize);
+    });
+    this.updateLandscapeHint();
 
     this.input.keyboard.on('keydown', (ev) => {
       if (!claimKey(ev)) return;
       this.menu.handleKey(ev.code);
     });
-    this.events.on('resume', () => { session.scene = 'Title'; });
+    this.events.on('resume', this.onResume, this);
+    this.events.once('shutdown', () => this.events.off('resume', this.onResume, this));
+  }
+
+  onResume() { session.scene = 'Title'; }
+
+  updateLandscapeHint() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.landscapeHint?.setVisible(w > h && h < 500);
+  }
+
+  /** E2E 用的唯讀資訊。 */
+  debugInfo() {
+    return {
+      items: this.menu.buttons.map((b) => ({ label: b.label.text, enabled: b.enabled, sub: b.sub?.text ?? null })),
+      landscapeHint: !!this.landscapeHint?.visible,
+    };
   }
 
   openLoad() {

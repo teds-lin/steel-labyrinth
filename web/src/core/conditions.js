@@ -5,14 +5,17 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNonEmptyStr = (v) => typeof v === 'string' && v !== '';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
-const LEAF = {
+// 用 null 原型＋Object.hasOwn 查表：避免 toString／constructor／__proto__ 這類原型鍵被當成合法寫法。
+const LEAF = Object.freeze(Object.assign(Object.create(null), {
   flag: isNonEmptyStr,
   not_flag: isNonEmptyStr,
   item: isNonEmptyStr,
   lineage: isNonEmptyStr,
   echo_gte: isNum,
   rank_lte: isNum,
-};
+}));
+/** 只讀自有屬性（不吃原型鏈）。 */
+const own = (obj, k) => (isObj(obj) && Object.hasOwn(obj, k) ? obj[k] : undefined);
 
 /** 靜態檢查條件寫法，回傳錯誤字串陣列（空陣列＝合法）。 */
 export function checkCondition(cond, path = 'if') {
@@ -21,7 +24,7 @@ export function checkCondition(cond, path = 'if') {
   if (keys.length !== 1) return [`${path}：條件必須剛好一個鍵，實際為 ${JSON.stringify(keys)}`];
   const [k] = keys;
   const v = cond[k];
-  if (k in LEAF) {
+  if (Object.hasOwn(LEAF, k)) {
     return LEAF[k](v) ? [] : [`${path}：「${k}」的值不合法：${JSON.stringify(v)}`];
   }
   if (k === 'all' || k === 'any') {
@@ -39,9 +42,9 @@ function evalChecked(cond, state) {
   const [k] = Object.keys(cond);
   const v = cond[k];
   switch (k) {
-    case 'flag': return state?.flags?.[v] === true;
-    case 'not_flag': return state?.flags?.[v] !== true;
-    case 'item': return (state?.items?.[v] ?? 0) > 0;
+    case 'flag': return own(state?.flags, v) === true;
+    case 'not_flag': return own(state?.flags, v) !== true;
+    case 'item': { const n = own(state?.items, v); return typeof n === 'number' && n > 0; }
     case 'echo_gte': return (state?.echo?.charges ?? 0) >= v;
     case 'lineage': return state?.lineage?.id === v;
     case 'rank_lte': return state?.lineage != null && isNum(state.lineage.rank) && state.lineage.rank <= v;

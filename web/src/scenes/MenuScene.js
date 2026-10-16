@@ -2,7 +2,7 @@
 // mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）。
 import { WIDTH, HEIGHT, COLORS } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
-import { addText, ButtonList, panel } from '../ui/widgets.js';
+import { addText, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
 
 const BLOCKED_MSG = '目前無法存檔（瀏覽器封鎖了儲存空間），\n遊戲仍可繼續';
 
@@ -16,8 +16,10 @@ export class MenuScene extends Phaser.Scene {
 
   create() {
     session.scene = 'Menu';
-    // 擋住下層的點擊
-    this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x05070a, 0.72).setOrigin(0).setInteractive();
+    // 選單一定在最上層（UI 場景會被 Map bringToTop，ChapterEnd 在場景清單裡排在後面）
+    this.scene.bringToTop();
+    // 壓暗並擋住下層（HUD、觸控區、地圖）的點擊
+    this.dim = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x05070a, 0.78).setOrigin(0).setInteractive();
     panel(this, 16, 70, WIDTH - 32, HEIGHT - 140);
     this.title = addText(this, WIDTH / 2, 104, '', { fontSize: '20px', fontStyle: 'bold', color: '#f0d2a0' }).setOrigin(0.5);
     this.note = addText(this, WIDTH / 2, 136, '', {
@@ -44,6 +46,29 @@ export class MenuScene extends Phaser.Scene {
     this.note.setText(note ?? '');
     const top = this.note.text ? Math.max(y, 136 + this.note.height + 24) : y;
     this.list = new ButtonList(this, { x: WIDTH / 2, y: top + h / 2, w: WIDTH - 72, h, gap: 10, items, align: 'left', fontSize });
+    // 副標（名字、損壞原因）太長時以「…」截斷：只截名字／原因的部分
+    this.list.buttons.forEach((b, i) => {
+      const it = items[i];
+      if (!b.sub) return;
+      const room = b.w - 24;
+      if (it.subName !== undefined) fitPart(b.sub, it.subName, it.subRender, room);
+      else fitText(b.sub, it.sub, room);
+      b.fit();
+    });
+  }
+
+  /** E2E 用的唯讀資訊。 */
+  debugInfo() {
+    return {
+      page: this.page,
+      title: this.title.text,
+      note: this.note.text,
+      dimmed: this.dim.visible && this.dim.fillAlpha >= 0.5,
+      items: (this.list?.buttons ?? []).map((b) => ({
+        label: b.label.text, sub: b.sub?.text ?? null, enabled: b.enabled, x: b.x, y: b.y,
+        subWidth: b.sub ? b.sub.displayWidth : 0, room: b.w - 24,
+      })),
+    };
   }
 
   showMain(note = null) {
@@ -57,21 +82,23 @@ export class MenuScene extends Phaser.Scene {
   }
 
   slotItems(kind) {
-    const slots = session.storage.listSlots();
-    return slots.map((s) => {
-      if (s.ok && s.empty) {
+    return session.slotSummaries().map((s) => {
+      if (s.kind === 'empty') {
         return { label: `存檔 ${s.slot}　（空）`, sub: '尚未使用', enabled: kind === 'save', onSelect: () => this.saveTo(s.slot, false) };
       }
-      if (s.ok) {
+      if (s.kind === 'ok') {
+        const time = formatPlaytime(s.playtime_s);
+        const render = (name) => `${name}｜遊戲時間 ${time}`;
         return {
           label: `存檔 ${s.slot}　${session.mapName(s.map)}`,
-          sub: `${s.name}｜遊戲時間 ${formatPlaytime(s.playtime_s)}`,
+          sub: render(s.name), subName: s.name, subRender: render,
           onSelect: () => (kind === 'save' ? this.saveTo(s.slot, true) : this.loadFrom(s.slot)),
         };
       }
+      // 損壞或版本較新：不能讀，只能（在存檔模式）覆蓋
       return {
-        label: `存檔 ${s.slot}　無法讀取`,
-        sub: String(s.reason ?? '存檔損壞').slice(0, 40),
+        label: s.kind === 'newer' ? `存檔 ${s.slot}　版本較新，請更新遊戲` : `存檔 ${s.slot}　已損壞`,
+        sub: s.reason || '存檔損壞',
         enabled: kind === 'save',
         onSelect: () => this.saveTo(s.slot, true),
       };
@@ -107,14 +134,11 @@ export class MenuScene extends Phaser.Scene {
     else this.showSlots('save', `${BLOCKED_MSG}\n（${r.reason}）`);
   }
 
+  /** 讀檔：deserialize → sanitizeLoadedState；拒絕時留在選單顯示原因，有警告時進地圖後提示。 */
   loadFrom(slot) {
-    const r = session.storage.load(slot);
+    const r = session.loadSlot(slot);
     if (!r.ok) {
       this.showSlots('load', `無法讀取存檔 ${slot}：${r.reason}`);
-      return;
-    }
-    if (!session.mapById(r.state.location?.map)) {
-      this.showSlots('load', `存檔 ${slot} 的地點「${r.state.location?.map}」不存在，無法讀取`);
       return;
     }
     session.reset();
@@ -122,7 +146,7 @@ export class MenuScene extends Phaser.Scene {
     this.scene.stop('UI');
     if (this.from !== 'Map') this.scene.stop(this.from);
     this.scene.stop('Map');
-    this.scene.start('Map', {});
+    this.scene.start('Map', { notices: r.warnings });
   }
 
   confirmTitle() {

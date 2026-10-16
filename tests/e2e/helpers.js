@@ -1,5 +1,10 @@
 // E2E 共用工具：錯誤蒐集 fixture、遊戲操作（鍵盤／觸控）、依地圖資料自動尋路。
 import { test as base, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+/** 遊戲資料的 manifest（新遊戲的殘響次數等以它為準，不在測試寫死）。 */
+export const MANIFEST = JSON.parse(readFileSync(new URL('../../web/data/manifest.json', import.meta.url), 'utf8'));
+export const START_ECHO = MANIFEST.start?.echo_charges ?? 0;
 
 export { expect };
 
@@ -24,7 +29,38 @@ const PAD = { up: [92, 498], down: [92, 606], left: [38, 552], right: [146, 552]
 const ACTION_BTN = { investigate: [276, 498], echo: [276, 552], menu: [276, 606] };
 const ARROW = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
 const DELTA = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+/** 對話框內文字區（點這裡＝下一句；不是選項按鈕的位置）。 */
+const DIALOGUE_TAP = [180, 560];
 const ACTION_KEY = { investigate: 'Space', echo: 'KeyE', menu: 'Escape' };
+
+/** 合法的序章存檔（預設在閣樓起點）；override 會淺層合併。 */
+export function makeSave(override = {}) {
+  return {
+    schema_version: 1,
+    player: { name: '艾琳' },
+    lineage: null,
+    location: { map: 'attic', x: 2, y: 3, dir: 'down' },
+    flags: { 'enter:attic': true },
+    items: {},
+    echo: { charges: START_ECHO },
+    collapse: 0,
+    resonance: {},
+    chapter: 'prologue',
+    chapter_done: [],
+    playtime_s: 10,
+    ...override,
+  };
+}
+
+/** 在頁面載入前寫入存檔槽：slots = { 1: 物件或原始字串, ... }。只在第一次載入時寫入。 */
+export async function seedSaves(page, slots) {
+  const entries = Object.entries(slots).map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]);
+  await page.addInitScript((list) => {
+    if (sessionStorage.getItem('__sl_seeded')) return;
+    sessionStorage.setItem('__sl_seeded', '1');
+    for (const [k, v] of list) localStorage.setItem(`steel-labyrinth:save:${k}`, v);
+  }, entries);
+}
 
 export function game(page, { touch = false } = {}) {
   const st = () => page.evaluate(() => window.__SL.getState());
@@ -41,6 +77,33 @@ export function game(page, { touch = false } = {}) {
     const box = await page.locator('canvas').boundingBox();
     await page.touchscreen.tap(box.x + (lx * box.width) / 360, box.y + (ly * box.height) / 640);
     await sleep(60);
+  }
+  /** 指標點擊邏輯座標：手機用觸控，桌機用滑鼠。 */
+  async function pointAt(lx, ly) {
+    if (touch) { await tap(lx, ly); return; }
+    const box = await page.locator('canvas').boundingBox();
+    await page.mouse.click(box.x + (lx * box.width) / 360, box.y + (ly * box.height) / 640);
+    await sleep(60);
+  }
+  /** 等選項按鈕出現後，點第 i 個（可見選項索引）的中心。 */
+  async function tapChoice(i) {
+    await page.waitForFunction(() => (window.__SL.choiceRects?.() ?? []).length > 0, null, { timeout: 3_000 });
+    const rects = await page.evaluate(() => window.__SL.choiceRects());
+    const r = rects[i];
+    if (!r) throw new Error(`沒有第 ${i} 個選項：${JSON.stringify(rects)}`);
+    await pointAt(r.x + r.w / 2, r.y + r.h / 2);
+  }
+  /** 推進對話直到出現選項節點（不選）。 */
+  async function advanceToChoice() {
+    let guard = 0;
+    for (;;) {
+      if (++guard > 100) throw new Error('等不到選項');
+      const d = await dlg();
+      if (d === null) throw new Error('對話在出現選項前就結束了');
+      if (d.choices) return d;
+      if (touch) await tap(...DIALOGUE_TAP); else await key('Space');
+      await sleep(40);
+    }
   }
   /** 方向輸入：手機用觸控十字鍵，桌機用鍵盤。 */
   const press = (dir) => (touch ? tap(...PAD[dir]) : key(ARROW[dir]));
@@ -75,11 +138,16 @@ export function game(page, { touch = false } = {}) {
         const i = queue.shift();
         if (i === undefined) throw new Error(`出現未預期的選項：${JSON.stringify(d)}`);
         transcript.push(`? ${d.text} -> ${d.choices[i]}`);
-        for (let j = 0; j < i; j++) await key('ArrowDown');
-        await key('Enter');
+        if (touch) {
+          // 手機：直接點選項按鈕（不可用鍵盤代替，否則會蓋掉「選項點不到」這類問題）
+          await tapChoice(i);
+        } else {
+          for (let j = 0; j < i; j++) await key('ArrowDown');
+          await key('Enter');
+        }
       } else {
         transcript.push(`${d.speaker ?? '(旁白)'}：${d.text}`);
-        await key('Space');
+        if (touch) await tap(...DIALOGUE_TAP); else await key('Space');
       }
       await sleep(40);
     }
@@ -231,7 +299,7 @@ export function game(page, { touch = false } = {}) {
   }
 
   return {
-    st, scene, dlg, key, sleep, tap, press, act, waitScene, waitDialogue, finishDialogue, newGame,
+    st, scene, dlg, key, sleep, tap, pointAt, tapChoice, advanceToChoice, press, act, waitScene, waitDialogue, finishDialogue, newGame,
     stepDir, goTo, faceObject, useOn, takeExit, mapData, noHScroll,
   };
 }

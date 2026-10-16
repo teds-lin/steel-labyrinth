@@ -1,39 +1,36 @@
-// 畫面層與 core 之間的小型轉接：把【調查】【殘響】按鈕轉成 core 的呼叫。
-import { facingTarget, look, tryUnlock, echo, unlockOptions, NO_TRACE_MESSAGE, NO_CHARGE_MESSAGE } from './core/interact.js';
-import { isUnlocked } from './core/grid.js';
-import { hasEcho } from './core/echo.js';
+// 畫面層與 core 之間的小型轉接：把【調查】【殘響】按鈕（對「面前那一格」）轉成 core 的呼叫。
+// 調查／殘響的規則全部在 core（investigate、echo、echoAvailable），這裡只負責找出面前的物件。
+import { facingTarget, investigate, echo, echoAvailable, NO_TRACE_MESSAGE, NO_CHARGE_MESSAGE } from './core/interact.js';
 
-/**
- * 【調查】面前的物件。回傳 { state, dialogue, message }。
- * 鎖住的物件：只嘗試「不需付出代價」的解法（免費標籤或道具）。
- * 不直接呼叫 tryUnlock(obj, state, data)（自動挑選），因為沒有鑰匙但還有殘響時，
- * 它會選「要消耗殘響的 trace 標籤」，等於按【調查】就默默扣掉殘響；殘響只該由【殘響】鍵觸發。
- */
-export function investigate(map, state, data) {
+/** 【調查】面前的物件。回傳 { state, dialogues, message }；dialogues 依序播放。 */
+export function investigateFacing(map, state, data) {
   const obj = facingTarget(map, state, data);
-  if (!obj) return { state, dialogue: null, message: null };
-  if (obj.lock && !isUnlocked(obj, state)) {
-    const free = unlockOptions(obj, state, data).filter((o) => o.cost === null);
-    // 偏好順序與 core 相同：免費標籤 > 道具
-    const pick = free.find((o) => o.method === 'tag') ?? free.find((o) => o.method === 'item');
-    const r = pick
-      ? tryUnlock(obj, state, data, pick.method === 'tag' ? { method: 'tag', tag: pick.tag } : { method: 'item' })
-      : { state, dialogue: obj.lock.locked ?? null };
-    return { state: r.state, dialogue: r.dialogue ?? null, message: null };
-  }
-  const r = look(obj, state);
-  return { state: r.state, dialogue: r.dialogue, message: null };
+  if (!obj) return { state, dialogues: [], message: null };
+  const r = investigate(obj, state, data);
+  return { state: r.state, dialogues: r.dialogues ?? [], message: null };
 }
 
 /**
- * 【殘響】面前的物件。core 的 echo() 已處理：次數 0、鎖住且可用 trace 解開、物件的 echo 對話、沒有痕跡。
- * 面前沒有物件時 core 沒有對應 API（echo 需要物件），這裡補上同樣的訊息、不扣次數。
+ * 【殘響】面前的物件。core 的 echo() 需要物件；面前沒有物件時依 echoAvailable 給同樣的提示、不改 state。
  */
-export function useEcho(map, state, data) {
+export function echoFacing(map, state, data) {
   const obj = facingTarget(map, state, data);
   if (!obj) {
-    return { state, dialogue: null, message: hasEcho(state) ? NO_TRACE_MESSAGE : NO_CHARGE_MESSAGE };
+    return { state, dialogues: [], message: echoAvailable(state, data).usable ? NO_TRACE_MESSAGE : NO_CHARGE_MESSAGE };
   }
   const r = echo(obj, state, data);
-  return { state: r.state, dialogue: r.dialogue ?? null, message: r.message ?? null };
+  return { state: r.state, dialogues: r.dialogue ? [r.dialogue] : [], message: r.message ?? null };
+}
+
+/** 讀檔警告（core 給的是除錯用的詳細訊息）轉成給玩家看的提示，詳細內容留在 console。 */
+export function loadNotice(warnings) {
+  if (!Array.isArray(warnings) || warnings.length === 0) return null;
+  console.warn('讀檔時修正了存檔內容：', warnings);
+  const msgs = new Set(warnings.map((w) => {
+    const s = String(w);
+    if (/位置/.test(s)) return '存檔位置異常，已移到起點';
+    if (/名字/.test(s)) return '存檔的名字已重新整理';
+    return '存檔有部分內容異常，已自動修正';
+  }));
+  return [...msgs].join('\n');
 }

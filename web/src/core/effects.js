@@ -4,7 +4,8 @@ import { spendEcho, clampCollapse } from './echo.js';
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNonEmptyStr = (v) => typeof v === 'string' && v !== '';
 
-const RULES = {
+// null 原型＋Object.hasOwn：原型鍵（toString、constructor、__proto__…）一律視為未知寫法。
+const RULES = Object.freeze(Object.assign(Object.create(null), {
   set_flag: isNonEmptyStr,
   clear_flag: isNonEmptyStr,
   give_item: isNonEmptyStr,
@@ -13,6 +14,11 @@ const RULES = {
   chapter_end: isNonEmptyStr,
   collapse: (v) => typeof v === 'number' && Number.isFinite(v),
   use_echo: (v) => v === true,
+}));
+/** 只讀自有屬性的計數（不吃原型鏈）；不是數字時當 0。 */
+const count = (obj, k) => {
+  const n = isObj(obj) && Object.hasOwn(obj, k) ? obj[k] : 0;
+  return typeof n === 'number' && Number.isFinite(n) ? n : 0;
 };
 
 /** 靜態檢查效果寫法，回傳錯誤字串陣列。 */
@@ -21,7 +27,7 @@ export function checkEffect(effect, path = 'effect') {
   const keys = Object.keys(effect);
   if (keys.length !== 1) return [`${path}：效果必須剛好一個鍵，實際為 ${JSON.stringify(keys)}`];
   const [k] = keys;
-  if (!(k in RULES)) return [`${path}：未知的效果寫法「${k}」`];
+  if (!Object.hasOwn(RULES, k)) return [`${path}：未知的效果寫法「${k}」`];
   return RULES[k](effect[k]) ? [] : [`${path}：「${k}」的值不合法：${JSON.stringify(effect[k])}`];
 }
 
@@ -40,15 +46,16 @@ export function applyEffect(effect, state) {
       return { ...state, flags };
     }
     case 'give_item':
-      return { ...state, items: { ...state.items, [v]: (state.items?.[v] ?? 0) + 1 } };
+      return { ...state, items: { ...state.items, [v]: count(state.items, v) + 1 } };
     case 'take_item': {
       const items = { ...state.items };
-      const n = (items[v] ?? 0) - 1;
+      if (!Object.hasOwn(items, v)) return { ...state, items };
+      const n = count(items, v) - 1;
       if (n > 0) items[v] = n; else delete items[v]; // 沒有時不變（不丟錯，見回報）
       return { ...state, items };
     }
     case 'resonance':
-      return { ...state, resonance: { ...state.resonance, [v]: (state.resonance?.[v] ?? 0) + 1 } };
+      return { ...state, resonance: { ...state.resonance, [v]: count(state.resonance, v) + 1 } };
     case 'collapse':
       return { ...state, collapse: clampCollapse((state.collapse ?? 0) + v) };
     case 'use_echo':

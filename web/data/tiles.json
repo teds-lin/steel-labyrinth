@@ -52,7 +52,8 @@
   {
     "id": "wall_lamp",
     "solid": true,
-    "color": "#e09a3e"
+    "color": "#e09a3e",
+    "glow": true
   },
   {
     "id": "stairs_up",
@@ -92,7 +93,8 @@
   {
     "id": "gas_lamp",
     "solid": true,
-    "color": "#f0a848"
+    "color": "#f0a848",
+    "glow": true
   },
   {
     "id": "mist",

@@ -54,3 +54,22 @@ describe('fill 名字代入', () => {
     expect(fill('{name}', { player: { name: '$&$1' } })).toBe('$&$1');
   });
 });
+
+describe('sanitizeName：格式字元（Cf）與看不見的名字', () => {
+  it('移除零寬、雙向控制、BOM、軟連字號、tag 字元', () => {
+    const cf = ['​', '‌', '‍', '‎', '‏', '‪', '‮', '⁠', '⁦', '⁩', '﻿', '­', '\u{E0001}', '\u{E0041}', '\u{E007F}'];
+    for (const c of cf) expect(sanitizeName(`艾${c}琳`), c.codePointAt(0).toString(16)).toBe('艾琳');
+  });
+  it('emoji 的 ZWJ 組合序列仍保留', () => {
+    expect(sanitizeName('👨‍👩‍👧')).toBe('👨‍👩‍👧');
+    expect(sanitizeName('‍艾')).toBe('艾');
+  });
+  it('只剩看不見的字元 → 預設名字', () => {
+    for (const s of ['​​', 'ㅤ', 'ᅟᅠ', 'ﾠ', '⠀⠀', '́̈', ' ㅤ ', '‮']) {
+      expect(sanitizeName(s), JSON.stringify(s)).toBe(DEFAULT_NAME);
+    }
+  });
+  it('有可見字元時，看不見的字元不影響結果判斷', () => {
+    expect(sanitizeName('é')).toBe('é');
+  });
+});

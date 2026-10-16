@@ -26,7 +26,7 @@ function fixture() {
             on_tag: { trace: 'dlg_door_echo' }, on_item: 'dlg_door_key', locked: 'dlg_door_locked' } },
         ],
         exits: [{ x: 2, y: 4, to: 'stairs', spawn: 'from_attic', requires: { flag: 'door_open' }, blocked: 'dlg_door_locked' }],
-        triggers: [{ id: 'trg_window', x: 1, y: 2, dialogue: 'dlg_enter', once: true }],
+        triggers: [{ id: 'trg_window', x: 1, y: 2, dialogue: 'dlg_enter', once: true }, { id: 'trg_end', x: 3, y: 2, dialogue: 'dlg_end', once: true }],
       },
       {
         id: 'stairs', name: '樓梯間',
@@ -36,7 +36,7 @@ function fixture() {
       },
     ],
     story: [{
-      id: 'prologue', dialogues: [
+      id: 'prologue', title: '序章', end_screen: { title: '序章　完', subtitle: '第一章　製作中' }, dialogues: [
         { id: 'dlg_opening', start: 'n1', nodes: [{ id: 'n1', speaker: null, text: '醒來。', next: 'END' }] },
         { id: 'dlg_enter', start: 'n1', nodes: [{ id: 'n1', text: '閣樓。', next: 'END' }] },
         { id: 'dlg_vial_look', start: 'gate', nodes: [
@@ -55,6 +55,7 @@ function fixture() {
         { id: 'dlg_door_echo', start: 'n1', nodes: [{ id: 'n1', text: '門鎖記得。', next: 'END' }] },
         { id: 'dlg_door_key', start: 'n1', nodes: [{ id: 'n1', text: '鑰匙轉動。', next: 'END' }] },
         { id: 'dlg_door_locked', start: 'n1', nodes: [{ id: 'n1', text: '鎖著。', next: 'END' }] },
+        { id: 'dlg_end', start: 'n1', nodes: [{ id: 'n1', text: '完。', effects: [{ chapter_end: 'prologue' }], next: 'END' }] },
       ],
     }],
   };
@@ -188,10 +189,10 @@ describe('lock 規則', () => {
     dlgOf(b, 'dlg_vial_look').nodes[1].effects = [{ set_flag: 'got_key' }];
     expectError(b, /obj_door.*attic_key.*取得/);
   });
-  it('fallback 道具在選項效果裡給也算', () => {
+  it('fallback 道具在（免費入口的）選項效果裡給也算', () => {
     const b = fixture();
     dlgOf(b, 'dlg_vial_look').nodes[1].effects = [{ set_flag: 'got_key' }];
-    dlgOf(b, 'dlg_vial_echo').nodes[0].choices[0].effects = [{ give_item: 'attic_key' }];
+    dlgOf(b, 'dlg_vial_look').nodes[1] = { id: 'n1', text: '要拿嗎？', choices: [{ text: '拿', next: 'END', effects: [{ give_item: 'attic_key' }] }, { text: '不', next: 'END' }] };
     expect(validateBundle(b)).toEqual([]);
   });
   it('缺 flag；solvable_by 不是字串陣列；on_tag 的標籤不在 solvable_by', () => {
@@ -257,5 +258,112 @@ describe('對話結構', () => {
     let b = fixture(); attic(b).objects[0].if = { bogus: 1 }; expectError(b, /obj_vial.*bogus/);
     b = fixture(); attic(b).exits[0].requires = { bogus: 1 }; expectError(b, /exits\[0\].*bogus/);
     b = fixture(); attic(b).triggers[0].if = {}; expectError(b, /trg_window.*if/);
+  });
+});
+
+// ───────────── M1 審查修正：補檢查 ─────────────
+describe('補檢查（M1 審查）', () => {
+  it('lineage.ranks 必須是陣列；rank 必須是整數且不重複', () => {
+    let b = fixture(); b.lineages[0].ranks = { 9: {} }; expectError(b, /lineages.*trace.*ranks.*陣列/);
+    b = fixture(); b.lineages[0].ranks.push({ rank: 9, field: [] }); expectError(b, /trace.*rank 9.*重複/);
+    b = fixture(); b.lineages[0].ranks.push({ rank: 'x' }); expectError(b, /trace.*rank/);
+  });
+  it('tile 的 solid 必填且為布林；glow 選填但必須是布林', () => {
+    let b = fixture(); delete b.tiles[1].solid; expectError(b, /floor.*solid/);
+    b = fixture(); b.tiles[1].solid = 'no'; expectError(b, /floor.*solid/);
+    b = fixture(); b.tiles[1].glow = 1; expectError(b, /floor.*glow/);
+    b = fixture(); b.tiles[1].glow = true; expect(validateBundle(b)).toEqual([]);
+  });
+  it('物件的 solid 必須是布林（選填）', () => {
+    const b = fixture(); attic(b).objects[0].solid = 'yes'; expectError(b, /obj_vial.*solid/);
+  });
+  it('spawn 不可放在 solid 物件上', () => {
+    const b = fixture(); attic(b).spawns[0].x = 3; expectError(b, /spawn「default」.*obj_vial/);
+  });
+  it('條件 {lineage} 必須引用存在的譜系', () => {
+    const b = fixture(); attic(b).exits[0].requires = { any: [{ flag: 'door_open' }, { lineage: 'ghost' }] };
+    expectError(b, /exits\[0\].*譜系.*ghost/);
+  });
+  it('chapter_end 必須是已載入的 story id', () => {
+    const b = fixture(); dlgOf(b, 'dlg_end').nodes[0].effects = [{ chapter_end: 'chapter9' }];
+    expectError(b, /dlg_end.*chapter_end.*chapter9/);
+  });
+  it('manifest.chapters 必須是陣列，每一項都有對應 story', () => {
+    let b = fixture(); b.manifest.chapters.push('chapter1'); expectError(b, /manifest\.json.*chapters.*chapter1/);
+    b = fixture(); delete b.manifest.chapters; expectError(b, /manifest\.json.*chapters/);
+  });
+  it('story 的 title、end_screen.title／subtitle 必須是非空字串', () => {
+    let b = fixture(); delete b.story[0].title; expectError(b, /story\/prologue\.json.*title/);
+    b = fixture(); b.story[0].title = ''; expectError(b, /story\/prologue\.json.*title/);
+    b = fixture(); delete b.story[0].end_screen; expectError(b, /story\/prologue\.json.*end_screen/);
+    b = fixture(); b.story[0].end_screen.subtitle = 3; expectError(b, /end_screen\.subtitle/);
+  });
+  it('manifest.start.echo_charges 若存在必須是 0～99 整數', () => {
+    for (const v of [-1, 100, 1.5, '3', null]) {
+      const b = fixture(); b.manifest.start.echo_charges = v; expectError(b, /echo_charges/);
+    }
+    const b = fixture(); b.manifest.start.echo_charges = 3; expect(validateBundle(b)).toEqual([]);
+  });
+  it('原型鍵：spawn dir「toString」、條件／效果的原型鍵都要報錯', () => {
+    let b = fixture(); attic(b).spawns[0].dir = 'toString'; expectError(b, /default.*dir/);
+    b = fixture(); attic(b).exits[0].requires = JSON.parse('{"constructor":"x"}'); expectError(b, /exits\[0\].*未知的條件/);
+    b = fixture(); dlgOf(b, 'dlg_door_key').nodes[0].effects = [JSON.parse('{"__proto__":"x"}')]; expectError(b, /dlg_door_key.*未知的效果/);
+  });
+});
+
+describe('fallback 可達性（R6）：鑰匙必須能從免費入口拿到', () => {
+  // 把 fixture 改成：抽屜（look）給鑰匙；門的殘響（on_tag）也給鑰匙
+  const withDrawer = () => {
+    const b = fixture();
+    dlgOf(b, 'dlg_vial_look').nodes[1].effects = [{ set_flag: 'got_key' }];
+    attic(b).objects.push({ id: 'obj_drawer', x: 1, y: 2, solid: true, look: 'dlg_drawer' });
+    attic(b).triggers = attic(b).triggers.filter((t) => t.id !== 'trg_window');
+    b.story[0].dialogues.push({ id: 'dlg_drawer', start: 'n1', nodes: [{ id: 'n1', text: '抽屜裡有鑰匙。', effects: [{ give_item: 'attic_key' }], next: 'END' }] });
+    dlgOf(b, 'dlg_door_echo').nodes[0].effects = [{ give_item: 'attic_key' }];
+    return b;
+  };
+  it('抽屜給鑰匙 → 合法', () => {
+    expect(validateBundle(withDrawer())).toEqual([]);
+  });
+  it('把抽屜的 give_item 拿掉、只剩殘響開門對話會給鑰匙 → 報錯', () => {
+    const b = withDrawer();
+    delete dlgOf(b, 'dlg_drawer').nodes[0].effects;
+    expectError(b, /obj_door.*attic_key.*取得/);
+  });
+  it('物件 echo 對話給的不算', () => {
+    const b = withDrawer();
+    delete dlgOf(b, 'dlg_drawer').nodes[0].effects;
+    dlgOf(b, 'dlg_vial_echo').nodes[1].effects = [{ give_item: 'attic_key' }];
+    expectError(b, /obj_door.*attic_key.*取得/);
+  });
+  it('孤兒對話（沒人引用）給的不算', () => {
+    const b = withDrawer();
+    delete dlgOf(b, 'dlg_drawer').nodes[0].effects;
+    b.story[0].dialogues.push({ id: 'dlg_orphan', start: 'n1', nodes: [{ id: 'n1', text: '撿到鑰匙。', effects: [{ give_item: 'attic_key' }], next: 'END' }] });
+    expectError(b, /obj_door.*attic_key.*取得/);
+  });
+  it('免費入口都算：start.dialogue、on_enter、trigger、lock.on_item／locked', () => {
+    const entries = [
+      (b) => { b.manifest.start.dialogue = 'dlg_give'; },
+      (b) => { attic(b).on_enter = 'dlg_give'; },
+      (b) => { attic(b).triggers[0].dialogue = 'dlg_give'; },
+      (b) => { attic(b).objects[1].lock.locked = 'dlg_give'; },
+      (b) => { attic(b).objects[1].lock.on_item = 'dlg_give'; },
+    ];
+    for (const [i, hook] of entries.entries()) {
+      const b = withDrawer();
+      delete dlgOf(b, 'dlg_drawer').nodes[0].effects;
+      b.story[0].dialogues.push({ id: 'dlg_give', start: 'n1', nodes: [{ id: 'n1', text: '給你。', effects: [{ give_item: 'attic_key' }], next: 'END' }] });
+      hook(b);
+      expect(validateBundle(b), `入口 ${i}`).toEqual([]);
+    }
+  });
+  it('只能經過「要花殘響的選項」才拿得到 → 不算', () => {
+    const b = withDrawer();
+    dlgOf(b, 'dlg_drawer').nodes[0] = { id: 'n1', text: '要看穿嗎？', choices: [
+      { text: '算了', next: 'END' },
+      { text: '看穿', if: { echo_gte: 1 }, effects: [{ use_echo: true }, { give_item: 'attic_key' }], next: 'END' },
+    ] };
+    expectError(b, /obj_door.*attic_key.*取得/);
   });
 });

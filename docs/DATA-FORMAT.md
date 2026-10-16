@@ -85,7 +85,7 @@ web/data/
   "end_screen": { "title": "序章　完", "subtitle": "第一章　製作中" },   // chapter_end 後的畫面文字
   "dialogues": [
   { "id": "dlg_vial_look", "start": "n1", "nodes": [
-    { "id": "n1", "speaker": null, "text": "桌上有一只空藥瓶……", "next": "n2" },
+    { "id": "n1", "speaker": null, "text": "桌上有一個空藥瓶……", "next": "n2" },
     { "id": "n2", "speaker": "{name}", "text": "這是……我喝的？", "effects": [ { "set_flag": "saw_vial" } ], "next": "END" },
     { "id": "n3", "text": "要怎麼回答？", "choices": [
         { "text": "說實話", "next": "n4", "effects": [ { "set_flag": "told_truth" } ] },

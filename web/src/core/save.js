@@ -1,5 +1,8 @@
 // 存檔：序列化、版本遷移、3 個存檔槽。只存 DATA-FORMAT「遊戲狀態」裡的事實。
 // 存取層（backend，通常是 localStorage）出錯時一律回 { ok:false, reason }，不讓遊戲當機。
+// 讀檔分兩關（DATA-FORMAT「讀檔驗證」）：deserialize 檢查格式；sanitizeLoadedState 對照內容資料檢查語意並修復位置。
+import { sanitizeName } from './name.js';
+import { DIRS, canMove, mapSize } from './grid.js';
 
 export const CURRENT_VERSION = 1;
 export const SLOT_COUNT = 3;
@@ -7,6 +10,12 @@ export const KEY_PREFIX = 'steel-labyrinth:save:';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const intIn = (lo, hi) => (v) => Number.isInteger(v) && v >= lo && v <= hi;
+const isPosInt = (v) => Number.isInteger(v) && v > 0;
+const isCount = (v) => Number.isInteger(v) && v >= 0;
+const valuesOk = (pred) => (v) => isObj(v) && Object.values(v).every(pred);
+
+export const MAX_ECHO_CHARGES = 99;
 
 /**
  * 版本遷移：migrations[n] 把 vn 轉成 v(n+1)。
@@ -34,24 +43,24 @@ export function serialize(state) {
 const REQUIRED = [
   ['player', isObj],
   ['player.name', (v) => typeof v === 'string'],
-  ['lineage', (v) => v === null || (isObj(v) && typeof v.id === 'string' && isNum(v.rank))],
+  ['lineage', (v) => v === null || (isObj(v) && typeof v.id === 'string' && Number.isInteger(v.rank))],
   ['location', isObj],
   ['location.map', (v) => typeof v === 'string'],
   ['flags', isObj],
-  ['items', isObj],
+  ['items', valuesOk(isPosInt)],        // 道具數量為正整數
   ['echo', isObj],
-  ['echo.charges', isNum],
-  ['collapse', isNum],
-  ['resonance', isObj],
+  ['echo.charges', intIn(0, MAX_ECHO_CHARGES)],
+  ['collapse', intIn(0, 100)],
+  ['resonance', valuesOk(isCount)],
   ['chapter', (v) => v === null || typeof v === 'string'],
-  ['chapter_done', Array.isArray],
-  ['playtime_s', isNum],
+  ['chapter_done', (v) => Array.isArray(v) && v.every((x) => typeof x === 'string')],
+  ['playtime_s', (v) => isNum(v) && v >= 0],
 ];
 
 function getPath(obj, path) {
   let cur = obj;
   for (const k of path.split('.')) {
-    if (!isObj(cur) || !(k in cur)) return { found: false };
+    if (!isObj(cur) || !Object.hasOwn(cur, k)) return { found: false };
     cur = cur[k];
   }
   return { found: true, value: cur };
@@ -76,7 +85,7 @@ export function deserialize(str) {
   }
   if (!isObj(obj)) throw new Error('存檔損壞：內容不是物件');
   const v = obj.schema_version;
-  if (!('schema_version' in obj)) throw new Error('存檔缺少欄位：schema_version');
+  if (!Object.hasOwn(obj, 'schema_version')) throw new Error('存檔缺少欄位：schema_version');
   if (!Number.isInteger(v)) throw new Error('存檔欄位型別錯誤：schema_version');
   if (v > CURRENT_VERSION) {
     throw new Error(`存檔版本 ${v} 較新，目前遊戲只支援到版本 ${CURRENT_VERSION}，請更新遊戲`);
@@ -89,6 +98,64 @@ export function deserialize(str) {
   }
   assertShape(cur);
   return cur;
+}
+
+const findById = (list, id) => (Array.isArray(list) ? list.find((x) => isObj(x) && x.id === id) : undefined);
+
+/**
+ * 讀檔的語意檢查與修復（畫面層在 storage.load 成功後呼叫）。不修改輸入。
+ * 回傳 { ok:true, state, warnings:[] } 或 { ok:false, reason }。
+ * - 名字重新經過 sanitizeName。
+ * - lineage：null，或 id 存在且 rank 是該譜系已開放的階位；否則拒絕。
+ * - location：地圖不存在 → 拒絕；座標不合法、超出範圍、站在 solid 地形／solid 物件上、方向不合法 → 改放第一個 spawn 並警告。
+ */
+export function sanitizeLoadedState(state, data) {
+  try {
+    if (!isObj(state)) return { ok: false, reason: '存檔損壞：內容不是物件' };
+    try {
+      assertShape(state);
+    } catch (e) {
+      return { ok: false, reason: e.message };
+    }
+    const warnings = [];
+    let next = state;
+
+    const name = sanitizeName(state.player.name);
+    if (name !== state.player.name) {
+      warnings.push('存檔的名字含有不合法的字元或過長，已重新整理');
+      next = { ...next, player: { ...next.player, name } };
+    }
+
+    const lin = state.lineage;
+    if (lin !== null) {
+      const def = findById(data?.lineages, lin.id);
+      if (!def) return { ok: false, reason: `存檔的譜系「${lin.id}」不存在` };
+      if (!Array.isArray(def.ranks) || !def.ranks.some((r) => isObj(r) && r.rank === lin.rank)) {
+        return { ok: false, reason: `存檔的譜系「${lin.id}」沒有開放階位 ${lin.rank}` };
+      }
+    }
+
+    const loc = state.location;
+    const map = findById(data?.maps, loc.map);
+    if (!map) return { ok: false, reason: `存檔所在的地圖「${loc.map}」不存在` };
+    const { width, height } = mapSize(map);
+    const dirOk = typeof loc.dir === 'string' && Object.hasOwn(DIRS, loc.dir);
+    const posOk = Number.isInteger(loc.x) && Number.isInteger(loc.y)
+      && loc.x >= 0 && loc.y >= 0 && loc.x < width && loc.y < height
+      && canMove(map, next, loc.x, loc.y, data);
+    const tidy = { map: map.id, x: loc.x, y: loc.y, dir: loc.dir };
+    if (!dirOk || !posOk) {
+      const sp = Array.isArray(map.spawns) ? map.spawns.find(isObj) : undefined;
+      if (!sp) return { ok: false, reason: `存檔位置不合法，而地圖「${map.id}」沒有可用的 spawn` };
+      warnings.push(`存檔位置不合法（${JSON.stringify({ x: loc.x, y: loc.y, dir: loc.dir })}），已移到地圖「${map.id}」的起始點「${sp.id}」`);
+      next = { ...next, location: { map: map.id, x: sp.x, y: sp.y, dir: Object.hasOwn(DIRS, sp.dir ?? '') ? sp.dir : 'down' } };
+    } else if (Object.keys(loc).some((k) => !Object.hasOwn(tidy, k))) {
+      next = { ...next, location: tidy }; // 去掉多餘欄位（例如 newGame 未解析時的 spawn）
+    }
+    return { ok: true, state: next, warnings };
+  } catch (e) {
+    return { ok: false, reason: `存檔檢查失敗：${e?.message ?? e}` };
+  }
 }
 
 const reasonOf = (e) => (e && e.message ? `${e.name && e.name !== 'Error' ? e.name + ': ' : ''}${e.message}` : String(e));

@@ -24,7 +24,16 @@ describe('newGame', () => {
       flags: {}, items: {}, echo: { charges: DEFAULT_ECHO_CHARGES }, collapse: 0,
       resonance: {}, chapter: 'prologue', chapter_done: [], playtime_s: 0,
     });
-    expect(DEFAULT_ECHO_CHARGES).toBe(3);
+    expect(DEFAULT_ECHO_CHARGES).toBe(0);
+  });
+  it('殘響次數讀 manifest.start.echo_charges（預設 0）', () => {
+    const m3 = { ...manifest, start: { ...manifest.start, echo_charges: 3 } };
+    expect(newGame({ name: 'A', manifest: m3, maps: [attic] }).echo).toEqual({ charges: 3 });
+    expect(newGame({ name: 'A', manifest, maps: [attic] }).echo).toEqual({ charges: 0 });
+    for (const bad of [-1, 100, 1.5, '3']) {
+      const mb = { ...manifest, start: { ...manifest.start, echo_charges: bad } };
+      expect(() => newGame({ name: 'A', manifest: mb, maps: [attic] }), String(bad)).toThrow(/echo_charges/);
+    }
   });
   it('名字空白時用預設名字', () => {
     expect(newGame({ name: '', manifest, maps: [attic] }).player.name).toBe('雷恩・葛雷');
