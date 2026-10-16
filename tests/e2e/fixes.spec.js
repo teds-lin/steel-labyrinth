@@ -51,7 +51,7 @@ test.describe('M1 修正', () => {
     await page.goto(TEST_URL);
     await game(page).waitScene('Title', 15_000);
     const r = await sl(page, async () => {
-      const m = await import('/src/ui/hud.js');
+      const m = await import('./src/ui/hud.js');
       const cases = [
         { charges: NaN }, { charges: -3 }, { charges: 1e9 }, { charges: 2.5 }, { charges: '7' }, { charges: undefined },
         { charges: 50, free: false, max: 3 }, { charges: 0, free: false, max: 3 }, { charges: 0, free: true, max: 3 },
@@ -301,6 +301,7 @@ test.describe('M1 修正', () => {
   });
 
   test('#9 靜態伺服器：壞 URL 回 400 且不當機；不能讀到 web/ 以外的檔案', async ({ request }) => {
+    test.skip(!!process.env.E2E_BASE_URL, '測的是本機 tools/serve.mjs，線上版本不適用');
     const bad = await request.get('/%E0%A4%A');
     expect(bad.status()).toBe(400);
     const bad2 = await request.get('/src/%');

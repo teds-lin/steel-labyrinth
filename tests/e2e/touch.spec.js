@@ -9,8 +9,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function installProbe(page) {
   await page.waitForFunction(() => document.querySelector('canvas'));
   await page.evaluate(async () => {
-    const { session } = await import('/src/session.js');
-    const { game: phaserGame } = await import('/src/main.js');
+    const { session } = await import('./src/session.js');
+    const { game: phaserGame } = await import('./src/main.js');
     const act = (k) => {
       const sc = phaserGame.scene.getScene(k);
       return sc && (sc.sys.isActive() || sc.sys.isPaused()) ? sc : null;
