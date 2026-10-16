@@ -1,0 +1,22 @@
+{
+  "name": "steel-labyrinth",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "node tools/check-data.mjs",
+    "build:data": "node tools/build-data.mjs",
+    "vendor": "node tools/vendor.mjs",
+    "serve": "node tools/serve.mjs",
+    "e2e": "playwright test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "phaser": "3.90.0",
+    "vitest": "5.0.5"
+  }
+}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101319">
+  <title>鋼鐵迷都</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap">
+  <style>
+    :root { color-scheme: dark; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #101319; color: #e8e2d4;
+      overflow: hidden; overscroll-behavior: none;
+      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+    #game {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      overflow: hidden;
+      -webkit-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #game canvas { touch-action: none; display: block; }
+    /* 名字輸入框（由 Phaser DOM 容器縮放） */
+    .sl-name-input {
+      width: 260px; height: 48px; padding: 0 12px;
+      font: 20px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: #f4efe4; background: #1c212b;
+      border: 2px solid #f0a848; border-radius: 6px; outline: none;
+      text-align: center;
+      -webkit-user-select: text; user-select: text;
+    }
+    .sl-name-input:focus { border-color: #ffd08a; box-shadow: 0 0 0 3px rgba(240, 168, 72, 0.25); }
+    #boot-error {
+      position: fixed; inset: 0; display: none; padding: 24px 16px;
+      overflow: auto; white-space: pre-wrap; line-height: 1.6;
+      background: #101319; color: #f3c9a0; font-size: 15px;
+    }
+    noscript { display: block; padding: 24px 16px; }
+  </style>
+</head>
+<body>
+  <noscript>這個遊戲需要啟用 JavaScript 才能遊玩。</noscript>
+  <div id="game"></div>
+  <div id="boot-error" role="alert"></div>
+  <script src="vendor/phaser.min.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

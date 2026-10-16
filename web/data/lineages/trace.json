@@ -1,0 +1,14 @@
+{
+  "id": "trace",
+  "source": "mirror",
+  "nature": "看穿真相",
+  "ranks": [
+    {
+      "rank": 9,
+      "name": "讀痕者",
+      "field": [
+        "trace"
+      ]
+    }
+  ]
+}

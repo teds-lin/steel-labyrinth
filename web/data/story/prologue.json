@@ -1,0 +1,1438 @@
+{
+  "id": "prologue",
+  "dialogues": [
+    {
+      "id": "dlg_opening",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "黑暗。什麼都看不見，只聽得見鐘聲。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "噹——噹——噹——聲音穿過濃霧，從很遠的地方，一下接著一下傳來。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "……十、十一、十二。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "第十三下。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": null,
+          "text": "鐘聲停了。寂靜像一條濕冷的毯子，從頭頂蓋了下來。",
+          "next": "n6"
+        },
+        {
+          "id": "n6",
+          "speaker": null,
+          "text": "你睜開眼睛。煤氣燈的火光在斜斜的天花板上微微搖晃。",
+          "next": "n7"
+        },
+        {
+          "id": "n7",
+          "speaker": "{name}",
+          "text": "頭好痛……像是有人在我腦袋裡鋪鐵軌，而且還在趕工。",
+          "next": "n8"
+        },
+        {
+          "id": "n8",
+          "speaker": "{name}",
+          "text": "這是哪裡？還有……我是誰？",
+          "next": "n9"
+        },
+        {
+          "id": "n9",
+          "speaker": "{name}",
+          "text": "很好。醒來的第一個問題就答不出來，真是個好的開始。",
+          "next": "n10"
+        },
+        {
+          "id": "n10",
+          "speaker": null,
+          "text": "你的眼角還殘留著一層淡淡的銀光。好像只要盯著東西夠久，就能看見它「記得」的事。",
+          "next": "n11"
+        },
+        {
+          "id": "n11",
+          "speaker": null,
+          "text": "（面對物品時可以使用【殘響】，看見它的過去，剩下 3 次。每用一次，頭就會更痛一點。）",
+          "next": "n12"
+        },
+        {
+          "id": "n12",
+          "speaker": "{name}",
+          "text": "先搞清楚自己在哪裡吧。總不會比失憶更糟了……大概。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_vial_look",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "saw_vial"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "床頭櫃上倒著一只空藥瓶。瓶底還黏著一圈銀色的殘渣。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "你湊近聞了聞。沒有味道，只覺得耳朵裡嗡地響了一聲。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "{name}",
+          "text": "我昨晚喝了這個？……喝之前好歹看一下標籤吧，昨天的我。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "瓶身沒有標籤，只有幾枚手指留下的油印。",
+          "effects": [
+            {
+              "set_flag": "saw_vial"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "空藥瓶靜靜躺著。瓶底的銀光，好像比剛才又淡了一點。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_vial_echo",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "你盯著藥瓶。銀光從瓶底漫上來，房間的顏色一點一點褪去。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "——昨夜。燈還亮著。一個戴兜帽的人站在床頭櫃前，看不清臉。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "他把一管銀色的液體慢慢倒進瓶裡。液體在瓶中打轉，像是活的。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "兜帽人",
+          "text": "在第十三響之前喝下。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": null,
+          "text": "那聲音很輕，像貼在耳邊的低語。下一刻，畫面碎成了霧。",
+          "next": "n6"
+        },
+        {
+          "id": "n6",
+          "speaker": "{name}",
+          "text": "……所以不是我自己亂喝的。這算好消息嗎？我不太確定。",
+          "effects": [
+            {
+              "set_flag": "echo_vial"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_diary_look",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "read_diary"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "書桌上攤著一本皮面日記，邊角被翻得起了毛。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "最後一頁被撕掉了，只剩一排參差不齊的紙根。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "前一頁的字跡很潦草，墨水暈開，像是寫字的人手在發抖。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "「如果我忘了，就去找白燈。」",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "{name}",
+          "text": "白燈？人名、店名，還是某種暗號？……寫日記的人，就不能多寫幾個字嗎？",
+          "next": "n6"
+        },
+        {
+          "id": "n6",
+          "speaker": "{name}",
+          "text": "而且這字跡……我拿起筆，大概也會寫成這個樣子。",
+          "effects": [
+            {
+              "set_flag": "read_diary"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "「如果我忘了，就去找白燈。」不管讀幾遍，它都不肯多說一個字。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_diary_echo",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "你把手指放在被撕掉的紙根上。紙很冷，冷得不像紙。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "——一隻手抓住最後一頁，用力撕了下來。那是你的手。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "你看見自己把那頁紙對折，再對折，嘴裡低聲數著什麼。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "數到第十二的時候，殘響斷了，像是被誰一剪刀剪掉。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "{name}",
+          "text": "我自己撕的？……昨天的我，你到底在躲誰？",
+          "effects": [
+            {
+              "set_flag": "echo_diary"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_watch_look",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "got_watch"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "書桌另一頭擺著一只銀色懷錶，錶蓋半開。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "指針停在三點整。你轉了轉發條，它還是一動也不動。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "{name}",
+          "text": "壞了？還是它就是想停在三點？……我怎麼會覺得一只錶有自己的想法。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "你把懷錶收進口袋。它貼著胸口，冰涼又沉重。",
+          "effects": [
+            {
+              "give_item": "pocket_watch"
+            },
+            {
+              "set_flag": "got_watch"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "桌上只剩錶鍊壓出的一道淺痕。口袋裡的懷錶，依然停在三點整。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_window_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "窗外是一整片濃霧，霧裡浮著一盞盞煤氣燈的橘色光暈。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "遠處的高架鐵道上，一列蒸汽列車呼嘯而過，汽笛聲把霧撕開一道口子。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "口子很快又合上了。像霧吞下了什麼東西，心滿意足地閉上嘴。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "{name}",
+          "text": "……這座城市的風景，好像不太適合拿來療癒心情。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_mirror_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "衣櫃旁立著一面落地鏡，鏡框的漆已經斑駁剝落。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "鏡子裡是一個臉色蒼白、頭髮亂翹的人。應該就是你。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "你抬起右手。鏡中人也抬起手——慢了半拍。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "{name}",
+          "text": "……一定是我頭還在痛。對，一定是這樣。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "{name}",
+          "text": "總之，先別盯著它看太久比較好。",
+          "effects": [
+            {
+              "set_flag": "saw_mirror"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_mirror_echo",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "你直視鏡中的自己。銀光從鏡框邊緣滲進來，像霜一樣爬滿玻璃。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "倒影不再跟著你動了。它靜靜看著你，然後，開口說話。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "沒有聲音。只有嘴唇在動，一遍又一遍，重複著同一句話。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "{name}",
+          "text": "你在說什麼？我聽不見——",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": null,
+          "text": "你試著讀它的唇形，卻怎麼也拼不出完整的字。",
+          "next": "n6"
+        },
+        {
+          "id": "n6",
+          "speaker": null,
+          "text": "霜退去了。鏡子裡又只剩下你，一樣蒼白，一樣慢半拍。",
+          "next": "n7"
+        },
+        {
+          "id": "n7",
+          "speaker": "{name}",
+          "text": "好。「鏡子會跟我講悄悄話」這件事，我決定先收進心裡最深的角落。",
+          "effects": [
+            {
+              "set_flag": "echo_mirror"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_bed_look",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "got_revolver"
+              },
+              "next": "again"
+            },
+            {
+              "if": {
+                "flag": "seen_revolver"
+              },
+              "next": "back"
+            }
+          ],
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "床單皺成一團，枕頭上還留著冷汗的痕跡。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "你彎腰往床底看。灰塵裡有個東西，反射著煤氣燈的光。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "是一把左輪手槍。槍身冰冷，握把磨得很光滑，像是常被人握在手裡。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "你打開彈巢。六個彈孔，只有三發子彈。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "{name}",
+          "text": "藏在床底的槍，只裝了一半的子彈。昨天的我，日子過得很刺激嘛。",
+          "effects": [
+            {
+              "set_flag": "seen_revolver"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "back",
+          "speaker": null,
+          "text": "左輪手槍還躺在床底的灰塵裡。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要帶著它嗎？",
+          "choices": [
+            {
+              "text": "帶在身上",
+              "effects": [
+                {
+                  "give_item": "revolver"
+                },
+                {
+                  "set_flag": "got_revolver"
+                }
+              ],
+              "next": "take"
+            },
+            {
+              "text": "先放著別碰",
+              "next": "leave"
+            }
+          ]
+        },
+        {
+          "id": "take",
+          "speaker": null,
+          "text": "你把左輪手槍收進外套內袋。沉甸甸的重量，讓人莫名安心。",
+          "next": "END"
+        },
+        {
+          "id": "leave",
+          "speaker": "{name}",
+          "text": "還是先別碰比較好。反正它又不會自己跑掉。",
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "床底只剩下灰塵。槍在你的外套內袋裡，沉甸甸的。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_drawer_look",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "got_attic_key"
+              },
+              "next": "empty"
+            }
+          ],
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "牆邊有一座矮矮的五斗櫃。你一格一格拉開抽屜。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "舊襯衫、半截蠟燭、一團纏在一起的鞋帶。沒有鑰匙。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "拉開最下面那一格時，傳出空空的回音。底板好像比外框淺了一截。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼做？",
+          "choices": [
+            {
+              "text": "把底板撬起來",
+              "next": "pry"
+            },
+            {
+              "text": "算了，先找別的地方",
+              "next": "skip"
+            }
+          ]
+        },
+        {
+          "id": "pry",
+          "speaker": null,
+          "text": "你用指甲摳住底板邊緣，用力一撬。夾層裡躺著一把黃銅鑰匙。",
+          "effects": [
+            {
+              "give_item": "attic_key"
+            },
+            {
+              "set_flag": "got_attic_key"
+            }
+          ],
+          "next": "pry2"
+        },
+        {
+          "id": "pry2",
+          "speaker": "{name}",
+          "text": "把鑰匙藏在自己房間的夾層裡……昨天的我，到底在防誰？防我自己嗎？",
+          "next": "END"
+        },
+        {
+          "id": "skip",
+          "speaker": "{name}",
+          "text": "回頭再說。說不定鑰匙就插在門上，只是我沒看到。",
+          "next": "END"
+        },
+        {
+          "id": "empty",
+          "speaker": null,
+          "text": "最下層的夾層已經空了。黃銅鑰匙在你的口袋裡。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_door_look",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "door_open"
+              },
+              "next": "open"
+            }
+          ],
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "一扇厚重的木門。門是從裡面鎖上的，鑰匙孔裡卻是空的。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "{name}",
+          "text": "從裡面鎖門，再把鑰匙藏起來。昨天的我，真是個注重隱私的人。",
+          "next": "END"
+        },
+        {
+          "id": "open",
+          "speaker": null,
+          "text": "門開著。窄窄的樓梯往下通到二樓，樓下傳來壁燈的嘶嘶聲。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_door_locked",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "門把轉不動。門鎖得死死的。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "{name}",
+          "text": "鑰匙應該就在這個房間裡。總不會被我吞下去了吧……應該不會。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "{name}",
+          "text": "抽屜、床底、書桌……一樣一樣翻吧。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_door_echo",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "你把手貼在門鎖上。銀光沿著鑰匙孔，鑽了進去。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "——昨夜。你站在這扇門前，轉動鑰匙，喀噠一聲把門鎖上。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "你回頭看了一眼床，又看了一眼窗外的霧，然後蹲到五斗櫃前。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "最下層的抽屜，底板下的夾層。你把鑰匙壓了進去。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "branches": [
+            {
+              "if": {
+                "flag": "got_attic_key"
+              },
+              "next": "had"
+            }
+          ],
+          "next": "got"
+        },
+        {
+          "id": "got",
+          "speaker": null,
+          "text": "殘響散去時，你已經蹲在五斗櫃前，手裡握著那把黃銅鑰匙。",
+          "effects": [
+            {
+              "give_item": "attic_key"
+            },
+            {
+              "set_flag": "got_attic_key"
+            }
+          ],
+          "next": "got2"
+        },
+        {
+          "id": "got2",
+          "speaker": "{name}",
+          "text": "身體比腦袋先記得。這種感覺有點方便，也有點可怕。",
+          "next": "open"
+        },
+        {
+          "id": "had",
+          "speaker": "{name}",
+          "text": "原來口袋裡這把鑰匙，是我自己藏進去的。……我跟我自己，到底在玩什麼捉迷藏？",
+          "next": "open"
+        },
+        {
+          "id": "open",
+          "speaker": null,
+          "text": "你回到門前，鑰匙一轉。門鎖喀噠一聲彈開了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_door_key",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "你把黃銅鑰匙插進鑰匙孔。轉了半圈卡住了，再用力一轉——喀噠。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "門開了。冷空氣從樓梯間湧上來，帶著煤煙和濕石頭的味道。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "{name}",
+          "text": "好，第一關過了。接下來只要搞清楚我是誰就好。……就這樣而已。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_landlady_meet",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "樓梯底下是一條狹長的走廊。壁燈嘶嘶作響，把影子拉得很長。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "一位繫著圍裙的老太太提著油燈，正好從走廊另一頭轉過來。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "葛林太太",
+          "text": "哎呀，是你。總算起來啦？房租的事，我們晚點再談。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "葛林太太",
+          "text": "你的臉色怎麼白成這樣？昨晚到底怎麼了？",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "{name}",
+          "text": "（她認識我。是房東吧？……該怎麼回答才好？）",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "說實話：什麼都想不起來",
+              "effects": [
+                {
+                  "set_flag": "told_truth"
+                }
+              ],
+              "next": "t1"
+            },
+            {
+              "text": "說謊：只是喝多了",
+              "effects": [
+                {
+                  "set_flag": "told_lie"
+                }
+              ],
+              "next": "l1"
+            }
+          ]
+        },
+        {
+          "id": "t1",
+          "speaker": "{name}",
+          "text": "老實說……我醒來之後，什麼都想不起來了。連自己是誰都不太確定。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": "葛林太太",
+          "text": "想不起來？我的天……",
+          "next": "t3"
+        },
+        {
+          "id": "t3",
+          "speaker": null,
+          "text": "她左右張望了一下，把油燈壓低，聲音也跟著壓低。",
+          "next": "t4"
+        },
+        {
+          "id": "t4",
+          "speaker": "葛林太太",
+          "text": "昨晚很晚了，有個戴兜帽的人來找你。我沒看清楚他的臉。",
+          "next": "t5"
+        },
+        {
+          "id": "t5",
+          "speaker": "葛林太太",
+          "text": "我讓他上樓，過了一會兒他就走了。走的時候，連腳步聲都沒有。",
+          "next": "t6"
+        },
+        {
+          "id": "t6",
+          "speaker": "葛林太太",
+          "text": "你要是不舒服，就別出門。這種霧天，外頭不太平。",
+          "next": "t7"
+        },
+        {
+          "id": "t7",
+          "speaker": "{name}",
+          "text": "（戴兜帽的人。看來昨晚的我，有訪客。）",
+          "effects": [
+            {
+              "set_flag": "talked_landlady"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "l1",
+          "speaker": "{name}",
+          "text": "沒事，只是昨晚喝多了。睡一覺就好。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": "葛林太太",
+          "text": "喝多了啊……那就好，那就好。",
+          "next": "l3"
+        },
+        {
+          "id": "l3",
+          "speaker": "葛林太太",
+          "text": "昨晚整棟樓都很安靜，沒有人來找過你。你就好好休息吧。",
+          "next": "l4"
+        },
+        {
+          "id": "l4",
+          "speaker": null,
+          "text": "她說「沒有人」的時候，握著油燈提把的手指，收緊了一下。",
+          "next": "lask"
+        },
+        {
+          "id": "lask",
+          "speaker": null,
+          "text": "她好像有話沒說。",
+          "choices": [
+            {
+              "text": "就這樣吧",
+              "next": "lend"
+            },
+            {
+              "text": "用殘響看穿她",
+              "if": {
+                "echo_gte": 1
+              },
+              "effects": [
+                {
+                  "use_echo": true
+                }
+              ],
+              "next": "e1"
+            }
+          ]
+        },
+        {
+          "id": "lend",
+          "speaker": "{name}",
+          "text": "（她有事瞞著我。不過我自己也沒說實話，就當扯平吧。）",
+          "effects": [
+            {
+              "set_flag": "talked_landlady"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你盯著她手裡的油燈。銀光從燈罩邊緣漫開，走廊褪成一片灰。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——昨夜。大門外的霧裡，站著一個戴兜帽的人。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "他把一枚銀幣放進葛林太太的手心。她猶豫了一下，還是收下了。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "兜帽人",
+          "text": "有人問起，就說今晚沒有人來過。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": null,
+          "text": "殘響散去。葛林太太還站在你面前，臉上掛著客氣的笑容。",
+          "next": "e6"
+        },
+        {
+          "id": "e6",
+          "speaker": "{name}",
+          "text": "葛林太太，昨晚那個戴兜帽的人，給了妳一枚銀幣，對吧？",
+          "next": "e7"
+        },
+        {
+          "id": "e7",
+          "speaker": "葛林太太",
+          "text": "你、你怎麼會……",
+          "next": "e8"
+        },
+        {
+          "id": "e8",
+          "speaker": null,
+          "text": "她的笑容僵住了。過了好一會兒，她才嘆了口氣，手伸進圍裙口袋。",
+          "next": "e9"
+        },
+        {
+          "id": "e9",
+          "speaker": "葛林太太",
+          "text": "他說不會害你，只要我閉上嘴。我一個老太婆，哪敢多問。",
+          "next": "e10"
+        },
+        {
+          "id": "e10",
+          "speaker": "葛林太太",
+          "text": "他上樓待了不到一刻鐘就走了。走的時候，連腳步聲都沒有。",
+          "next": "e11"
+        },
+        {
+          "id": "e11",
+          "speaker": "{name}",
+          "text": "（謊言被拆穿的那一刻，腦袋裡好像有什麼「喀」地對上了。感覺……還不賴。）",
+          "effects": [
+            {
+              "resonance": "lie_exposed"
+            },
+            {
+              "set_flag": "lie_exposed"
+            },
+            {
+              "set_flag": "talked_landlady"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_landlady_talk",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "lie_exposed"
+              },
+              "next": "exposed"
+            },
+            {
+              "if": {
+                "flag": "told_truth"
+              },
+              "next": "truth"
+            }
+          ],
+          "next": "lied"
+        },
+        {
+          "id": "exposed",
+          "speaker": "葛林太太",
+          "text": "那枚銀幣，我會丟進河裡。光是放在口袋裡，我就整晚睡不著。",
+          "next": "END"
+        },
+        {
+          "id": "truth",
+          "speaker": "葛林太太",
+          "text": "想不起來的事，就別硬想。先喝杯熱茶，等霧散了再說。",
+          "next": "END"
+        },
+        {
+          "id": "lied",
+          "speaker": "葛林太太",
+          "text": "喝多了就回房間躺著吧。這種霧天，最好哪裡都別去。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_landlady_echo",
+      "start": "n0",
+      "nodes": [
+        {
+          "id": "n0",
+          "branches": [
+            {
+              "if": {
+                "flag": "lie_exposed"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "v1"
+        },
+        {
+          "id": "v1",
+          "speaker": null,
+          "text": "你盯著葛林太太。銀光爬上她的圍裙，停在口袋的位置。",
+          "next": "v2"
+        },
+        {
+          "id": "v2",
+          "speaker": null,
+          "text": "——昨夜。一枚銀幣落進她的手心。給錢的人戴著兜帽，站在大門外的霧裡。",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": "兜帽人",
+          "text": "有人問起，就說今晚沒有人來過。",
+          "next": "v4"
+        },
+        {
+          "id": "v4",
+          "speaker": null,
+          "text": "殘響散去。葛林太太一臉疑惑地看著你。",
+          "effects": [
+            {
+              "set_flag": "saw_coin"
+            }
+          ],
+          "branches": [
+            {
+              "if": {
+                "all": [
+                  {
+                    "flag": "told_lie"
+                  },
+                  {
+                    "not_flag": "lie_exposed"
+                  }
+                ]
+              },
+              "next": "x1"
+            },
+            {
+              "if": {
+                "flag": "told_truth"
+              },
+              "next": "tv"
+            }
+          ],
+          "next": "v5"
+        },
+        {
+          "id": "v5",
+          "speaker": "葛林太太",
+          "text": "你一直盯著我的圍裙做什麼？年輕人，真沒禮貌。",
+          "next": "END"
+        },
+        {
+          "id": "tv",
+          "speaker": "{name}",
+          "text": "（她說了兜帽人的事，只是沒提那枚銀幣。人總有些不想說出口的事。）",
+          "next": "END"
+        },
+        {
+          "id": "x1",
+          "speaker": "{name}",
+          "text": "葛林太太，妳說昨晚沒有人來過。那妳口袋裡的銀幣，是誰給的？",
+          "next": "x2"
+        },
+        {
+          "id": "x2",
+          "speaker": "葛林太太",
+          "text": "……你怎麼會知道？",
+          "next": "x3"
+        },
+        {
+          "id": "x3",
+          "speaker": null,
+          "text": "她的肩膀垮了下來，像是一下子老了好幾歲。",
+          "next": "x4"
+        },
+        {
+          "id": "x4",
+          "speaker": "葛林太太",
+          "text": "是個戴兜帽的人。他說不會害你，只要我閉上嘴。我哪敢多問。",
+          "next": "x5"
+        },
+        {
+          "id": "x5",
+          "speaker": "{name}",
+          "text": "（謊言被拆穿的那一刻，腦袋裡好像有什麼「喀」地對上了。感覺……還不賴。）",
+          "effects": [
+            {
+              "resonance": "lie_exposed"
+            },
+            {
+              "set_flag": "lie_exposed"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "殘響裡只有那枚銀幣，在她的口袋裡冷冷發光。這件事，你已經知道了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_room2_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "二號房的門。門縫底下透出微弱的燈光，裡面傳來規律的打呼聲。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "{name}",
+          "text": "至少這棟樓裡，還有人睡得很安穩。真羨慕。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_hall_mirror_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "小邊桌上方掛著一面蒙灰的鏡子。你下意識地別開了視線。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "{name}",
+          "text": "今天跟鏡子打交道的額度，已經用完了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_street_enter",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "大門一推開，霧就湧了進來，冷得像一隻濕透的手摸上你的臉。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "鐵橋街上空無一人。煤氣路燈一盞接著一盞，在霧裡暈成模糊的橘色圓點。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "河面傳來低低的水聲。聽久了，像是有人在霧裡竊竊私語。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "台階下的路燈旁站著一個男人。他好像已經在那裡等了很久。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "{name}",
+          "text": "……現在轉身上樓，假裝沒看到他，還來得及嗎？",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_man_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "男人站在路燈下，只是看著你，像在等你先開口。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ending",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "你走下台階。男人摘下帽子，朝你點了點頭。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "他的大衣領口別著一枚白色徽章，形狀像一盞小小的燈。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "白燈的男人",
+          "text": "晚安，{name}。抱歉，這麼晚還在門口等你。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "{name}",
+          "text": "（他知道我的名字。而且說得比我自己還篤定。）",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "白燈的男人",
+          "text": "我們是白燈保全公司的。今晚的鐘聲，你聽見了吧？",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "十三下。我數過了。",
+              "next": "a1"
+            },
+            {
+              "text": "你們為什麼在找我？",
+              "next": "a2"
+            },
+            {
+              "text": "日記上的「白燈」，就是你們？",
+              "if": {
+                "flag": "read_diary"
+              },
+              "next": "a3"
+            }
+          ]
+        },
+        {
+          "id": "a1",
+          "speaker": "白燈的男人",
+          "text": "很好。聽得見第十三響的人，並不多。",
+          "next": "m1"
+        },
+        {
+          "id": "a2",
+          "speaker": "白燈的男人",
+          "text": "正確來說，我們一直在等你醒來。",
+          "next": "m1"
+        },
+        {
+          "id": "a3",
+          "speaker": "白燈的男人",
+          "text": "原來你還留了這句話給自己。看來昨天的你，很清楚該找誰。",
+          "next": "m1"
+        },
+        {
+          "id": "m1",
+          "speaker": "白燈的男人",
+          "text": "今晚霧太濃，不適合多談。明天早上，我們會再登門拜訪。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "白燈的男人",
+          "text": "在那之前，把門鎖好，別替陌生人開門。",
+          "next": "m3"
+        },
+        {
+          "id": "m3",
+          "speaker": "{name}",
+          "text": "（對我來說，你就是最陌生的那個陌生人啊。）",
+          "next": "m4"
+        },
+        {
+          "id": "m4",
+          "speaker": null,
+          "text": "他重新戴上帽子，轉身走進霧裡。腳步聲只響了三下，就再也聽不見了。",
+          "next": "m5"
+        },
+        {
+          "id": "m5",
+          "speaker": null,
+          "text": "只有那枚白色徽章在路燈下亮了一瞬，像霧裡的一盞小燈。",
+          "next": "m6"
+        },
+        {
+          "id": "m6",
+          "speaker": "{name}",
+          "text": "十三下的鐘聲、空藥瓶、白燈保全公司……",
+          "next": "m7"
+        },
+        {
+          "id": "m7",
+          "speaker": "{name}",
+          "text": "我到底是誰？看來，只能明天再問了。",
+          "next": "m8"
+        },
+        {
+          "id": "m8",
+          "speaker": null,
+          "text": "霧更濃了。鐵橋街 17 號的閣樓窗口，煤氣燈還亮著。",
+          "effects": [
+            {
+              "chapter_end": "prologue"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    }
+  ]
+}

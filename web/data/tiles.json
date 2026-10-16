@@ -1,0 +1,112 @@
+[
+  {
+    "id": "wall",
+    "solid": true,
+    "color": "#2b2f3a"
+  },
+  {
+    "id": "floor",
+    "solid": false,
+    "color": "#5a5248"
+  },
+  {
+    "id": "rug",
+    "solid": false,
+    "color": "#7a4b32"
+  },
+  {
+    "id": "threshold",
+    "solid": false,
+    "color": "#4a443d"
+  },
+  {
+    "id": "window",
+    "solid": true,
+    "color": "#6f8296"
+  },
+  {
+    "id": "bed",
+    "solid": true,
+    "color": "#4d5a6b"
+  },
+  {
+    "id": "desk",
+    "solid": true,
+    "color": "#5b4636"
+  },
+  {
+    "id": "wardrobe",
+    "solid": true,
+    "color": "#3f3a3a"
+  },
+  {
+    "id": "stove",
+    "solid": true,
+    "color": "#8a4a24"
+  },
+  {
+    "id": "mirror",
+    "solid": true,
+    "color": "#9aa7b4"
+  },
+  {
+    "id": "wall_lamp",
+    "solid": true,
+    "color": "#e09a3e"
+  },
+  {
+    "id": "stairs_up",
+    "solid": false,
+    "color": "#6a6258"
+  },
+  {
+    "id": "stairs_down",
+    "solid": false,
+    "color": "#3d4048"
+  },
+  {
+    "id": "railing",
+    "solid": true,
+    "color": "#4a4f5a"
+  },
+  {
+    "id": "facade",
+    "solid": true,
+    "color": "#353a45"
+  },
+  {
+    "id": "front_door",
+    "solid": false,
+    "color": "#5a3e2b"
+  },
+  {
+    "id": "stoop",
+    "solid": false,
+    "color": "#6a6e75"
+  },
+  {
+    "id": "cobblestone",
+    "solid": false,
+    "color": "#565c66"
+  },
+  {
+    "id": "gas_lamp",
+    "solid": true,
+    "color": "#f0a848"
+  },
+  {
+    "id": "mist",
+    "solid": false,
+    "color": "#8c98a6"
+  },
+  {
+    "id": "iron_rail",
+    "solid": true,
+    "color": "#2f3440"
+  },
+  {
+    "id": "fog",
+    "solid": true,
+    "color": "#b4bec8"
+  }
+]

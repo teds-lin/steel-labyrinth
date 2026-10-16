@@ -1,0 +1,135 @@
+{
+  "id": "attic",
+  "name": "鐵橋街 17 號・閣樓",
+  "tiles": [
+    "####w#######",
+    "#B.....DD.W#",
+    "#B........W#",
+    "#..........#",
+    "#...rrrr..F#",
+    "#...rrrr...#",
+    "#..........#",
+    "######_#####",
+    "######v#####"
+  ],
+  "legend": {
+    "#": "wall",
+    ".": "floor",
+    "w": "window",
+    "B": "bed",
+    "D": "desk",
+    "W": "wardrobe",
+    "F": "stove",
+    "r": "rug",
+    "_": "threshold",
+    "v": "stairs_down"
+  },
+  "spawns": [
+    {
+      "id": "default",
+      "x": 2,
+      "y": 3,
+      "dir": "down"
+    },
+    {
+      "id": "from_hallway",
+      "x": 6,
+      "y": 6,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_vial",
+      "x": 2,
+      "y": 1,
+      "sprite": "nightstand_vial",
+      "solid": true,
+      "look": "dlg_vial_look",
+      "echo": "dlg_vial_echo"
+    },
+    {
+      "id": "obj_window",
+      "x": 4,
+      "y": 1,
+      "sprite": "window_sill",
+      "solid": true,
+      "look": "dlg_window_look"
+    },
+    {
+      "id": "obj_diary",
+      "x": 6,
+      "y": 1,
+      "sprite": "desk_diary",
+      "solid": true,
+      "look": "dlg_diary_look",
+      "echo": "dlg_diary_echo"
+    },
+    {
+      "id": "obj_watch",
+      "x": 9,
+      "y": 1,
+      "sprite": "desk_watch",
+      "solid": true,
+      "look": "dlg_watch_look"
+    },
+    {
+      "id": "obj_bed",
+      "x": 1,
+      "y": 3,
+      "sprite": "bed_foot",
+      "solid": true,
+      "look": "dlg_bed_look"
+    },
+    {
+      "id": "obj_mirror",
+      "x": 10,
+      "y": 3,
+      "sprite": "standing_mirror",
+      "solid": true,
+      "look": "dlg_mirror_look",
+      "echo": "dlg_mirror_echo"
+    },
+    {
+      "id": "obj_drawer",
+      "x": 1,
+      "y": 5,
+      "sprite": "dresser",
+      "solid": true,
+      "look": "dlg_drawer_look"
+    },
+    {
+      "id": "obj_door",
+      "x": 6,
+      "y": 7,
+      "sprite": "attic_door",
+      "solid": true,
+      "look": "dlg_door_look",
+      "lock": {
+        "flag": "door_open",
+        "solvable_by": [
+          "trace"
+        ],
+        "fallback": "item:attic_key",
+        "on_tag": {
+          "trace": "dlg_door_echo"
+        },
+        "on_item": "dlg_door_key",
+        "locked": "dlg_door_locked"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 6,
+      "y": 8,
+      "to": "hallway",
+      "spawn": "from_attic",
+      "requires": {
+        "flag": "door_open"
+      },
+      "blocked": "dlg_door_locked"
+    }
+  ],
+  "triggers": []
+}

@@ -1,0 +1,62 @@
+{
+  "id": "street",
+  "name": "鐵橋街・17 號大門口",
+  "tiles": [
+    "##w###w####w##",
+    "######+#######",
+    ",,,,,=_=,,,,,,",
+    ",,,,,,,,,,,,,,",
+    ",,o,,~,,o,,,~,",
+    ",~,,,,,,,,~,,,",
+    "IIIIIIIIIIIIII",
+    "%%%%%%%%%%%%%%"
+  ],
+  "legend": {
+    "#": "facade",
+    "w": "window",
+    "+": "front_door",
+    ",": "cobblestone",
+    "=": "railing",
+    "_": "stoop",
+    "o": "gas_lamp",
+    "~": "mist",
+    "I": "iron_rail",
+    "%": "fog"
+  },
+  "on_enter": "dlg_street_enter",
+  "spawns": [
+    {
+      "id": "default",
+      "x": 6,
+      "y": 2,
+      "dir": "down"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_whitelamp_man",
+      "x": 7,
+      "y": 4,
+      "sprite": "white_lamp_man",
+      "solid": true,
+      "look": "dlg_man_look"
+    }
+  ],
+  "exits": [
+    {
+      "x": 6,
+      "y": 1,
+      "to": "hallway",
+      "spawn": "from_street"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_prologue_end",
+      "x": 6,
+      "y": 3,
+      "dialogue": "dlg_ending",
+      "once": true
+    }
+  ]
+}

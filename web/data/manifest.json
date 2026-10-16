@@ -1,0 +1,23 @@
+{
+  "chapters": [
+    "prologue"
+  ],
+  "start": {
+    "map": "attic",
+    "spawn": "default",
+    "dialogue": "dlg_opening"
+  },
+  "files": {
+    "maps": [
+      "attic",
+      "hallway",
+      "street"
+    ],
+    "story": [
+      "prologue"
+    ],
+    "lineages": [
+      "trace"
+    ]
+  }
+}
