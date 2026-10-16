@@ -1,9 +1,14 @@
 // 內容資料檢查（DATA-FORMAT 的所有硬規則）。純函式、不丟例外、不修改輸入；
 // 瀏覽器（開發模式自檢）與 tools/check-data.mjs 共用。
-// bundle = { manifest, tiles, items, lineages:[], maps:[], story:[] }
+// bundle = { manifest, tiles, items, lineages:[], maps:[], story:[], characters?:[], skills?:[], enemies?:[], encounters?:[] }
+// （四個戰鬥檔案可以省略，視為空陣列：序章資料沒有它們。）
 import { checkCondition } from './conditions.js';
 import { checkEffect } from './effects.js';
 import { DIRS } from './grid.js';
+import { ECHO_TAG } from './echo.js';
+import { STAT_KEYS, HERO_ID } from './stats.js';
+import { checkBattleEffect } from './battle/effects.js';
+import { checkBattleCondition } from './battle/ai.js';
 
 const END = 'END';
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -12,6 +17,11 @@ const arr = (v) => (Array.isArray(v) ? v : []);
 const q = (v) => (typeof v === 'string' ? v : JSON.stringify(v));
 const has = (obj, k) => isObj(obj) && Object.hasOwn(obj, k); // 不用 in：避免原型鍵（toString…）混過
 const isBool = (v) => typeof v === 'boolean';
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const SKILL_TARGETS = ['enemy', 'enemy_all', 'ally', 'ally_all', 'self'];
+const ON_LOSE = ['retry', 'continue'];
+/** 物件裡不在 allowed 清單的鍵（_ 開頭的私有註記發布前會剝除，這裡放行）。 */
+const extraKeys = (obj, allowed) => Object.keys(obj).filter((k) => !allowed.includes(k) && !k.startsWith('_'));
 
 /** 回傳錯誤字串陣列；空陣列代表資料合法。 */
 export function validateBundle(bundle) {
@@ -72,23 +82,33 @@ function run(bundle, errors) {
     });
   });
 
-  const ctx = { errors, tiles, items, maps, dialogues, lineages, storyIds, freeItems: new Set() };
-  ctx.freeItems = freeGivenItems(bundle, ctx);
+  const characters = indexById(bundle.characters ?? [], 'characters.json', '角色', errors);
+  const skills = indexById(bundle.skills ?? [], 'skills.json', '技能', errors);
+  const enemies = indexById(bundle.enemies ?? [], 'enemies.json', '敵人', errors);
+  const encounters = indexById(bundle.encounters ?? [], 'encounters.json', '遭遇', errors);
+
+  const ctx = { errors, tiles, items, maps, dialogues, lineages, storyIds, characters, skills, enemies, encounters, storyById: new Map(), free: null };
+  ctx.free = analyzeFree(bundle, ctx);
 
   checkManifest(bundle.manifest, ctx, storyIds, lineages);
   for (const tile of tiles.values()) {
     if (!isBool(tile.solid)) errors.push(`tiles.json：地形「${tile.id}」的 solid 必須是 true/false`);
     if (tile.glow !== undefined && !isBool(tile.glow)) errors.push(`tiles.json：地形「${tile.id}」的 glow 必須是 true/false`);
   }
-  for (const lin of lineages.values()) checkLineage(lin, errors);
-  arr(bundle.story).forEach((story) => { if (isObj(story) && isStr(story.id)) checkStoryMeta(story, errors); });
+  for (const item of items.values()) checkItem(item, ctx);
+  for (const lin of lineages.values()) checkLineage(lin, errors, ctx);
+  checkCharacters(characters, ctx);
+  for (const sk of skills.values()) checkSkill(sk, ctx);
+  for (const en of enemies.values()) checkEnemy(en, ctx);
+  for (const enc of encounters.values()) checkEncounter(enc, ctx);
+  arr(bundle.story).forEach((story) => { if (isObj(story) && isStr(story.id)) checkStoryMeta(story, errors, ctx); });
   for (const map of maps.values()) checkMap(map, ctx);
   for (const { dlg, file } of dialogues.values()) checkDialogue(dlg, file, ctx);
 }
 
 // ---------- 譜系、章節 ----------
 
-function checkLineage(lin, errors) {
+function checkLineage(lin, errors, ctx) {
   const W = `lineages/${lin.id}.json`;
   if (!Array.isArray(lin.ranks)) {
     errors.push(`${W}：譜系「${lin.id}」的 ranks 必須是陣列`);
@@ -102,10 +122,208 @@ function checkLineage(lin, errors) {
     }
     if (seen.has(r.rank)) errors.push(`${W}：譜系「${lin.id}」的 rank ${r.rank} 重複`);
     seen.add(r.rank);
+    const where = `${W}：譜系「${lin.id}」rank ${r.rank}`;
+    if (r.skills !== undefined) {
+      if (!Array.isArray(r.skills)) errors.push(`${where} 的 skills 必須是陣列`);
+      else for (const sk of r.skills) if (!isStr(sk) || !ctx.skills.has(sk)) errors.push(`${where} 的 skills 引用不存在的技能「${q(sk)}」`);
+    }
+    if (r.stats !== undefined) checkStatBlock(r.stats, `${where} 的 stats`, errors, { partial: true });
   });
 }
 
-function checkStoryMeta(story, errors) {
+/** 能力值區塊：只能用 7 個能力值鍵、值為數字。partial＝成長值（可省略、可為負）；否則全部必填、非負、hp ≥ 1。 */
+function checkStatBlock(stats, where, errors, { partial = false } = {}) {
+  if (!isObj(stats)) {
+    errors.push(`${where} 必須是物件`);
+    return;
+  }
+  for (const k of extraKeys(stats, STAT_KEYS)) errors.push(`${where} 有不認得的能力值「${k}」（只能是 ${STAT_KEYS.join('／')}）`);
+  for (const k of STAT_KEYS) {
+    if (!Object.hasOwn(stats, k)) {
+      if (!partial) errors.push(`${where.replace(/ 的 /, ' ')}.${k} 必填`);
+      continue;
+    }
+    const v = stats[k];
+    const label = `${where.replace(/ 的 /, ' ')}.${k}`;
+    if (!isNum(v)) errors.push(`${label} 必須是數字，實際為 ${JSON.stringify(v)}`);
+    else if (!partial && (v < 0 || (k === 'hp' && v < 1))) errors.push(`${label} 必須 ${k === 'hp' ? '≥ 1' : '≥ 0'}，實際為 ${v}`);
+  }
+}
+
+// ---------- 戰鬥資料 ----------
+
+function checkLineageRef(lin, where, ctx) {
+  if (!isObj(lin) || !isStr(lin.id) || !Number.isInteger(lin.rank)) {
+    ctx.errors.push(`${where}：lineage 必須是 { id, rank }`);
+    return;
+  }
+  const def = ctx.lineages.get(lin.id);
+  if (!def) ctx.errors.push(`${where}：lineage 引用不存在的譜系「${lin.id}」`);
+  else if (!arr(def.ranks).some((r) => isObj(r) && r.rank === lin.rank)) ctx.errors.push(`${where}：譜系「${lin.id}」沒有開放階位 ${lin.rank}`);
+}
+
+function checkSkillList(list, where, ctx) {
+  if (!Array.isArray(list)) {
+    ctx.errors.push(`${where}：skills 必須是陣列`);
+    return;
+  }
+  for (const sk of list) if (!isStr(sk) || !ctx.skills.has(sk)) ctx.errors.push(`${where}：skills 引用不存在的技能「${q(sk)}」`);
+}
+
+/** 道具：target＋battle_effects（戰鬥中使用）、field_effects（地圖選單中使用）；兩者都沒有＝劇情道具。 */
+function checkItem(item, ctx) {
+  const { errors } = ctx;
+  const where = `items.json 道具「${item.id}」`;
+  const hasT = item.target !== undefined;
+  const hasB = item.battle_effects !== undefined;
+  if (hasT !== hasB) errors.push(`${where}：target 與 battle_effects 必須一起寫（戰鬥中使用的道具）`);
+  if (hasT && !SKILL_TARGETS.includes(item.target)) errors.push(`${where}：target「${q(item.target)}」必須是 ${SKILL_TARGETS.join('／')}`);
+  if (hasB) checkBattleEffectList(item.battle_effects, item.target, where, 'battle_effects', ctx);
+  if (item.field_effects !== undefined) {
+    if (!Array.isArray(item.field_effects) || item.field_effects.length === 0) errors.push(`${where}：field_effects 必須是至少一個效果的陣列`);
+    else {
+      checkEffects(item.field_effects, `${where} field_effects`, ctx);
+      if (usesEcho(item.field_effects)) errors.push(`${where}：field_effects 不可使用 use_echo`);
+    }
+  }
+}
+
+/** 效果積木陣列（技能 effects、道具 battle_effects 共用）。 */
+function checkBattleEffectList(list, target, where, field, ctx) {
+  const { errors } = ctx;
+  if (!Array.isArray(list) || list.length === 0) {
+    errors.push(`${where}：${field} 必須是至少一個效果積木的陣列`);
+    return;
+  }
+  list.forEach((e, i) => {
+    const errs = checkBattleEffect(e, `${field}[${i}]`);
+    for (const m of errs) errors.push(`${where}：${m}`);
+    if (errs.length) return;
+    if (e.type === 'summon' && !ctx.enemies.has(e.enemy)) errors.push(`${where}：${field}[${i}] summon 引用不存在的敵人「${e.enemy}」`);
+    if (e.type === 'reveal_intent' && (e.on === 'self' || !['enemy', 'enemy_all'].includes(target))) {
+      errors.push(`${where}：${field}[${i}] reveal_intent 只能用在以敵人為目標（enemy／enemy_all）的技能`);
+    }
+  });
+}
+
+function checkCharacters(characters, ctx) {
+  const { errors } = ctx;
+  if (characters.size > 0 && !characters.has(HERO_ID)) errors.push(`characters.json：必須有主角「${HERO_ID}」`);
+  for (const c of characters.values()) {
+    const where = `characters.json 角色「${c.id}」`;
+    if (!isStr(c.name)) errors.push(`${where}：name 必須是非空字串`);
+    if (c.sprite !== undefined && !isStr(c.sprite)) errors.push(`${where}：sprite 必須是字串`);
+    checkStatBlock(c.base, `${where} 的 base`, errors);
+    checkSkillList(c.skills, where, ctx);
+    if (c.id === HERO_ID && c.lineage !== undefined) errors.push(`${where}：主角的 lineage 來自遊戲狀態（喝下靈劑），不可寫在 characters.json`);
+    else if (c.lineage !== undefined) checkLineageRef(c.lineage, where, ctx);
+  }
+}
+
+function checkSkill(sk, ctx) {
+  const { errors } = ctx;
+  const where = `skills.json 技能「${sk.id}」`;
+  if (!isStr(sk.name)) errors.push(`${where}：name 必須是非空字串`);
+  if (sk.desc !== undefined && typeof sk.desc !== 'string') errors.push(`${where}：desc 必須是字串`);
+  if (!SKILL_TARGETS.includes(sk.target)) errors.push(`${where}：target「${q(sk.target)}」必須是 ${SKILL_TARGETS.join('／')}`);
+  if (sk.cost !== undefined) {
+    const ok = isObj(sk.cost) && extraKeys(sk.cost, ['sp', 'ammo']).length === 0
+      && Object.values(sk.cost).every((v) => Number.isInteger(v) && v >= 0);
+    if (!ok) errors.push(`${where}：cost 必須是 { sp?, ammo? }（非負整數），實際為 ${JSON.stringify(sk.cost)}`);
+  }
+  if (sk.tags !== undefined && !(Array.isArray(sk.tags) && sk.tags.every(isStr))) errors.push(`${where}：tags 必須是字串陣列`);
+  checkBattleEffectList(sk.effects, sk.target, where, 'effects', ctx);
+}
+
+function checkAiRule(rule, where, ctx) {
+  const { errors } = ctx;
+  if (!isObj(rule)) {
+    errors.push(`${where}：必須是物件`);
+    return;
+  }
+  for (const k of extraKeys(rule, ['skill', 'weight', 'if'])) errors.push(`${where}：不認得的欄位「${k}」`);
+  if (!isStr(rule.skill) || !ctx.skills.has(rule.skill)) errors.push(`${where}：skill 引用不存在的技能「${q(rule.skill)}」`);
+  if (!isNum(rule.weight) || rule.weight <= 0) errors.push(`${where}：weight 必須是正數，實際為 ${JSON.stringify(rule.weight)}`);
+  if (rule.if !== undefined) for (const m of checkBattleCondition(rule.if, 'if')) errors.push(`${where}：${m}`);
+}
+
+function checkEnemy(en, ctx) {
+  const { errors } = ctx;
+  const where = `enemies.json 敵人「${en.id}」`;
+  if (!isStr(en.name)) errors.push(`${where}：name 必須是非空字串`);
+  if (en.sprite !== undefined && !isStr(en.sprite)) errors.push(`${where}：sprite 必須是字串`);
+  if (!Number.isInteger(en.rank)) errors.push(`${where}：rank 必須是整數`);
+  checkStatBlock(en.stats, `${where} 的 stats`, errors);
+  checkSkillList(en.skills, where, ctx);
+  if (!Array.isArray(en.ai) || en.ai.length === 0) {
+    errors.push(`${where}：ai 必須是至少一條規則的陣列`);
+  } else {
+    en.ai.forEach((rule, i) => checkAiRule(rule, `${where} ai[${i}]`, ctx));
+    if (!en.ai.some((rule) => isObj(rule) && rule.if === undefined)) errors.push(`${where}：ai 至少要有一條沒有 if 的規則（確保永遠有行動可選）`);
+  }
+  if (en.phases !== undefined) {
+    if (!Array.isArray(en.phases)) errors.push(`${where}：phases 必須是陣列`);
+    else en.phases.forEach((ph, i) => {
+      const pw = `${where} phases[${i}]`;
+      if (!isObj(ph)) { errors.push(`${pw}：必須是物件`); return; }
+      for (const k of extraKeys(ph, ['hp_lte_pct', 'add_ai', 'dialogue'])) errors.push(`${pw}：不認得的欄位「${k}」`);
+      if (!isNum(ph.hp_lte_pct) || ph.hp_lte_pct < 0 || ph.hp_lte_pct > 100) errors.push(`${pw}：hp_lte_pct 必須是 0～100 的數字`);
+      if (ph.add_ai !== undefined) {
+        if (!Array.isArray(ph.add_ai)) errors.push(`${pw}：add_ai 必須是陣列`);
+        else ph.add_ai.forEach((rule, j) => checkAiRule(rule, `${pw} add_ai[${j}]`, ctx));
+      }
+      refDialogue(ph.dialogue, pw, 'dialogue', ctx);
+    });
+  }
+  if (en.drops !== undefined) {
+    if (!Array.isArray(en.drops)) errors.push(`${where}：drops 必須是陣列`);
+    else en.drops.forEach((d, i) => {
+      const dw = `${where} drops[${i}]`;
+      if (!isObj(d)) { errors.push(`${dw}：必須是物件`); return; }
+      if (!isStr(d.item) || !ctx.items.has(d.item)) errors.push(`${dw}：item 引用不存在的道具「${q(d.item)}」`);
+      if (!isNum(d.chance) || d.chance <= 0 || d.chance > 100) errors.push(`${dw}：chance 必須是 0（不含）～100 的數字`);
+    });
+  }
+}
+
+function checkEncounter(enc, ctx) {
+  const { errors } = ctx;
+  const where = `encounters.json 遭遇「${enc.id}」`;
+  if (!Array.isArray(enc.enemies) || enc.enemies.length === 0) errors.push(`${where}：enemies 必須至少一名敵人`);
+  else for (const id of enc.enemies) if (!isStr(id) || !ctx.enemies.has(id)) errors.push(`${where}：enemies 引用不存在的敵人「${q(id)}」`);
+  if (enc.bg !== undefined && !isStr(enc.bg)) errors.push(`${where}：bg 必須是字串`);
+  if (enc.can_flee !== undefined && !isBool(enc.can_flee)) errors.push(`${where}：can_flee 必須是 true/false`);
+  if (enc.on_lose !== undefined && !ON_LOSE.includes(enc.on_lose)) errors.push(`${where}：on_lose「${q(enc.on_lose)}」必須是 retry 或 continue`);
+  if (enc.on_win !== undefined) {
+    if (!isObj(enc.on_win)) errors.push(`${where}：on_win 必須是物件`);
+    else {
+      for (const k of extraKeys(enc.on_win, ['effects', 'dialogue'])) errors.push(`${where}：on_win 不認得的欄位「${k}」`);
+      checkEffects(enc.on_win.effects, `${where} on_win`, ctx);
+      refDialogue(enc.on_win.dialogue, `${where} on_win`, 'dialogue', ctx);
+    }
+  }
+}
+
+function refEncounter(id, where, ctx) {
+  if (id === undefined) return;
+  if (!isStr(id) || !ctx.encounters.has(id)) ctx.errors.push(`${where}：battle 引用不存在的遭遇「${q(id)}」`);
+}
+
+/** 目的地 { map, spawn, dialogue? }（goto、end_screen.continue 共用）。 */
+function checkDestination(dest, where, ctx) {
+  if (!isObj(dest) || !isStr(dest.map) || !isStr(dest.spawn) || extraKeys(dest, ['map', 'spawn', 'dialogue']).length) {
+    ctx.errors.push(`${where} 必須是 { map, spawn, dialogue? }，實際為 ${JSON.stringify(dest)}`);
+    return;
+  }
+  const map = ctx.maps.get(dest.map);
+  if (!map) ctx.errors.push(`${where} 引用不存在的地圖「${dest.map}」`);
+  else if (!arr(map.spawns).some((sp) => isObj(sp) && sp.id === dest.spawn)) ctx.errors.push(`${where}：地圖「${dest.map}」沒有 spawn「${dest.spawn}」`);
+  if (dest.dialogue !== undefined && (!isStr(dest.dialogue) || !ctx.dialogues.has(dest.dialogue))) {
+    ctx.errors.push(`${where} 的 dialogue 引用不存在的對話「${q(dest.dialogue)}」`);
+  }
+}
+
+function checkStoryMeta(story, errors, ctx) {
   const W = `story/${story.id}.json`;
   if (!isStr(story.title)) errors.push(`${W}：title 必須是非空字串`);
   if (!isObj(story.end_screen)) {
@@ -115,9 +333,10 @@ function checkStoryMeta(story, errors) {
   for (const k of ['title', 'subtitle']) {
     if (!isStr(story.end_screen[k])) errors.push(`${W}：end_screen.${k} 必須是非空字串`);
   }
+  if (story.end_screen.continue !== undefined) checkDestination(story.end_screen.continue, `${W}：end_screen.continue`, ctx);
 }
 
-// ---------- fallback 可達性 ----------
+// ---------- 免費可達性（fallback 檢查） ----------
 
 const fallbackItemOf = (lock) => {
   const m = isObj(lock) && typeof lock.fallback === 'string' ? /^item:(.+)$/.exec(lock.fallback) : null;
@@ -126,9 +345,10 @@ const fallbackItemOf = (lock) => {
 
 /**
  * 在「免費世界」裡，條件有沒有可能成立（保守的靜態判斷）。
- * 免費世界＝殘響 0、沒有任何譜系；flags／items 是目前已證明能免費取得的集合。
+ * 免費世界＝殘響 0；譜系只有「已證明能免費喝下」的（第二階段才有）；flags／items 是目前已證明能免費取得的集合。
  * - flag／item：在集合裡才可能成立。
- * - echo_gte：值 ≤ 0 才成立（殘響 0）；lineage／rank_lte：一律不成立（沒有譜系）。
+ * - echo_gte：值 ≤ 0 才成立（殘響 0）；lineage／rank_lte：已喝下的譜系／階位才成立。
+ * - in_party：主角，或已證明能免費加入的隊友；ammo_gte：值 ≤ 0，或已證明能免費拿到子彈。
  * - not_flag／not：一律視為可能成立（避免誤報；旗標可能根本沒設）。
  * - any：任一子條件可能成立；all：每個子條件都可能成立。
  * 寫法不合法的條件當作不成立（另有檢查會報錯）。
@@ -145,8 +365,10 @@ function maybeTrue(cond, world) {
     case 'not_flag': return true;
     case 'not': return true;
     case 'echo_gte': return typeof v === 'number' && v <= 0;
-    case 'lineage': return false;
-    case 'rank_lte': return false;
+    case 'lineage': return world.lineages.has(v);
+    case 'rank_lte': return typeof v === 'number' && [...world.lineages.values()].some((r) => r <= v);
+    case 'in_party': return v === HERO_ID || world.party.has(v);
+    case 'ammo_gte': return typeof v === 'number' && (v <= 0 || world.ammo);
     case 'any': return Array.isArray(v) && v.some((c) => maybeTrue(c, world));
     case 'all': return Array.isArray(v) && v.every((c) => maybeTrue(c, world));
     default: return false;
@@ -154,36 +376,98 @@ function maybeTrue(cond, world) {
 }
 const maybe = (cond, world) => cond === undefined || maybeTrue(cond, world);
 
+const newWorld = () => ({ flags: new Set(), items: new Set(), party: new Set(), ammo: false, lineages: new Map(), tags: new Set() });
+const cloneWorld = (w) => ({ flags: new Set(w.flags), items: new Set(w.items), party: new Set(w.party), ammo: w.ammo, lineages: new Map(w.lineages), tags: new Set(w.tags) });
+
+/** 喝下 { id, rank }：記下譜系與階位，並加入已達到階位的 field 標籤。回傳是否有變化。 */
+function grantLineage(world, g, ctx) {
+  const def = ctx.lineages.get(g.id);
+  if (!def || !Number.isInteger(g.rank)) return false;
+  let changed = false;
+  const cur = world.lineages.get(g.id);
+  if (cur === undefined || g.rank < cur) { world.lineages.set(g.id, g.rank); changed = true; }
+  for (const r of arr(def.ranks)) {
+    if (!isObj(r) || !Number.isInteger(r.rank) || r.rank < g.rank) continue;
+    for (const t of arr(r.field)) if (isStr(t) && !world.tags.has(t)) { world.tags.add(t); changed = true; }
+  }
+  return changed;
+}
+
 /**
- * 不經過任何 lock 的 on_tag、也不花殘響就能取得的道具（免費世界的不動點）。
- * 初始：殘響 0、沒有譜系、旗標與道具都是空集合、只有起始地圖。反覆擴張直到不再變化：
- * - 入口：manifest.start.dialogue；可達地圖的 on_enter、if 可能成立的觸發點、有 requires 的出口 blocked、
- *   可見（if 可能成立）物件的 look 與 lock.locked；lock 的 on_item 只有在「該 lock 的 fallback 道具已在集合中」時才算，
- *   同時把 lock.flag 加入旗標集合（用道具開鎖會設這個旗標）。
- * - 出口 requires 可能成立 → 目的地圖可達。
+ * 一個階段的不動點：從 startMaps 與 entries（{ dlg, map }：在哪張地圖上播的對話）出發，反覆擴張直到不再變化。
+ * - 入口：entries；可達地圖的 on_enter、if 可能成立的觸發點（dialogue 與 battle）、有 requires 的出口 blocked、
+ *   可見（if 可能成立）物件的 look、battle 與 lock.locked；lock 的 on_item 只有在「fallback 道具已在集合中」時才算，
+ *   同時把 lock.flag 加入旗標集合。
+ * - lineageActive（喝下靈劑之後的階段）：world.tags 裡的標籤可以免費解開 solvable_by 含該標籤的 lock（走 on_tag），
+ *   有 trace 時物件的【殘響】對話也免費。
+ * - 出口 requires 可能成立 → 目的地圖可達；goto、chapter_end 對應章節的 end_screen.continue → 目的地圖可達，其 dialogue 在該地圖播放。
+ * - 遭遇（battle 效果、物件／觸發點的 battle）假設打得贏：on_win.effects 與 on_win.dialogue 算入（在觸發它的地圖播放）。
+ *   戰鬥中 phases 的 dialogue 不算（不保證會觸發）。
  * - 對話內沿 next／branches／choices 走；branch／choice 的 if 要可能成立才走；帶 use_echo 的節點或選項不往下走、不算它的效果。
- * - 收集 set_flag／give_item。
- * 物件 echo 與 lock.on_tag 從不算入口；沒人引用的孤兒對話不算。
+ * - 收集 set_flag／give_item／join_party／give_ammo；set_lineage 記成 grant（第一階段不生效，第二階段立即生效）。
+ * 物件 echo（第一階段）與 lock.on_tag（沒有對應的免費標籤時）不算入口；沒人引用的孤兒對話不算。
  */
-function freeGivenItems(bundle, ctx) {
-  const world = { flags: new Set(), items: new Set() };
-  const reachableMaps = new Set();
-  const start = isObj(bundle.manifest) && isObj(bundle.manifest.start) ? bundle.manifest.start : {};
-  if (ctx.maps.has(start.map)) reachableMaps.add(start.map);
+function explore(ctx, { world, startMaps, entries, lineageActive }) {
+  const maps = new Set(startMaps.filter((m) => ctx.maps.has(m)));
+  const ents = [];
+  const entKeys = new Set();
+  const grants = [];
+  const grantKeys = new Set();
   const costly = (effects) => arr(effects).some((e) => has(e, 'use_echo'));
   let changed = true;
-  const collect = (effects) => {
+  const addEntry = (dlg, map) => {
+    const key = `${dlg}@${map}`;
+    if (!isStr(dlg) || entKeys.has(key)) return;
+    entKeys.add(key);
+    ents.push({ dlg, map });
+    changed = true;
+  };
+  for (const e of entries) addEntry(e.dlg, e.map);
+  const addMap = (id) => { if (ctx.maps.has(id) && !maps.has(id)) { maps.add(id); changed = true; } };
+  const addFlag = (f) => { if (isStr(f) && !world.flags.has(f)) { world.flags.add(f); changed = true; } };
+  const addDest = (d) => {
+    if (!isObj(d) || !isStr(d.map) || !ctx.maps.has(d.map)) return;
+    addMap(d.map);
+    if (d.dialogue !== undefined) addEntry(d.dialogue, d.map);
+  };
+
+  let walked;
+  let encWalked;
+  const collect = (effects, mapCtx, dlgId) => {
     for (const e of arr(effects)) {
+      if (!isObj(e)) continue;
       if (has(e, 'give_item') && isStr(e.give_item) && !world.items.has(e.give_item)) { world.items.add(e.give_item); changed = true; }
-      if (has(e, 'set_flag') && isStr(e.set_flag) && !world.flags.has(e.set_flag)) { world.flags.add(e.set_flag); changed = true; }
+      if (has(e, 'set_flag')) addFlag(e.set_flag);
+      if (has(e, 'join_party') && isStr(e.join_party) && !world.party.has(e.join_party)) { world.party.add(e.join_party); changed = true; }
+      if (has(e, 'give_ammo') && !world.ammo) { world.ammo = true; changed = true; }
+      if (has(e, 'set_lineage') && isObj(e.set_lineage)) {
+        const g = { id: e.set_lineage.id, rank: e.set_lineage.rank, map: mapCtx, dlg: dlgId };
+        const key = `${g.id}:${g.rank}@${g.map}:${g.dlg}`;
+        if (!grantKeys.has(key)) { grantKeys.add(key); grants.push(g); }
+        if (lineageActive && grantLineage(world, g, ctx)) changed = true;
+      }
+      if (has(e, 'goto')) addDest(e.goto);
+      if (has(e, 'chapter_end')) {
+        const story = ctx.storyById.get(e.chapter_end);
+        if (isObj(story?.end_screen)) addDest(story.end_screen.continue);
+      }
+      if (has(e, 'battle')) walkEncounter(e.battle, mapCtx);
     }
   };
-  const addFlag = (f) => { if (isStr(f) && !world.flags.has(f)) { world.flags.add(f); changed = true; } };
-  const addMap = (id) => { if (ctx.maps.has(id) && !reachableMaps.has(id)) { reachableMaps.add(id); changed = true; } };
-
-  const walk = (id) => {
+  const walkEncounter = (id, mapCtx) => {
+    const enc = isStr(id) ? ctx.encounters.get(id) : undefined;
+    const key = `${id}@${mapCtx}`;
+    if (!enc || encWalked.has(key)) return;
+    encWalked.add(key);
+    const onWin = isObj(enc.on_win) ? enc.on_win : {};
+    collect(onWin.effects, mapCtx, isStr(onWin.dialogue) ? onWin.dialogue : null);
+    walk(onWin.dialogue, mapCtx);
+  };
+  const walk = (id, mapCtx) => {
     const dlg = isStr(id) ? ctx.dialogues.get(id)?.dlg : undefined;
-    if (!dlg || !Array.isArray(dlg.nodes)) return;
+    const key = `${id}@${mapCtx}`;
+    if (!dlg || !Array.isArray(dlg.nodes) || walked.has(key)) return;
+    walked.add(key);
     const nodes = new Map(dlg.nodes.filter((n) => isObj(n) && isStr(n.id)).map((n) => [n.id, n]));
     const seen = new Set();
     const stack = [dlg.start];
@@ -193,12 +477,12 @@ function freeGivenItems(bundle, ctx) {
       seen.add(nid);
       const n = nodes.get(nid);
       if (costly(n.effects)) continue;
-      collect(n.effects);
+      collect(n.effects, mapCtx, id);
       if (isStr(n.next)) stack.push(n.next);
       for (const b of arr(n.branches)) if (isObj(b) && isStr(b.next) && maybe(b.if, world)) stack.push(b.next);
       for (const c of arr(n.choices)) {
         if (!isObj(c) || costly(c.effects) || !maybe(c.if, world)) continue;
-        collect(c.effects);
+        collect(c.effects, mapCtx, id);
         if (isStr(c.next)) stack.push(c.next);
       }
     }
@@ -206,30 +490,85 @@ function freeGivenItems(bundle, ctx) {
 
   while (changed) {
     changed = false;
-    walk(start.dialogue);
-    for (const mapId of [...reachableMaps]) {
+    walked = new Set();
+    encWalked = new Set();
+    for (let i = 0; i < ents.length; i++) walk(ents[i].dlg, ents[i].map);
+    for (const mapId of [...maps]) {
       const map = ctx.maps.get(mapId);
-      walk(map.on_enter);
-      for (const t of arr(map.triggers)) if (isObj(t) && maybe(t.if, world)) walk(t.dialogue);
+      walk(map.on_enter, mapId);
+      for (const t of arr(map.triggers)) {
+        if (!isObj(t) || !maybe(t.if, world)) continue;
+        walk(t.dialogue, mapId);
+        walkEncounter(t.battle, mapId);
+      }
       for (const ex of arr(map.exits)) {
         if (!isObj(ex)) continue;
-        if (ex.requires !== undefined) walk(ex.blocked);
+        if (ex.requires !== undefined) walk(ex.blocked, mapId);
         if (maybe(ex.requires, world)) addMap(ex.to);
       }
       for (const obj of arr(map.objects)) {
         if (!isObj(obj) || !maybe(obj.if, world)) continue;
-        walk(obj.look);
+        walk(obj.look, mapId);
+        walkEncounter(obj.battle, mapId);
+        if (lineageActive && world.tags.has(ECHO_TAG)) walk(obj.echo, mapId);
         if (!isObj(obj.lock)) continue;
-        walk(obj.lock.locked);
+        walk(obj.lock.locked, mapId);
         const fb = fallbackItemOf(obj.lock);
         if (fb !== null && world.items.has(fb)) {
           addFlag(obj.lock.flag);
-          walk(obj.lock.on_item);
+          walk(obj.lock.on_item, mapId);
+        }
+        if (lineageActive) {
+          for (const tag of arr(obj.lock.solvable_by)) {
+            if (!world.tags.has(tag)) continue;
+            addFlag(obj.lock.flag);
+            if (has(obj.lock.on_tag, tag)) walk(obj.lock.on_tag[tag], mapId);
+          }
         }
       }
     }
   }
-  return world.items;
+  return { world, maps, grants };
+}
+
+/**
+ * 兩階段的免費可達性：
+ * 1. 喝下靈劑之前（沒有譜系、殘響 0）：從 manifest.start 出發的不動點。記下所有能免費抵達的 set_lineage。
+ * 2. 喝下之後：沿用第 1 階段取得的旗標與道具，從「播放 set_lineage 的地圖」重新出發，譜系的 field 標籤免費。
+ *    只有第 2 階段還到得了的地圖，lock 才可以用譜系標籤當免費解法（例如喝下讀痕者後的 trace）；
+ *    之後回不去的地圖（例如序章）仍必須有免費 fallback。
+ */
+function analyzeFree(bundle, ctx) {
+  ctx.storyById = new Map(arr(bundle.story).filter((s) => isObj(s) && isStr(s.id)).map((s) => [s.id, s]));
+  const start = isObj(bundle.manifest) && isObj(bundle.manifest.start) ? bundle.manifest.start : {};
+  const s1 = explore(ctx, { world: newWorld(), startMaps: [start.map], entries: [{ dlg: start.dialogue, map: start.map }], lineageActive: false });
+  let s2 = null;
+  if (s1.grants.length) {
+    const world = cloneWorld(s1.world);
+    for (const g of s1.grants) grantLineage(world, g, ctx);
+    s2 = explore(ctx, {
+      world,
+      startMaps: s1.grants.map((g) => g.map),
+      entries: s1.grants.filter((g) => isStr(g.dlg)).map((g) => ({ dlg: g.dlg, map: g.map })),
+      lineageActive: true,
+    });
+  }
+  return {
+    items1: s1.world.items, maps1: s1.maps,
+    items2: s2 ? s2.world.items : new Set(), maps2: s2 ? s2.maps : new Set(), tags2: s2 ? s2.world.tags : new Set(),
+  };
+}
+
+/**
+ * lock 是否「不花殘響就保證解得開」：
+ * - fallback 道具在喝下靈劑之前就能免費取得；或
+ * - lock 所在地圖在喝下之後仍到得了，而且（solvable_by 含已免費的譜系標籤，或 fallback 道具在喝下後能免費取得）；或
+ * - 地圖完全到不了（另有引用檢查）時，fallback 道具在任一階段能免費取得。
+ */
+function freelySolvable(lock, item, mapId, free) {
+  if (free.items1.has(item)) return true;
+  if (free.maps2.has(mapId)) return arr(lock.solvable_by).some((t) => free.tags2.has(t)) || free.items2.has(item);
+  return !free.maps1.has(mapId) && free.items2.has(item);
 }
 
 // ---------- 共用：條件、效果、引用 ----------
@@ -250,6 +589,7 @@ function checkCond(cond, where, ctx) {
   if (errs.length === 0) {
     for (const id of conditionRefs(cond, 'item')) if (!ctx.items.has(id)) ctx.errors.push(`${where}：條件引用不存在的道具「${id}」`);
     for (const id of conditionRefs(cond, 'lineage')) if (!ctx.lineages.has(id)) ctx.errors.push(`${where}：條件引用不存在的譜系「${id}」`);
+    for (const id of conditionRefs(cond, 'in_party')) if (id !== HERO_ID && !ctx.characters.has(id)) ctx.errors.push(`${where}：條件 in_party 引用不存在的角色「${id}」`);
   }
 }
 
@@ -269,6 +609,19 @@ function checkEffects(effects, where, ctx) {
     if (has(e, 'chapter_end') && !ctx.storyIds.has(e.chapter_end)) {
       ctx.errors.push(`${where}：effects[${i}] chapter_end 引用沒有載入的章節（story）「${e.chapter_end}」`);
     }
+    if (has(e, 'battle') && !ctx.encounters.has(e.battle)) ctx.errors.push(`${where}：effects[${i}] battle 引用不存在的遭遇「${e.battle}」`);
+    if (has(e, 'set_lineage')) {
+      const { id, rank } = e.set_lineage;
+      const def = ctx.lineages.get(id);
+      if (!def) ctx.errors.push(`${where}：effects[${i}] set_lineage 引用不存在的譜系「${id}」`);
+      else if (!arr(def.ranks).some((r) => isObj(r) && r.rank === rank)) ctx.errors.push(`${where}：effects[${i}] set_lineage 譜系「${id}」沒有開放階位 ${rank}`);
+    }
+    for (const k of ['join_party', 'leave_party']) {
+      if (!has(e, k)) continue;
+      if (e[k] === HERO_ID) { if (k === 'leave_party') ctx.errors.push(`${where}：effects[${i}] leave_party 不可以讓主角離開隊伍`); }
+      else if (!ctx.characters.has(e[k])) ctx.errors.push(`${where}：effects[${i}] ${k} 引用不存在的角色「${e[k]}」`);
+    }
+    if (has(e, 'goto')) checkDestination(e.goto, `${where}：effects[${i}] goto`, ctx);
   });
 }
 
@@ -390,7 +743,8 @@ function checkMap(map, ctx) {
     if (obj.if !== undefined) checkCond(obj.if, where, ctx);
     refDialogue(obj.look, where, 'look', ctx);
     refDialogue(obj.echo, where, 'echo', ctx);
-    if (obj.lock !== undefined) checkLock(obj.lock, where, ctx);
+    refEncounter(obj.battle, where, ctx);
+    if (obj.lock !== undefined) checkLock(obj.lock, where, ctx, map.id);
   }
 
   // exits
@@ -429,12 +783,13 @@ function checkMap(map, ctx) {
         }
       }
     }
-    refDialogue(trg.dialogue, where, 'dialogue', ctx, true);
+    refDialogue(trg.dialogue, where, 'dialogue', ctx, trg.battle === undefined); // 有 battle 時 dialogue 可省略
+    refEncounter(trg.battle, where, ctx);
     if (trg.if !== undefined) checkCond(trg.if, where, ctx);
   }
 }
 
-function checkLock(lock, where, ctx) {
+function checkLock(lock, where, ctx, mapId) {
   const { errors } = ctx;
   if (!isObj(lock)) {
     errors.push(`${where}：lock 必須是物件`);
@@ -449,7 +804,7 @@ function checkLock(lock, where, ctx) {
     const m = typeof lock.fallback === 'string' ? /^item:(.+)$/.exec(lock.fallback) : null;
     if (!m) errors.push(`${where}：lock.fallback「${q(lock.fallback)}」寫法不支援（目前只支援 item:<id>）`);
     else if (!ctx.items.has(m[1])) errors.push(`${where}：lock.fallback 引用不存在的道具「${m[1]}」`);
-    else if (!ctx.freeItems.has(m[1])) {
+    else if (!freelySolvable(lock, m[1], mapId, ctx.free)) {
       errors.push(`${where}：lock.fallback 道具「${m[1]}」無法從免費入口取得（不花殘響、沒有譜系時，必須能從 start／可達地圖的 on_enter／觸發點／look／locked、或已能用道具開的鎖的 on_item 對話裡拿到；條件不可能成立的選項／branch／物件／觸發點／出口、物件 echo、lock.on_tag、要花殘響的選項、孤兒對話、以及只靠這道鎖自己 on_item 的循環都不算）`);
     }
   }

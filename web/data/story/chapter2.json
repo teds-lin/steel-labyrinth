@@ -1,0 +1,1716 @@
+{
+  "id": "chapter2",
+  "title": "第二章　碼頭失蹤案",
+  "end_screen": {
+    "title": "第二章　完",
+    "subtitle": "第三章　製作中"
+  },
+  "dialogues": [
+    {
+      "id": "dlg_ch2_opening",
+      "start": "o1",
+      "nodes": [
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "隔天清晨。碼頭區的霧比上城濃得多，濃到看不清三步外的起重機。",
+          "next": "o2"
+        },
+        {
+          "id": "o2",
+          "speaker": null,
+          "text": "鐵軌從霧裡延伸出來，又消失在霧裡。遠方的船笛聲悶得像隔著一層棉被。",
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": "艾妲",
+          "text": "好冷……這裡的霧，聞起來有鐵鏽和海草的味道。",
+          "next": "o4"
+        },
+        {
+          "id": "o4",
+          "speaker": "馬洛",
+          "text": "分頭行動。我先去東邊的倉庫看看，你們去找工頭，還有失蹤者的家人。",
+          "next": "o5"
+        },
+        {
+          "id": "o5",
+          "speaker": "馬洛",
+          "text": "碼頭中間那一帶的霧最濃，過去之前小心點。最近有人說，霧裡有東西在走。",
+          "next": "o6"
+        },
+        {
+          "id": "o6",
+          "speaker": "{name}",
+          "text": "「有東西在走」……你是指人，還是不是人的東西？",
+          "next": "o7"
+        },
+        {
+          "id": "o7",
+          "speaker": "馬洛",
+          "text": "所以才叫你小心。",
+          "next": "o8"
+        },
+        {
+          "id": "o8",
+          "speaker": null,
+          "text": "他壓低帽簷走進霧裡。腳步聲只響了幾下，就被霧吞掉了。",
+          "next": "o9"
+        },
+        {
+          "id": "o9",
+          "speaker": null,
+          "text": "（向碼頭的人打聽消息，用【回溯】調查可疑的痕跡。左下角的工寮可以休息。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_foreman_talk",
+      "start": "f0",
+      "nodes": [
+        {
+          "id": "f0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "foreman_exposed"
+              },
+              "next": "fdone"
+            },
+            {
+              "if": {
+                "all": [
+                  {
+                    "flag": "talked_foreman"
+                  },
+                  {
+                    "flag": "knows_overtime"
+                  }
+                ]
+              },
+              "next": "x1"
+            },
+            {
+              "if": {
+                "flag": "talked_foreman"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "f1"
+        },
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "工頭是個肩膀寬厚的男人，嘴裡叼著熄掉的菸斗，正對著一張貨單皺眉。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": "工頭",
+          "text": "白燈保全？哼，工會還真的花錢請人了。我早說過，那幾個是自己跑掉的。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "{name}",
+          "text": "三個人一起跑掉，連工錢都不領？",
+          "next": "f4"
+        },
+        {
+          "id": "f4",
+          "speaker": "工頭",
+          "text": "誰知道。這年頭欠了賭債，連老婆孩子都不要的人多得是。",
+          "next": "f5"
+        },
+        {
+          "id": "f5",
+          "speaker": "艾妲",
+          "text": "他們最後一次出現，是什麼時候？",
+          "next": "f6"
+        },
+        {
+          "id": "f6",
+          "speaker": "工頭",
+          "text": "上個月底收工的時候。那天傍晚就收工了，誰也沒有加班。",
+          "next": "f7"
+        },
+        {
+          "id": "f7",
+          "speaker": null,
+          "text": "他說「沒有加班」的時候，菸斗在嘴裡換了一邊。",
+          "next": "f8"
+        },
+        {
+          "id": "f8",
+          "speaker": "工頭",
+          "text": "要查就查，別妨礙我的人上工。倉庫鑰匙拿去，查完記得還我。",
+          "next": "f9"
+        },
+        {
+          "id": "f9",
+          "speaker": null,
+          "text": "（取得倉庫鑰匙。）",
+          "effects": [
+            {
+              "give_item": "warehouse_key"
+            },
+            {
+              "set_flag": "talked_foreman"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": "工頭",
+          "text": "還有事？倉庫在東邊，霧最濃的那頭。我的人都不太敢過去。",
+          "next": "END"
+        },
+        {
+          "id": "x1",
+          "speaker": "{name}",
+          "text": "工頭，你說那天沒人加班。可是那三個人，是被你私下留下來的。",
+          "next": "x2"
+        },
+        {
+          "id": "x2",
+          "speaker": "工頭",
+          "text": "……誰跟你說的？",
+          "next": "x3"
+        },
+        {
+          "id": "x3",
+          "speaker": "{name}",
+          "text": "你說謊的時候，菸斗會換邊。從剛才到現在，已經換了三次。",
+          "next": "x4"
+        },
+        {
+          "id": "x4",
+          "speaker": null,
+          "text": "工頭沉默了很久。他把菸斗從嘴裡拿下來，在掌心敲了敲。",
+          "next": "x5"
+        },
+        {
+          "id": "x5",
+          "speaker": "工頭",
+          "text": "對方付現金，指定晚上卸貨、不准登記。三個人自願留下，說是工錢加倍。",
+          "next": "x6"
+        },
+        {
+          "id": "x6",
+          "speaker": "工頭",
+          "text": "送貨的人從頭到尾沒開過口，只用手比，比完就走。我以為只是走私。",
+          "next": "x7"
+        },
+        {
+          "id": "x7",
+          "speaker": "工頭",
+          "text": "隔天貨送進東邊的倉庫，那三個人就沒再回來。我怕丟了飯碗，才……",
+          "next": "x8"
+        },
+        {
+          "id": "x8",
+          "speaker": "{name}",
+          "text": "（謊言剝落的聲音，清清楚楚。腦中那條線，又對上了一格。）",
+          "effects": [
+            {
+              "resonance": "lie_exposed"
+            },
+            {
+              "set_flag": "foreman_exposed"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "fdone",
+          "speaker": "工頭",
+          "text": "我知道的都說了。要是那三個人還活著……替我跟他們道歉。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_foreman_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "knows_overtime"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你盯著工頭手裡的貨單。銀光沿著紙邊爬上來，碼頭的聲音一下子遠了。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——夜裡。煤氣燈下，工頭撕下貨單的其中一頁，揉成一團丟進河裡。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "那一頁的最後一行寫著：「夜班加卸：卡爾、歐文、湯米。東倉。」",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "{name}",
+          "text": "（那天晚上，明明有人加班。）",
+          "effects": [
+            {
+              "set_flag": "knows_overtime"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那張揉皺的貨單在河面上漂遠了。上面寫了什麼，你已經知道了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_wife_talk",
+      "start": "w0",
+      "nodes": [
+        {
+          "id": "w0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "told_wife_truth"
+              },
+              "next": "wat"
+            },
+            {
+              "if": {
+                "flag": "talked_wife"
+              },
+              "next": "wal"
+            }
+          ],
+          "next": "w1"
+        },
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "碼頭入口的鐵柵旁，站著一個裹著披肩的女人。她眼睛紅腫，一直望著霧的方向。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": "莉娜",
+          "text": "你們是……來找歐文的人？我是他太太，莉娜。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": "莉娜",
+          "text": "他上個月底出門上工，就再也沒回來。工頭說他跑了，可是他不會丟下我們。",
+          "next": "w4"
+        },
+        {
+          "id": "w4",
+          "speaker": "艾妲",
+          "text": "莉娜太太，妳最後一次見到他時，他有沒有說什麼？",
+          "next": "w5"
+        },
+        {
+          "id": "w5",
+          "speaker": "莉娜",
+          "text": "他說那天會晚點回家，有一筆加倍的工錢……還說要買新鞋給女兒。",
+          "next": "w6"
+        },
+        {
+          "id": "w6",
+          "speaker": null,
+          "text": "她攥緊披肩的邊角，抬頭看著你。",
+          "next": "w7"
+        },
+        {
+          "id": "w7",
+          "speaker": "莉娜",
+          "text": "請告訴我實話。歐文他……還活著嗎？",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "說實話：「還不知道，但我們會找到他。」",
+              "next": "t1"
+            },
+            {
+              "text": "隱瞞：「他一定沒事，很快就會回來。」",
+              "next": "l1"
+            }
+          ]
+        },
+        {
+          "id": "t1",
+          "speaker": "{name}",
+          "text": "老實說，我們還不知道。但我答應妳，不管找到什麼，都會讓妳知道。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": "莉娜",
+          "text": "……謝謝你。至少你沒有騙我。工頭他們，一個個都只叫我回家等。",
+          "next": "t3"
+        },
+        {
+          "id": "t3",
+          "speaker": "莉娜",
+          "text": "其實那天的加班，歐文說是工頭私下找的，還叫他們別跟任何人提。",
+          "effects": [
+            {
+              "set_flag": "knows_overtime"
+            },
+            {
+              "set_flag": "told_wife_truth"
+            },
+            {
+              "set_flag": "talked_wife"
+            }
+          ],
+          "branches": [
+            {
+              "if": {
+                "flag": "talked_foreman"
+              },
+              "next": "t4a"
+            }
+          ],
+          "next": "t4b"
+        },
+        {
+          "id": "t4a",
+          "speaker": "{name}",
+          "text": "（工頭剛才可是說，那天沒有人加班。）",
+          "next": "END"
+        },
+        {
+          "id": "t4b",
+          "speaker": "{name}",
+          "text": "（私下找的夜班。這件事，得找工頭問清楚。）",
+          "next": "END"
+        },
+        {
+          "id": "l1",
+          "speaker": "{name}",
+          "text": "別擔心，他一定沒事。大概只是被什麼事耽擱了，很快就會回來。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": "莉娜",
+          "text": "……是嗎。你們都這麼說。",
+          "next": "l3"
+        },
+        {
+          "id": "l3",
+          "speaker": null,
+          "text": "她勉強笑了一下，低頭不再說話。你耳邊響起一陣尖細的耳鳴。",
+          "effects": [
+            {
+              "collapse": 3
+            },
+            {
+              "set_flag": "talked_wife"
+            }
+          ],
+          "next": "l4"
+        },
+        {
+          "id": "l4",
+          "speaker": null,
+          "text": "（違背譜系的本性，崩解就會上升。讀痕者的本性是看穿真相，不是掩蓋它。）",
+          "next": "l5"
+        },
+        {
+          "id": "l5",
+          "speaker": "艾妲",
+          "text": "（小聲）……{name}，想安慰人的話，不一定要靠說謊喔。",
+          "next": "END"
+        },
+        {
+          "id": "wat",
+          "speaker": "莉娜",
+          "text": "我會在這裡等。不管是好消息還是壞消息，我都想親耳聽見。",
+          "next": "END"
+        },
+        {
+          "id": "wal",
+          "speaker": "莉娜",
+          "text": "你說他會回來的……對吧？",
+          "next": "wal2"
+        },
+        {
+          "id": "wal2",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "「對不起，剛才我沒說實話。」",
+              "next": "t1"
+            },
+            {
+              "text": "「……嗯。」",
+              "next": "wal3"
+            }
+          ]
+        },
+        {
+          "id": "wal3",
+          "speaker": null,
+          "text": "莉娜點點頭，又轉回去望著霧。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_glove_look",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "clue_glove"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "lineage": "trace"
+              },
+              "next": "tr1"
+            }
+          ],
+          "next": "pl1"
+        },
+        {
+          "id": "tr1",
+          "speaker": null,
+          "text": "木棧橋的盡頭卡著一隻濕透的工作手套。皮革泡得發脹，指尖都磨破了。",
+          "next": "tr2"
+        },
+        {
+          "id": "tr2",
+          "speaker": null,
+          "text": "手套上纏著淡淡的銀色細線。用【回溯】，應該能看見它記得的事。",
+          "next": "END"
+        },
+        {
+          "id": "pl1",
+          "speaker": null,
+          "text": "棧橋盡頭卡著一隻濕透的手套，內側用線縫著「湯米」。木板上有幾道指甲刮出的白痕。",
+          "next": "pl2"
+        },
+        {
+          "id": "pl2",
+          "speaker": "{name}",
+          "text": "（有人死命抓著這裡的木板，還是被拖走了。）",
+          "effects": [
+            {
+              "set_flag": "clue_glove"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "手套已經交給艾妲收著了。棧橋的盡頭，只剩下一攤水漬。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_glove_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "clue_glove"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "g1"
+        },
+        {
+          "id": "g1",
+          "speaker": null,
+          "text": "你蹲下來，指尖碰到手套。銀光從濕透的皮革裡滲出，霧退到了很遠的地方。",
+          "next": "g2"
+        },
+        {
+          "id": "g2",
+          "speaker": null,
+          "text": "——夜裡。一個年輕的搬運工跪在棧橋邊，雙手死命抓著木板邊緣。",
+          "next": "g3"
+        },
+        {
+          "id": "g3",
+          "speaker": null,
+          "text": "他想喊，嘴巴卻張不開。霧裡伸出一隻巨大的手，抓住他的腳踝往後拖。",
+          "next": "g4"
+        },
+        {
+          "id": "g4",
+          "speaker": null,
+          "text": "手套被扯了下來。他的指甲在木板上刮出長長的白痕，然後消失在霧裡。",
+          "next": "g5"
+        },
+        {
+          "id": "g5",
+          "speaker": "艾妲",
+          "text": "{name}？你的臉色好差……你看到了什麼？",
+          "next": "g6"
+        },
+        {
+          "id": "g6",
+          "speaker": "{name}",
+          "text": "有人在這裡被拖走了。他想喊救命，卻連嘴都張不開。",
+          "next": "g7"
+        },
+        {
+          "id": "g7",
+          "speaker": null,
+          "text": "手套內側，用線縫著一個名字：「湯米」。",
+          "effects": [
+            {
+              "set_flag": "clue_glove"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡的畫面又重演了一遍。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_drag_look",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "clue_drag"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "lineage": "trace"
+              },
+              "next": "tr1"
+            }
+          ],
+          "next": "pl1"
+        },
+        {
+          "id": "tr1",
+          "speaker": null,
+          "text": "鐵軌旁的泥地上有兩道又深又長的拖痕，一路延伸到東邊的倉庫。",
+          "next": "tr2"
+        },
+        {
+          "id": "tr2",
+          "speaker": null,
+          "text": "拖痕邊緣泛著銀光，像在等你去讀它。",
+          "next": "END"
+        },
+        {
+          "id": "pl1",
+          "speaker": null,
+          "text": "兩道拖痕從鐵軌延伸到倉庫門口，中間夾著一排巨大的腳印，深得不像人踩的。",
+          "next": "pl2"
+        },
+        {
+          "id": "pl2",
+          "speaker": "{name}",
+          "text": "（拖著人走的東西，進了那間倉庫。）",
+          "effects": [
+            {
+              "set_flag": "clue_drag"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "拖痕被霧氣打濕，邊緣越來越模糊。不過它通往哪裡，你已經知道了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_drag_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "clue_drag"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "你把手按在拖痕上。泥土冰冷，銀光一路往前竄，竄向倉庫的方向。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": null,
+          "text": "——夜裡。一個高大得不自然的身影，拖著兩個昏迷的人，沿著鐵軌慢慢走。",
+          "next": "r3"
+        },
+        {
+          "id": "r3",
+          "speaker": null,
+          "text": "它每走一步，地面就震一下。它的嘴緊緊閉著，像是被縫起來一樣。",
+          "next": "r4"
+        },
+        {
+          "id": "r4",
+          "speaker": null,
+          "text": "身影在倉庫門前停下，回頭望向霧裡。明知只是過去，你還是屏住了呼吸。",
+          "next": "r5"
+        },
+        {
+          "id": "r5",
+          "speaker": "{name}",
+          "text": "（它身上穿著搬運工的工作背心。……它原本是誰？）",
+          "effects": [
+            {
+              "set_flag": "clue_drag"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡的畫面又重演了一遍。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_pillar_look",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "clue_mark"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "lineage": "trace"
+              },
+              "next": "tr1"
+            }
+          ],
+          "next": "pl1"
+        },
+        {
+          "id": "tr1",
+          "speaker": null,
+          "text": "起重機的鐵柱上，有人用刀刻了一個記號：一張嘴，被一道橫線封住。",
+          "next": "tr2"
+        },
+        {
+          "id": "tr2",
+          "speaker": null,
+          "text": "刻痕還很新，鐵屑上纏著細細的銀光。",
+          "next": "END"
+        },
+        {
+          "id": "pl1",
+          "speaker": null,
+          "text": "起重機的鐵柱上刻著一張被橫線封住的嘴。刻痕很深，刻的人用了很大的力氣。",
+          "next": "pl2"
+        },
+        {
+          "id": "pl2",
+          "speaker": "{name}",
+          "text": "（「閉口」……這是記號，還是命令？）",
+          "effects": [
+            {
+              "set_flag": "clue_mark"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "那張被封住的嘴，在霧裡靜靜看著你。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_pillar_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "clue_mark"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "p1"
+        },
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "你的指尖沿著刻痕描了一圈。銀光像冰水一樣灌進手臂。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": null,
+          "text": "——夜裡。一個穿著搬運工背心的大個子站在柱子前，一刀一刀刻下這個記號。",
+          "next": "p3"
+        },
+        {
+          "id": "p3",
+          "speaker": null,
+          "text": "他的手在發抖，嘴裡不停念著同一句話，聲音越來越小。",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": "搬運工",
+          "text": "……閉上嘴……閉上嘴，就聽不見了……",
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": null,
+          "text": "刻完最後一刀，他的嘴唇緊緊抿住，再也沒有張開過。",
+          "next": "p6"
+        },
+        {
+          "id": "p6",
+          "speaker": "艾妲",
+          "text": "那個記號……我不喜歡它。光是看著，耳朵裡就變得好安靜。",
+          "next": "p7"
+        },
+        {
+          "id": "p7",
+          "speaker": "{name}",
+          "text": "（「閉口」。這是某種規矩？還是某種命令？）",
+          "effects": [
+            {
+              "set_flag": "clue_mark"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡的畫面又重演了一遍。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_fog1_start",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "霧突然濃得像一面牆。牆的另一邊，有東西在呼吸。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": null,
+          "text": "灰色的人影從霧裡浮出來。沒有五官的臉，正對著你。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "艾妲",
+          "text": "是霧行者！別讓它靠近，也別聽它在說什麼！",
+          "effects": [
+            {
+              "battle": "enc_dock_1"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_after_fog1",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "霧行者發出一聲沒有聲音的尖叫，散成一片冰冷的水氣。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "{name}",
+          "text": "它剛才一直在我耳邊講悄悄話。聽著聽著，頭就開始痛。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "艾妲",
+          "text": "那是「耳語」，會讓崩解上升。太高的時候記得點鎮靜香，或是讓我幫你。",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": "艾妲",
+          "text": "我的「鎮魂」可以把雜音壓下去一些。別硬撐，好嗎？",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_fog_shadow",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "棧橋盡頭的霧裡，有個人影一動也不動地站著。它沒有臉，只有一團翻湧的灰。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": "艾妲",
+          "text": "那不是人……{name}，小心！",
+          "effects": [
+            {
+              "battle": "enc_dock_2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_after_fog2",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "人影像被風吹散的煙一樣崩開，露出後面那根起重機的鐵柱。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "艾妲",
+          "text": "柱子上……好像刻著什麼。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_marlo_dock",
+      "start": "m0",
+      "nodes": [
+        {
+          "id": "m0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch2_deduced"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "all": [
+                  {
+                    "flag": "clue_glove"
+                  },
+                  {
+                    "flag": "clue_drag"
+                  },
+                  {
+                    "flag": "clue_mark"
+                  }
+                ]
+              },
+              "next": "d1"
+            }
+          ],
+          "next": "w1"
+        },
+        {
+          "id": "w1",
+          "speaker": "馬洛",
+          "text": "倉庫裡有動靜。不過在搞清楚裡面是什麼之前，我不想貿然闖進去。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": "馬洛",
+          "text": "碼頭上一定留下了什麼：手套、拖痕、記號……讀痕者的眼睛比我管用。",
+          "next": "END"
+        },
+        {
+          "id": "d1",
+          "speaker": "馬洛",
+          "text": "找齊了？說說看，你看到了什麼。",
+          "next": "d2"
+        },
+        {
+          "id": "d2",
+          "speaker": "{name}",
+          "text": "被拖走的湯米、一路通到倉庫的拖痕，還有那個刻記號的大個子……",
+          "next": "d3"
+        },
+        {
+          "id": "d3",
+          "speaker": "馬洛",
+          "text": "那麼，那三個人現在在哪裡？",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "你的推理是？",
+          "choices": [
+            {
+              "text": "他們被帶進了東邊的倉庫。",
+              "next": "ok1"
+            },
+            {
+              "text": "他們被丟進了河裡。",
+              "next": "ng1"
+            },
+            {
+              "text": "他們是自己跑掉的。",
+              "next": "ng2"
+            }
+          ]
+        },
+        {
+          "id": "ng1",
+          "speaker": "馬洛",
+          "text": "拖痕是往倉庫去的，不是往河邊。再想想。",
+          "effects": [
+            {
+              "set_flag": "deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ng2",
+          "speaker": "馬洛",
+          "text": "自己跑掉的人，不會在木板上留下指甲的刮痕。再想想。",
+          "effects": [
+            {
+              "set_flag": "deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ok1",
+          "speaker": "{name}",
+          "text": "拖痕停在倉庫門口。刻記號的大個子，就是拖走他們的東西——它還在裡面。",
+          "branches": [
+            {
+              "if": {
+                "not_flag": "deduce_wrong"
+              },
+              "next": "ok2"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok2",
+          "speaker": null,
+          "text": "（推理正確。腦中那條線，喀的一聲接上了。）",
+          "effects": [
+            {
+              "resonance": "deduction_correct"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok3",
+          "speaker": "馬洛",
+          "text": "我也是這麼想。那個大個子，八成就是第一個失蹤的搬運工，卡爾。",
+          "next": "ok4"
+        },
+        {
+          "id": "ok4",
+          "speaker": "馬洛",
+          "text": "我守在外面。要是有東西想從這扇門跑出來，就得先過我這關。",
+          "next": "ok5"
+        },
+        {
+          "id": "ok5",
+          "speaker": "艾妲",
+          "text": "隊長不進去嗎？",
+          "next": "ok6"
+        },
+        {
+          "id": "ok6",
+          "speaker": "馬洛",
+          "text": "倉庫只有這一個出口。守住它，是我的工作。進去吧，你們不會有事的。",
+          "effects": [
+            {
+              "set_flag": "ch2_deduced"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": "馬洛",
+          "text": "我在這裡守著。裡面要是撐不住，就退出來，別逞強。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_whdoor_look",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "倉庫側門包著鐵皮，門閂上掛著一把大鎖。門縫裡飄出冰冷的霧。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_whdoor_locked",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "大鎖鎖得很緊。工頭說過，倉庫的鑰匙在他那裡。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_whdoor_trace",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": null,
+          "text": "你把手按在大鎖上，銀光鑽進鎖孔——昨夜，有人從裡面推開過門閂。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": null,
+          "text": "鎖只是掛著做樣子。你輕輕一拉，大鎖就連著鬆脫的門閂一起滑了下來。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_whdoor_key",
+      "start": "k1",
+      "nodes": [
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "你把工頭給的鑰匙插進鎖孔。鎖很久沒上油了，轉起來嘎嘎作響。",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": null,
+          "text": "喀噠一聲，門閂鬆開了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_wh_blocked",
+      "start": "b0",
+      "nodes": [
+        {
+          "id": "b0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "not_flag": "ch2_deduced"
+              },
+              "next": "b1"
+            }
+          ],
+          "next": "b2"
+        },
+        {
+          "id": "b1",
+          "speaker": "馬洛",
+          "text": "等等。進去之前，先把你看到的東西跟我說清楚。",
+          "next": "END"
+        },
+        {
+          "id": "b2",
+          "speaker": null,
+          "text": "門還鎖著。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_shed_stove",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "工寮的火爐還有餘溫。艾妲往爐子裡添了些煤，把水壺放了上去。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": "艾妲",
+          "text": "休息一下吧。熱茶喝下去，傷口也會比較不痛喔。",
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了。）",
+          "effects": [
+            {
+              "heal_party": true
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_shed_box",
+      "start": "b0",
+      "nodes": [
+        {
+          "id": "b0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "got_shed_box"
+              },
+              "next": "empty"
+            }
+          ],
+          "next": "b1"
+        },
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "牆角的木箱裡塞著工人的急救用品。你找到一卷還沒拆封的繃帶。",
+          "effects": [
+            {
+              "give_item": "bandage"
+            },
+            {
+              "set_flag": "got_shed_box"
+            }
+          ],
+          "next": "b2"
+        },
+        {
+          "id": "b2",
+          "speaker": null,
+          "text": "（取得繃帶。）",
+          "next": "END"
+        },
+        {
+          "id": "empty",
+          "speaker": null,
+          "text": "木箱裡只剩幾條發黃的舊布。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_wh_enter",
+      "start": "e1",
+      "nodes": [
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "倉庫裡比外面更冷。木箱堆得像一座座小山，霧從地板的縫隙裡滲上來。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "深處傳來沉重的呼吸聲。一下、一下，像有人扛著很重的東西。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": "艾妲",
+          "text": "{name}，你聽……那不是風的聲音。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_fog3_start",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "木箱之間的通道裡，霧貼著地面流動。兩個灰色人影從箱子後面站了起來。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": "艾妲",
+          "text": "又來了……它們好像在守著什麼。",
+          "effects": [
+            {
+              "battle": "enc_warehouse"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_after_fog3",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "前面的呼吸聲好重……{name}，我們先在這裡喘口氣吧。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "（通道左邊的空木箱可以休息。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_wh_crate",
+      "start": "b0",
+      "nodes": [
+        {
+          "id": "b0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "got_wh_crate"
+              },
+              "next": "empty"
+            }
+          ],
+          "next": "b1"
+        },
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "一個撬開的木箱裡，塞著工人藏起來的急救包。裡面有繃帶和一支線香。",
+          "effects": [
+            {
+              "give_item": "bandage"
+            },
+            {
+              "give_item": "sedative_incense"
+            },
+            {
+              "set_flag": "got_wh_crate"
+            }
+          ],
+          "next": "b2"
+        },
+        {
+          "id": "b2",
+          "speaker": null,
+          "text": "（取得繃帶、鎮靜香。）",
+          "next": "END"
+        },
+        {
+          "id": "empty",
+          "speaker": null,
+          "text": "空木箱裡只剩下稻草。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_rest",
+      "start": "r1",
+      "nodes": [
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "艾妲在空木箱上攤開手帕，從包包裡拿出一個小小的保溫瓶。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": "艾妲",
+          "text": "還溫溫的。出門前特地泡的……你看，我就知道會用得上。",
+          "next": "r3"
+        },
+        {
+          "id": "r3",
+          "speaker": null,
+          "text": "熱茶下肚，緊繃的肩膀終於鬆了下來。（全隊的生命與靈性回滿了。）",
+          "effects": [
+            {
+              "heal_party": true
+            }
+          ],
+          "next": "r4"
+        },
+        {
+          "id": "r4",
+          "speaker": "艾妲",
+          "text": "再往前，就是那個呼吸聲的主人了。有什麼想先做的，就趁現在吧。",
+          "next": "r5"
+        },
+        {
+          "id": "r5",
+          "speaker": null,
+          "text": "（建議在這裡存檔。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_boss_warn",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "木箱的縫隙之間，你看見了它。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": null,
+          "text": "一個巨大的身影背對著你們，蹲在倉庫最深處。肩上扛著一個空空的貨箱。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": "艾妲",
+          "text": "……準備好了再過去。現在退回去休息，還來得及。",
+          "effects": [
+            {
+              "set_flag": "boss_warned"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_boss_intro",
+      "start": "i1",
+      "nodes": [
+        {
+          "id": "i1",
+          "speaker": null,
+          "text": "你一靠近，那個身影就慢慢轉過身來。",
+          "next": "i2"
+        },
+        {
+          "id": "i2",
+          "speaker": null,
+          "text": "是個穿著搬運工背心的大個子。皮膚灰得像霧，嘴唇緊緊黏在一起。",
+          "next": "i3"
+        },
+        {
+          "id": "i3",
+          "speaker": "{name}",
+          "text": "……卡爾？你是卡爾吧？",
+          "next": "i4"
+        },
+        {
+          "id": "i4",
+          "speaker": null,
+          "text": "他沒有回答。他放下肩上的貨箱，喉嚨深處傳出一陣低沉、沒有字句的聲音。",
+          "next": "i5"
+        },
+        {
+          "id": "i5",
+          "speaker": null,
+          "text": "那聲音鑽進耳朵，在腦袋裡低聲重複：閉上嘴，閉上嘴，閉上嘴——",
+          "next": "i6"
+        },
+        {
+          "id": "i6",
+          "speaker": "艾妲",
+          "text": "別聽！{name}，摀住耳朵也沒用，專心看著他！",
+          "effects": [
+            {
+              "battle": "enc_boss"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_boss_phase2",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "沉默的搬運工跪了下來。他張不開的嘴裡，發出更低、更長的聲音。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": null,
+          "text": "地板的縫隙裡，霧開始往上湧——他在呼喚同伴。",
+          "next": "p3"
+        },
+        {
+          "id": "p3",
+          "speaker": "艾妲",
+          "text": "霧行者要來了！先打倒它們，還是直接對付他？{name}，你來決定！",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_boss_after",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "沉默的搬運工晃了一下。龐大的身體慢慢縮小，最後只剩一個跪在地上的男人。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "灰色從他臉上褪去。黏在一起的嘴唇，終於微微張開了一條縫。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "卡爾",
+          "text": "……好……安靜……",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": "卡爾",
+          "text": "他們說……閉上嘴……就聽不見……那些聲音了……",
+          "next": "a5"
+        },
+        {
+          "id": "a5",
+          "speaker": null,
+          "text": "他的頭垂了下去。艾妲握住他的手，輕輕哼起搖籃曲，直到他的呼吸完全停止。",
+          "next": "a6"
+        },
+        {
+          "id": "a6",
+          "speaker": "艾妲",
+          "text": "……睡吧。已經不用再扛任何東西了。",
+          "next": "a7"
+        },
+        {
+          "id": "a7",
+          "speaker": null,
+          "text": "倉庫深處傳來咳嗽聲。一排木箱後面，躺著兩個昏睡的男人——歐文和湯米。",
+          "next": "a8"
+        },
+        {
+          "id": "a8",
+          "speaker": "艾妲",
+          "text": "還有呼吸！雖然很虛弱，但他們還活著！",
+          "next": "a9"
+        },
+        {
+          "id": "a9",
+          "speaker": null,
+          "text": "卡爾的手腕上綁著一條布條。布上用黑線縫著一個圖案：被橫線封住的嘴。",
+          "effects": [
+            {
+              "give_item": "mouth_cloth"
+            }
+          ],
+          "next": "a10"
+        },
+        {
+          "id": "a10",
+          "speaker": null,
+          "text": "（取得縫著閉口圖案的布條。）",
+          "next": "a11"
+        },
+        {
+          "id": "a11",
+          "speaker": null,
+          "text": "倉庫的門被推開。馬洛快步走進來，目光落在你手裡的布條上。",
+          "next": "a12"
+        },
+        {
+          "id": "a12",
+          "speaker": null,
+          "text": "他的臉色變了。那是你第一次看見他露出這種表情。",
+          "next": "a13"
+        },
+        {
+          "id": "a13",
+          "speaker": "{name}",
+          "text": "隊長，你認得這個記號？",
+          "next": "a14"
+        },
+        {
+          "id": "a14",
+          "speaker": "馬洛",
+          "text": "……回去再說。",
+          "next": "a15"
+        },
+        {
+          "id": "a15",
+          "speaker": "馬洛",
+          "text": "先把人送出去。莉娜太太還在碼頭口等著。",
+          "next": "a16"
+        },
+        {
+          "id": "a16",
+          "speaker": null,
+          "text": "那天中午，霧散了一些。莉娜在碼頭口抱住丈夫，哭得說不出話來。",
+          "branches": [
+            {
+              "if": {
+                "flag": "told_wife_truth"
+              },
+              "next": "a17"
+            }
+          ],
+          "next": "a18"
+        },
+        {
+          "id": "a17",
+          "speaker": "莉娜",
+          "text": "謝謝你沒有騙我……也謝謝你，真的把他帶回來了。",
+          "next": "a18"
+        },
+        {
+          "id": "a18",
+          "speaker": null,
+          "text": "回程的電車上，馬洛一句話也沒說，只是盯著窗外的霧。",
+          "next": "a19"
+        },
+        {
+          "id": "a19",
+          "speaker": "{name}",
+          "text": "（閉上嘴，就聽不見。這個規矩是誰定的？他們又不想讓人聽見什麼？）",
+          "next": "a20"
+        },
+        {
+          "id": "a20",
+          "speaker": null,
+          "text": "口袋裡的布條沉甸甸的。霧的深處，好像有什麼正安靜地等著。",
+          "effects": [
+            {
+              "chapter_end": "chapter2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    }
+  ]
+}

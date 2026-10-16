@@ -1,8 +1,19 @@
-// 效果（DATA-FORMAT「效果」一節）。一律回傳新 state，不原地修改。未知寫法丟錯。
+// 效果（DATA-FORMAT「效果」「地圖與對話的擴充」）。一律回傳新 state，不原地修改。未知寫法丟錯。
+// battle／goto 不在這裡執行：寫進 state.pending（陣列，依序累加），由畫面在對話結束後用 takePending 取出處理。
 import { spendEcho, clampCollapse } from './echo.js';
+import { HERO_ID, MAX_AMMO, MAX_PARTY } from './stats.js';
+
+export { MAX_AMMO, MAX_PARTY };
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNonEmptyStr = (v) => typeof v === 'string' && v !== '';
+/** 物件剛好有 required 的鍵，其餘只能是 optional 的鍵。 */
+function exactKeys(v, required, optional) {
+  const keys = Object.keys(v);
+  return required.every((k) => Object.hasOwn(v, k)) && keys.every((k) => required.includes(k) || optional.includes(k));
+}
+const pushPending = (state, action) => ({ ...state, pending: [...(Array.isArray(state.pending) ? state.pending : []), action] });
+const partyOf = (state) => (Array.isArray(state.party) ? state.party : []);
 
 // null 原型＋Object.hasOwn：原型鍵（toString、constructor、__proto__…）一律視為未知寫法。
 const RULES = Object.freeze(Object.assign(Object.create(null), {
@@ -14,6 +25,14 @@ const RULES = Object.freeze(Object.assign(Object.create(null), {
   chapter_end: isNonEmptyStr,
   collapse: (v) => Number.isInteger(v), // 必須是整數：存檔的 collapse 只接受 0～100 整數，小數會產生讀不回來的存檔
   use_echo: (v) => v === true,
+  battle: isNonEmptyStr,
+  set_lineage: (v) => isObj(v) && exactKeys(v, ['id', 'rank'], []) && isNonEmptyStr(v.id) && Number.isInteger(v.rank),
+  join_party: isNonEmptyStr,
+  leave_party: isNonEmptyStr,
+  give_ammo: (v) => Number.isInteger(v) && v > 0,
+  heal_party: (v) => v === true,
+  goto: (v) => isObj(v) && exactKeys(v, ['map', 'spawn'], ['dialogue']) && isNonEmptyStr(v.map) && isNonEmptyStr(v.spawn)
+    && (v.dialogue === undefined || isNonEmptyStr(v.dialogue)),
 }));
 /** 只讀自有屬性的計數（不吃原型鏈）；不是數字時當 0。 */
 const count = (obj, k) => {
@@ -64,9 +83,36 @@ export function applyEffect(effect, state) {
       const done = state.chapter_done ?? [];
       return done.includes(v) ? { ...state, chapter_done: [...done] } : { ...state, chapter_done: [...done, v] };
     }
+    case 'battle':
+      return pushPending(state, { type: 'battle', encounter: v });
+    case 'goto':
+      return pushPending(state, { type: 'goto', map: v.map, spawn: v.spawn, dialogue: v.dialogue ?? null });
+    case 'set_lineage':
+      return { ...state, lineage: { id: v.id, rank: v.rank } };
+    case 'join_party': {
+      const party = partyOf(state);
+      if (party.some((m) => m?.id === v)) return { ...state, party: party.map((m) => ({ ...m })) };
+      if (party.length >= MAX_PARTY) throw new Error(`隊伍最多 ${MAX_PARTY} 人，「${v}」無法加入`);
+      return { ...state, party: [...party.map((m) => ({ ...m })), { id: v, hp: null, sp: null }] };
+    }
+    case 'leave_party':
+      if (v === HERO_ID) throw new Error('主角不可以離開隊伍');
+      return { ...state, party: partyOf(state).filter((m) => m?.id !== v).map((m) => ({ ...m })) };
+    case 'give_ammo': {
+      const cur = Number.isInteger(state.ammo) ? state.ammo : 0;
+      return { ...state, ammo: Math.min(MAX_AMMO, cur + v) };
+    }
+    case 'heal_party':
+      return { ...state, party: partyOf(state).map((m) => ({ ...m, hp: null, sp: null })) };
     default:
       throw new Error(`未知的效果寫法「${k}」`);
   }
+}
+
+/** 取出對話結束後要處理的事（battle／goto），回傳 { state（pending 清成 null）, pending:[…] }。 */
+export function takePending(state) {
+  const pending = Array.isArray(state?.pending) ? state.pending.map((p) => ({ ...p })) : [];
+  return { state: { ...state, pending: null }, pending };
 }
 
 /** 依序套用效果陣列；undefined 視為沒有效果。 */

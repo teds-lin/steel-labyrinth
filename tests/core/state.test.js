@@ -23,6 +23,7 @@ describe('newGame', () => {
       location: { map: 'attic', x: 2, y: 3, dir: 'left' },
       flags: {}, items: {}, echo: { charges: DEFAULT_ECHO_CHARGES }, collapse: 0,
       resonance: {}, chapter: 'prologue', chapter_done: [], playtime_s: 0,
+      party: [{ id: 'hero', hp: null, sp: null }], ammo: 0, pending: null,
     });
     expect(DEFAULT_ECHO_CHARGES).toBe(0);
   });
@@ -71,13 +72,15 @@ describe('availableFieldTags', () => {
   });
 });
 
-describe('deriveStats', () => {
-  it('沒有譜系回傳空物件', () => {
-    expect(deriveStats({ lineage: null }, { lineages })).toEqual({});
+describe('deriveStats（M1 舊介面：轉呼叫 stats.js，算主角）', () => {
+  it('沒有譜系、也沒有 characters.json → 全部為 0', () => {
+    expect(deriveStats({ lineage: null }, { lineages })).toEqual({ hp: 0, sp: 0, atk: 0, def: 0, spd: 0, will: 0, eva: 0 });
   });
-  it('回傳目前階位的 stats 複本', () => {
-    const st = deriveStats({ lineage: { id: 'trace', rank: 8 } }, { lineages });
-    expect(st).toEqual({ atk: 2 });
+  it('舊介面 (state, data) 與新介面 (charId, state, data) 結果相同：已達到階位的加總', () => {
+    const s = { lineage: { id: 'trace', rank: 8 } };
+    const st = deriveStats(s, { lineages });
+    expect(st.atk).toBe(3);
+    expect(deriveStats('hero', s, { lineages })).toEqual(st);
     st.atk = 99;
     expect(lineages[0].ranks[1].stats.atk).toBe(2);
   });

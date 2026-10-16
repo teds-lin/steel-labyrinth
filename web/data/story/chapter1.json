@@ -1,0 +1,1106 @@
+{
+  "id": "chapter1",
+  "title": "第一章　白燈保全公司",
+  "end_screen": {
+    "title": "第一章　完",
+    "subtitle": "第二章　碼頭失蹤案",
+    "continue": {
+      "map": "dock",
+      "spawn": "entry",
+      "dialogue": "dlg_ch2_opening"
+    }
+  },
+  "dialogues": [
+    {
+      "id": "dlg_ch1_opening",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "隔天早上。霧淡了一些，鐵橋街的路燈還沒熄，在灰白的天色裡發著微光。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "昨晚那個男人準時站在路燈下，大衣領口的白色徽章擦得發亮。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "白燈的男人",
+          "text": "早安，{name}。睡得還好嗎？……看你的臉色，大概不太好。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "馬洛",
+          "text": "正式介紹一下。我叫馬洛・瑞德，白燈保全公司第七小隊的隊長。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "{name}",
+          "text": "保全公司的隊長親自來接一個失憶的房客？你們的服務也太周到了。",
+          "next": "n6"
+        },
+        {
+          "id": "n6",
+          "speaker": "馬洛",
+          "text": "因為你不是普通的房客。路上再說，電車快來了。",
+          "next": "n7"
+        },
+        {
+          "id": "n7",
+          "speaker": null,
+          "text": "街角的站牌前，一輛蒸汽電車噴著白煙進站，車頂的銅鈴叮噹作響。",
+          "next": "n8"
+        },
+        {
+          "id": "n8",
+          "speaker": null,
+          "text": "車廂裡擠滿了趕早班的工人與職員。馬洛挑了最後一排，背對著牆坐下。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要問他什麼？",
+          "choices": [
+            {
+              "text": "「第十三響，到底是什麼？」",
+              "next": "q1"
+            },
+            {
+              "text": "「你一直盯著車門，在等誰？」",
+              "next": "q2"
+            }
+          ]
+        },
+        {
+          "id": "q1",
+          "speaker": "馬洛",
+          "text": "那不是給一般人聽的鐘聲。等你站穩腳步，我再告訴你。",
+          "next": "n13"
+        },
+        {
+          "id": "q2",
+          "speaker": "馬洛",
+          "text": "習慣而已。坐在看得見每一扇門的位置，比較睡得著。",
+          "next": "q3"
+        },
+        {
+          "id": "q3",
+          "speaker": "{name}",
+          "text": "那你昨晚在我家門口站了一整夜，又是在看哪一扇門？",
+          "next": "q4"
+        },
+        {
+          "id": "q4",
+          "speaker": "馬洛",
+          "text": "……你的門。昨晚的霧裡，不只我一個人在等你醒來。",
+          "next": "n13"
+        },
+        {
+          "id": "n13",
+          "speaker": null,
+          "text": "電車爬上高架鐵道，霧在腳下翻湧，像一片灰色的海。",
+          "next": "n14"
+        },
+        {
+          "id": "n14",
+          "speaker": null,
+          "text": "過了三站，車窗外出現一排紅磚樓房。其中一扇門上，掛著一盞白色的燈。",
+          "next": "n15"
+        },
+        {
+          "id": "n15",
+          "speaker": "馬洛",
+          "text": "到了。歡迎來到白燈保全公司。",
+          "effects": [
+            {
+              "goto": {
+                "map": "office",
+                "spawn": "door",
+                "dialogue": "dlg_office_arrive"
+              }
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_office_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "門一推開，暖氣和紅茶的香味一起撲了過來。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "辦公室不大，書架塞滿了檔案。沙發旁，一個女人正在倒茶。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "艾妲",
+          "text": "隊長回來了！這位就是……{name}？你好，我是艾妲・費恩。",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": "艾妲",
+          "text": "先喝杯茶吧。你的手好冰，昨晚一定沒睡好。",
+          "next": "a5"
+        },
+        {
+          "id": "a5",
+          "speaker": null,
+          "text": "櫃檯後傳來一聲乾咳。一位頭髮花白的老人推了推眼鏡，從帳本上抬起頭。",
+          "next": "a6"
+        },
+        {
+          "id": "a6",
+          "speaker": "老賀伯",
+          "text": "又撿了一個回來。隊長，這個月的茶葉預算已經超支了。",
+          "next": "a7"
+        },
+        {
+          "id": "a7",
+          "speaker": "馬洛",
+          "text": "這位是老賀伯。管文書、管倉庫，也管我們的荷包。",
+          "next": "a8"
+        },
+        {
+          "id": "a8",
+          "speaker": "老賀伯",
+          "text": "還管你們闖完禍之後的報告。坐吧，小子，椅子不收錢。",
+          "next": "a9"
+        },
+        {
+          "id": "a9",
+          "speaker": "{name}",
+          "text": "（看起來就是一間普通的保全公司。……普通得有點太刻意了。）",
+          "next": "a10"
+        },
+        {
+          "id": "a10",
+          "speaker": "馬洛",
+          "text": "{name}，我就直說了。白燈保全只是招牌，我們真正的名字是「守燈人」。",
+          "next": "a11"
+        },
+        {
+          "id": "a11",
+          "speaker": "馬洛",
+          "text": "這座城裡，有些事警察管不了，也不該讓一般人知道。那些事，歸我們管。",
+          "next": "a12"
+        },
+        {
+          "id": "a12",
+          "speaker": "{name}",
+          "text": "例如……一個人喝了來路不明的藥，醒來就什麼都不記得？",
+          "next": "a13"
+        },
+        {
+          "id": "a13",
+          "speaker": "艾妲",
+          "text": "例如那個。你眼角那層銀光，你自己應該也發現了吧？",
+          "next": "a14"
+        },
+        {
+          "id": "a14",
+          "speaker": "馬洛",
+          "text": "你昨晚喝下的，是一劑不完整的靈劑。它在你身上留下了「殘響」。",
+          "next": "a15"
+        },
+        {
+          "id": "a15",
+          "speaker": "馬洛",
+          "text": "殘響讓你看得見東西的過去。但它不屬於你，正在一點一點消散。",
+          "next": "a16"
+        },
+        {
+          "id": "a16",
+          "speaker": "老賀伯",
+          "text": "消散了也不會還你原樣。沒有正式的靈劑承接，人會從記憶開始崩解。",
+          "next": "a17"
+        },
+        {
+          "id": "a17",
+          "speaker": "老賀伯",
+          "text": "先忘掉昨天，再忘掉名字，最後連自己為什麼害怕都忘了。",
+          "next": "a18"
+        },
+        {
+          "id": "a18",
+          "speaker": "{name}",
+          "text": "……我才剛想起自己叫什麼，你就告訴我這個名字也撐不了多久？",
+          "next": "a19"
+        },
+        {
+          "id": "a19",
+          "speaker": "艾妲",
+          "text": "別嚇他啦，賀伯。{name}，還有辦法的，你不會變成那樣。",
+          "next": "a20"
+        },
+        {
+          "id": "a20",
+          "speaker": "馬洛",
+          "text": "櫃子裡有一劑靈劑，和你身上的殘響相合。喝下它，殘響就會穩定下來。",
+          "next": "a21"
+        },
+        {
+          "id": "a21",
+          "speaker": "馬洛",
+          "text": "不過喝下去就回不了頭。你會走上一條「譜系」，從此不再是普通人。",
+          "next": "a22"
+        },
+        {
+          "id": "a22",
+          "speaker": "馬洛",
+          "text": "不用急著決定。先四處看看，想好了，再去打開那個櫃子。",
+          "next": "a23"
+        },
+        {
+          "id": "a23",
+          "speaker": null,
+          "text": "（可以和辦公室裡的人交談。準備好之後，調查右上角的藥櫃。）",
+          "effects": [
+            {
+              "set_flag": "ch1_briefed"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ada_office",
+      "start": "t0",
+      "nodes": [
+        {
+          "id": "t0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "drank_potion"
+              },
+              "next": "after"
+            }
+          ],
+          "next": "t1"
+        },
+        {
+          "id": "t1",
+          "speaker": "艾妲",
+          "text": "我的工作？大概是……讓害怕的人好好睡一覺。這也算是一種保全嘛。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": "艾妲",
+          "text": "喝下靈劑之後會頭暈一陣子。別擔心，我會在旁邊看著你。",
+          "next": "END"
+        },
+        {
+          "id": "after",
+          "speaker": "艾妲",
+          "text": "練習室在樓下。隊長下手很有分寸，你放心……大概啦。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_herb_office",
+      "start": "h0",
+      "nodes": [
+        {
+          "id": "h0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "drank_potion"
+              },
+              "next": "after"
+            }
+          ],
+          "next": "h1"
+        },
+        {
+          "id": "h1",
+          "speaker": "老賀伯",
+          "text": "藥櫃的鑰匙在我這裡。不過隊長交代過，要你自己決定。",
+          "next": "h2"
+        },
+        {
+          "id": "h2",
+          "speaker": "老賀伯",
+          "text": "我在這行待了三十年。見過硬撐的人，也見過想太多的人。",
+          "next": "h3"
+        },
+        {
+          "id": "h3",
+          "speaker": "老賀伯",
+          "text": "硬撐的通常活得比較久。……這句不用寫進報告。",
+          "next": "END"
+        },
+        {
+          "id": "after",
+          "speaker": "老賀伯",
+          "text": "下樓去吧。打完回來，我再給你補些東西。別把我的練習室拆了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_marlo_office",
+      "start": "m1",
+      "nodes": [
+        {
+          "id": "m1",
+          "speaker": "馬洛",
+          "text": "戴兜帽的人？我們也在找他。在找到之前，先顧好你自己。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "馬洛",
+          "text": "至於第十三響……等你喝下靈劑、站穩腳步，我再告訴你。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_notice_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "布告欄上釘滿了紙條：「三號街路燈故障」「貓又走丟了（第四次）」。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "最底下有一張用紅筆圈起來的剪報：「碼頭區搬運工下落不明」。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "{name}",
+          "text": "（保全公司連走丟的貓都要找？……還是說，這些紙條另有意思？）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_shelf_look",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "書架上的檔案夾按年份排列，每一本的書脊都貼著白色標籤。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": null,
+          "text": "有幾本的標籤是空白的，封口還壓著蠟封。",
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": "老賀伯",
+          "text": "那幾本別碰。不是不給你看，是看了你會睡不著。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_office_door",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "drank_potion"
+              },
+              "next": "d2"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": "馬洛",
+          "text": "現在出去？殘響散掉之前，我不建議你一個人走在霧裡。",
+          "next": "END"
+        },
+        {
+          "id": "d2",
+          "speaker": null,
+          "text": "門外的霧又濃了起來。現在還不是離開的時候。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_stairs_blocked",
+      "start": "b1",
+      "nodes": [
+        {
+          "id": "b1",
+          "speaker": "馬洛",
+          "text": "樓下是練習室。先把該決定的事決定好，再下去。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_cabinet",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "drank_potion"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "c1"
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "老賀伯拿著鑰匙走過來，打開藥櫃。玻璃門後排著幾支貼了封條的藥瓶。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "大部分藥瓶的顏色都很混濁。只有一支泛著淡淡的銀光，像你眼角那層光。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": "老賀伯",
+          "text": "其他的跟你不相合，喝了只會更糟。接得住你那份殘響的，只有這一劑。",
+          "next": "c4"
+        },
+        {
+          "id": "c4",
+          "speaker": "老賀伯",
+          "text": "「讀痕者」。看得見事物留下的痕跡，也就看得見謊言底下的東西。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼做？",
+          "choices": [
+            {
+              "text": "喝下讀痕者靈劑",
+              "next": "k1"
+            },
+            {
+              "text": "再想想",
+              "next": "w1"
+            }
+          ]
+        },
+        {
+          "id": "w1",
+          "speaker": "{name}",
+          "text": "……再給我一點時間。這種事，總不能像喝茶一樣隨便。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": "老賀伯",
+          "text": "慢慢想。櫃子跑不掉，你的殘響可就不一定了。",
+          "next": "END"
+        },
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "你拔開封蠟。靈劑冰涼，滑過喉嚨時，卻像一道熾熱的光。",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": null,
+          "text": "世界碎成無數細線。每張桌子、每枚鈕扣，都在低聲訴說自己的過去。",
+          "next": "k3"
+        },
+        {
+          "id": "k3",
+          "speaker": null,
+          "text": "聲音太多了。你按住太陽穴，耳邊傳來艾妲輕柔的聲音。",
+          "next": "k4"
+        },
+        {
+          "id": "k4",
+          "speaker": "艾妲",
+          "text": "慢慢呼吸。只看你想看的那一條線，其他的，讓它們過去就好。",
+          "next": "k5"
+        },
+        {
+          "id": "k5",
+          "speaker": null,
+          "text": "細線一條一條沉了下去。眼角的銀光穩定下來，不再閃爍。",
+          "effects": [
+            {
+              "set_lineage": {
+                "id": "trace",
+                "rank": 9
+              }
+            },
+            {
+              "set_flag": "drank_potion"
+            },
+            {
+              "collapse": 5
+            }
+          ],
+          "next": "k6"
+        },
+        {
+          "id": "k6",
+          "speaker": null,
+          "text": "（你成為「讀痕者」階 9。【回溯】不再有次數限制，也不會再讓頭痛加劇。）",
+          "next": "k7"
+        },
+        {
+          "id": "k7",
+          "speaker": "老賀伯",
+          "text": "剛喝下去，崩解多少會往上跳一點。那是靈劑裡殘留的雜音。",
+          "next": "k8"
+        },
+        {
+          "id": "k8",
+          "speaker": "老賀伯",
+          "text": "記住：照著譜系的本性做事，它就會安分。反著來，雜音只會越來越大。",
+          "next": "k9"
+        },
+        {
+          "id": "k9",
+          "speaker": "{name}",
+          "text": "讀痕者的本性是什麼？",
+          "next": "k10"
+        },
+        {
+          "id": "k10",
+          "speaker": "馬洛",
+          "text": "看穿真相。說謊、裝傻、對眼前的事視而不見——都會讓你付出代價。",
+          "next": "k11"
+        },
+        {
+          "id": "k11",
+          "speaker": "{name}",
+          "text": "……這份工作，還真適合一個連自己是誰都想弄清楚的人。",
+          "next": "k12"
+        },
+        {
+          "id": "k12",
+          "speaker": "馬洛",
+          "text": "那就下樓吧。光會看還不夠，你得學會在挨打的時候也看得清楚。",
+          "next": "k13"
+        },
+        {
+          "id": "k13",
+          "speaker": null,
+          "text": "（右下角的樓梯通往地下練習室。）",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "藥櫃裡空了一格。那個位置上的東西，現在在你的身體裡。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_training_enter",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": null,
+          "text": "樓梯底下是一間挑高的地下室。地上鋪著磨舊的軟墊，牆邊立著木人樁。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": null,
+          "text": "馬洛脫掉大衣，捲起袖子，站在軟墊中央。",
+          "next": "t3"
+        },
+        {
+          "id": "t3",
+          "speaker": "馬洛",
+          "text": "過來吧。讓我看看讀痕者的眼睛，在挨揍的時候還管不管用。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_dummy_look",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "木人樁上滿是刀痕和彈孔，中間的裂縫用鐵條箍了起來。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": "{name}",
+          "text": "（這東西挨過的打，大概比我這輩子吃過的飯還多。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_dummy_echo",
+      "start": "e1",
+      "nodes": [
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你把手放在木人樁上。銀光順著裂縫散開——這一次，頭沒有痛。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——無數個夜晚。一個又一個守燈人站在這裡，對著木樁出拳、揮棍、開槍。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "每一道深深的刀痕旁，都有一道淺淺的痕跡。那是後來的人，照著前人的位置練的。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "{name}",
+          "text": "（回溯不用付出代價了。看到的東西，倒是不一定輕鬆。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_spar_start",
+      "start": "s0",
+      "nodes": [
+        {
+          "id": "s0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "sparred"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "s1"
+        },
+        {
+          "id": "s1",
+          "speaker": "馬洛",
+          "text": "規則很簡單：撐住，然後還手。我會手下留情，但不會放水。",
+          "branches": [
+            {
+              "if": {
+                "not": {
+                  "item": "revolver"
+                }
+              },
+              "next": "gun"
+            }
+          ],
+          "next": "s2"
+        },
+        {
+          "id": "gun",
+          "speaker": "馬洛",
+          "text": "等等，你的槍呢？……放在家裡？拿去，這把是公司配的。",
+          "effects": [
+            {
+              "give_item": "revolver"
+            },
+            {
+              "give_ammo": 3
+            }
+          ],
+          "next": "gun2"
+        },
+        {
+          "id": "gun2",
+          "speaker": null,
+          "text": "（取得左輪手槍與子彈 3 發。）",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": "馬洛",
+          "text": "先從最基本的開始。選「攻擊」，往我身上招呼。",
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": "馬洛",
+          "text": "打不倒我也沒關係。今天要學的，是怎麼看、怎麼撐。來吧。",
+          "effects": [
+            {
+              "battle": "enc_sparring"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": "馬洛",
+          "text": "上樓吧，老賀伯在等你。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_tut_shoot",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": "馬洛",
+          "text": "不錯。再試試「開槍」——子彈不管對手多硬，打中就是固定的傷害。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": "馬洛",
+          "text": "不過子彈有限，用完就沒了。留到真正危險的時候，它比什麼都可靠。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_tut_omen",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": "馬洛",
+          "text": "接下來我要認真一點了。用「預兆」看我的下一招——讀痕者看得見。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": "馬洛",
+          "text": "看清楚了，就比較躲得開。預兆會消耗靈性，別亂用。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_tut_guard",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": "馬洛",
+          "text": "最後一課。我要出重手了——撐不住的時候，就選「防禦」。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": "馬洛",
+          "text": "防禦時受到的傷害會減半。懂得什麼時候縮起來的人，才活得久。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_spar_after",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "馬洛退後一步，放下雙手。他的呼吸一點都沒亂。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "馬洛",
+          "text": "夠了。輸贏不重要，你的眼睛跟得上，這才是重點。",
+          "next": "p3"
+        },
+        {
+          "id": "p3",
+          "speaker": "馬洛",
+          "text": "記住剛才的感覺：先看，再動手。讀痕者靠的不是力氣，是比別人早一步。",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": "{name}",
+          "text": "你說手下留情……那我現在全身痛成這樣，是什麼意思？",
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": "馬洛",
+          "text": "意思是你還站得起來。走吧，上樓。",
+          "effects": [
+            {
+              "goto": {
+                "map": "office",
+                "spawn": "from_training",
+                "dialogue": "dlg_ch1_supply"
+              }
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch1_supply",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "回到辦公室，艾妲已經泡好一壺新茶。她看了你一眼，輕輕把手放在你肩上。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": null,
+          "text": "一股暖意從肩膀擴散開來。剛才的痠痛，像被熱水沖掉一樣退去了。",
+          "effects": [
+            {
+              "heal_party": true
+            }
+          ],
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": "艾妲",
+          "text": "好了。下次受傷，記得在倒下之前先喊我。",
+          "next": "s4"
+        },
+        {
+          "id": "s4",
+          "speaker": "老賀伯",
+          "text": "過來，小子。守燈人的規矩：出門前，先跟我領東西。",
+          "next": "s5"
+        },
+        {
+          "id": "s5",
+          "speaker": null,
+          "text": "老賀伯從櫃檯底下拖出一個木箱，把東西一樣一樣擺在桌上。",
+          "branches": [
+            {
+              "if": {
+                "ammo_gte": 3
+              },
+              "next": "am6"
+            },
+            {
+              "if": {
+                "ammo_gte": 2
+              },
+              "next": "am7"
+            },
+            {
+              "if": {
+                "ammo_gte": 1
+              },
+              "next": "am8"
+            }
+          ],
+          "next": "am9"
+        },
+        {
+          "id": "am6",
+          "speaker": null,
+          "text": "老賀伯數了六發子彈給你，把你的彈藥補到九發。",
+          "effects": [
+            {
+              "give_ammo": 6
+            }
+          ],
+          "next": "s6"
+        },
+        {
+          "id": "am7",
+          "speaker": null,
+          "text": "老賀伯數了七發子彈給你，把你的彈藥補到九發。",
+          "effects": [
+            {
+              "give_ammo": 7
+            }
+          ],
+          "next": "s6"
+        },
+        {
+          "id": "am8",
+          "speaker": null,
+          "text": "老賀伯數了八發子彈給你，把你的彈藥補到九發。",
+          "effects": [
+            {
+              "give_ammo": 8
+            }
+          ],
+          "next": "s6"
+        },
+        {
+          "id": "am9",
+          "speaker": null,
+          "text": "老賀伯數了九發子彈給你，把你的彈藥補到九發。",
+          "effects": [
+            {
+              "give_ammo": 9
+            }
+          ],
+          "next": "s6"
+        },
+        {
+          "id": "s6",
+          "speaker": "老賀伯",
+          "text": "子彈要簽收，用掉要寫報告。打空了還活著回來，報告我幫你寫。",
+          "next": "s7"
+        },
+        {
+          "id": "s7",
+          "speaker": null,
+          "text": "接著是兩卷繃帶，和一小包用油紙包著的線香。",
+          "effects": [
+            {
+              "give_item": "bandage"
+            },
+            {
+              "give_item": "bandage"
+            },
+            {
+              "give_item": "sedative_incense"
+            }
+          ],
+          "next": "s8"
+        },
+        {
+          "id": "s8",
+          "speaker": "老賀伯",
+          "text": "鎮靜香。腦袋裡雜音太吵的時候點一支，可以壓下一些崩解。",
+          "next": "s9"
+        },
+        {
+          "id": "s9",
+          "speaker": "老賀伯",
+          "text": "就這一包，省著用。這東西比子彈還難弄到手。",
+          "next": "s10"
+        },
+        {
+          "id": "s10",
+          "speaker": null,
+          "text": "（取得繃帶 ×2、鎮靜香 ×1。戰鬥中可以從「道具」使用。）",
+          "next": "s11"
+        },
+        {
+          "id": "s11",
+          "speaker": null,
+          "text": "門口的銅鈴響了。一個送信的少年把信封塞進門縫，一溜煙就跑了。",
+          "next": "s12"
+        },
+        {
+          "id": "s12",
+          "speaker": null,
+          "text": "馬洛拆開信。他讀得很慢，讀完之後，把信紙折好收進大衣口袋。",
+          "next": "s13"
+        },
+        {
+          "id": "s13",
+          "speaker": "馬洛",
+          "text": "碼頭搬運工會的委託。這半個月，已經有三個搬運工下落不明。",
+          "next": "s14"
+        },
+        {
+          "id": "s14",
+          "speaker": "馬洛",
+          "text": "警察說是喝醉了掉進河裡。可是三個人，沒有一具屍體浮上來。",
+          "next": "s15"
+        },
+        {
+          "id": "s15",
+          "speaker": "老賀伯",
+          "text": "碼頭的河水再髒，也吞不下三個大男人，連一隻鞋都不吐出來。",
+          "next": "s16"
+        },
+        {
+          "id": "s16",
+          "speaker": "艾妲",
+          "text": "我也一起去。失蹤者的家人，一定很需要有人陪他們說說話。",
+          "next": "s17"
+        },
+        {
+          "id": "s17",
+          "speaker": null,
+          "text": "（艾妲・費恩加入隊伍。）",
+          "effects": [
+            {
+              "join_party": "ada"
+            }
+          ],
+          "next": "s18"
+        },
+        {
+          "id": "s18",
+          "speaker": "馬洛",
+          "text": "明天一早出發。{name}，這是你的第一個案子。",
+          "next": "s19"
+        },
+        {
+          "id": "s19",
+          "speaker": "馬洛",
+          "text": "用你的眼睛去看。那些痕跡，會告訴你別人不肯說的事。",
+          "next": "s20"
+        },
+        {
+          "id": "s20",
+          "speaker": "{name}",
+          "text": "（昨天的我留了一句「去找白燈」。今天的我，好像真的找到了。）",
+          "effects": [
+            {
+              "chapter_end": "chapter1"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    }
+  ]
+}

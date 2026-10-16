@@ -94,3 +94,58 @@ describe('原型鍵不可繞過檢查', () => {
     expect(applyEffect({ take_item: 'constructor' }, base()).items).toEqual({ key: 1 });
   });
 });
+
+// ───────────── M2：戰鬥與隊伍的對話效果 ─────────────
+import { takePending, MAX_AMMO } from '../../web/src/core/effects.js';
+
+describe('M2 效果', () => {
+  const st = (over = {}) => ({ flags: {}, items: {}, lineage: null, party: [{ id: 'hero', hp: 30, sp: 2 }], ammo: 0, pending: null, ...over });
+  it('battle／goto 寫入 pending（依序累加），由 takePending 取出並清空', () => {
+    let s = applyEffect({ battle: 'enc_one' }, st());
+    s = applyEffect({ goto: { map: 'office', spawn: 'door', dialogue: 'dlg_x' } }, s);
+    expect(s.pending).toEqual([{ type: 'battle', encounter: 'enc_one' }, { type: 'goto', map: 'office', spawn: 'door', dialogue: 'dlg_x' }]);
+    const r = takePending(s);
+    expect(r.pending).toEqual(s.pending);
+    expect(r.state.pending).toBe(null);
+    expect(takePending(st())).toEqual({ state: st(), pending: [] });
+    expect(applyEffect({ goto: { map: 'office', spawn: 'door' } }, st()).pending).toEqual([{ type: 'goto', map: 'office', spawn: 'door', dialogue: null }]);
+  });
+  it('set_lineage：主角成為該譜系、階位', () => {
+    expect(applyEffect({ set_lineage: { id: 'trace', rank: 9 } }, st()).lineage).toEqual({ id: 'trace', rank: 9 });
+  });
+  it('join_party／leave_party：加入時 hp/sp 為 null（滿值），重複加入不變，最多 3 人，主角不可離開', () => {
+    let s = applyEffect({ join_party: 'ada' }, st());
+    expect(s.party).toEqual([{ id: 'hero', hp: 30, sp: 2 }, { id: 'ada', hp: null, sp: null }]);
+    expect(applyEffect({ join_party: 'ada' }, s).party).toHaveLength(2);
+    s = applyEffect({ join_party: 'herb' }, s);
+    expect(() => applyEffect({ join_party: 'mallow' }, s)).toThrow(/3/);
+    s = applyEffect({ leave_party: 'ada' }, s);
+    expect(s.party.map((m) => m.id)).toEqual(['hero', 'herb']);
+    expect(applyEffect({ leave_party: 'ada' }, s).party).toHaveLength(2);
+    expect(() => applyEffect({ leave_party: 'hero' }, s)).toThrow(/主角/);
+  });
+  it('give_ammo：增加子彈，上限 12', () => {
+    expect(MAX_AMMO).toBe(12);
+    expect(applyEffect({ give_ammo: 6 }, st()).ammo).toBe(6);
+    expect(applyEffect({ give_ammo: 6 }, st({ ammo: 10 })).ammo).toBe(12);
+    expect(applyEffect({ give_ammo: 1 }, st({ ammo: undefined })).ammo).toBe(1);
+  });
+  it('heal_party：全隊 hp/sp 記為 null（＝滿值，上限由 deriveStats 算）', () => {
+    const s = applyEffect({ heal_party: true }, st({ party: [{ id: 'hero', hp: 0, sp: 0 }, { id: 'ada', hp: 3, sp: 1 }] }));
+    expect(s.party).toEqual([{ id: 'hero', hp: null, sp: null }, { id: 'ada', hp: null, sp: null }]);
+  });
+  it('不修改輸入', () => {
+    const s = st();
+    const before = JSON.stringify(s);
+    applyEffects([{ battle: 'x' }, { join_party: 'ada' }, { give_ammo: 3 }, { heal_party: true }, { set_lineage: { id: 'trace', rank: 9 } }], s);
+    expect(JSON.stringify(s)).toBe(before);
+  });
+  it('寫法不合法', () => {
+    const bad = [
+      { battle: '' }, { set_lineage: 'trace' }, { set_lineage: { id: 'trace' } }, { set_lineage: { id: 'trace', rank: 9, x: 1 } },
+      { join_party: 3 }, { leave_party: '' }, { give_ammo: 0 }, { give_ammo: 1.5 }, { give_ammo: -1 }, { heal_party: false },
+      { goto: 'office' }, { goto: { map: 'office' } }, { goto: { map: 'office', spawn: 'd', dialogue: 3 } }, { goto: { map: 'o', spawn: 'd', x: 1 } },
+    ];
+    for (const e of bad) expect(checkEffect(e).length, JSON.stringify(e)).toBeGreaterThan(0);
+  });
+});

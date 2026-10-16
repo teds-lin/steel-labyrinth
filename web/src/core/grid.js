@@ -57,7 +57,8 @@ export function canMove(map, state, x, y, data) {
 
 /**
  * 往 dir 走一格。回傳 { state, moved, event }。
- * event：null｜{type:'bump',x,y[,object]}｜{type:'blocked',x,y,dialogue}｜{type:'exit',to,spawn}｜{type:'trigger',id,dialogue}
+ * event：null｜{type:'bump',x,y[,object]}｜{type:'blocked',x,y,dialogue}｜{type:'exit',to,spawn}｜{type:'trigger',id,dialogue[,battle]}
+ * 觸發點有 battle 時事件帶 battle（遭遇 id）：畫面先播 dialogue（可能為 null），再開始戰鬥。
  * 走進出口後，畫面層應呼叫 enterMap(state, data, event.to, event.spawn)。
  */
 export function step(map, state, dir, data) {
@@ -89,7 +90,9 @@ export function step(map, state, dir, data) {
     const spent = trg.once === true && moved.flags?.[flag] === true;
     if (!spent && (trg.if === undefined || evalCondition(trg.if, moved))) {
       if (trg.once === true) moved = { ...moved, flags: { ...moved.flags, [flag]: true } };
-      return { state: moved, moved: true, event: { type: 'trigger', id: trg.id, dialogue: trg.dialogue } };
+      const event = { type: 'trigger', id: trg.id, dialogue: trg.dialogue ?? null };
+      if (typeof trg.battle === 'string') event.battle = trg.battle;
+      return { state: moved, moved: true, event };
     }
   }
   return { state: moved, moved: true, event: null };

@@ -2,8 +2,8 @@
 // core 的 state 不可變，這裡只負責「換成新的 state」並通知各場景重畫。
 import { createStorage, sanitizeLoadedState, SLOT_COUNT } from './core/save.js';
 
-/** deserialize 的拒絕原因是否為「存檔版本比遊戲新」。 */
-const isNewerVersion = (r) => r?.code === 'newer' || /版本.*較新|newer/i.test(String(r?.reason ?? ''));
+/** deserialize 的拒絕原因是否為「存檔版本比遊戲新」（core 的拒絕都帶 code）。 */
+const isNewerVersion = (r) => r?.code === 'newer';
 
 function getLocalStorage() {
   try {
@@ -55,6 +55,8 @@ export const session = {
 
   reset() {
     this.state = null;
+    this.battleReturn = null;
+    this.preBattle = null;
     this.elapsed = 0;
     this.dialogueView = null;
     this.dialogueBusy = false;
@@ -84,7 +86,7 @@ export const session = {
       return { ok: false, kind: 'broken', reason: String(e?.message ?? e) };
     }
     if (!r.ok) {
-      if (r.reason === 'empty') return { ok: false, kind: 'empty', reason: '這個存檔槽是空的' };
+      if (r.code === 'empty') return { ok: false, kind: 'empty', reason: '這個存檔槽是空的' };
       return { ok: false, kind: isNewerVersion(r) ? 'newer' : 'broken', reason: String(r.reason ?? '存檔損壞') };
     }
     let s;
@@ -121,6 +123,28 @@ export const session = {
   mapName(id) {
     return this.mapById(id)?.name ?? id ?? '';
   },
+
+  storyById(id) {
+    return this.data?.story?.find((c) => c?.id === id) ?? null;
+  },
+
+  /**
+   * 讀檔後要進哪個畫面：存檔停在「已完成、而且有下一章（end_screen.continue）」的章節結尾時，
+   * 回到章節結束畫面（可以按「繼續」進下一章）；其他情況回地圖。
+   */
+  resumeTarget(state, notices = []) {
+    const ch = state?.chapter;
+    const done = Array.isArray(state?.chapter_done) ? state.chapter_done : [];
+    if (typeof ch === 'string' && done.includes(ch) && this.storyById(ch)?.end_screen?.continue) {
+      return { scene: 'ChapterEnd', data: { chapter: ch, notices } };
+    }
+    return { scene: 'Map', data: { notices } };
+  },
+
+  /** 戰鬥結束時呼叫（地圖場景設定），戰鬥結果交回地圖繼續劇情。 */
+  battleReturn: null,
+  /** 戰前狀態的記憶體備份（儲存空間不能用時，「重新挑戰」改用它）：{ state, encounter }。 */
+  preBattle: null,
 };
 
 /** 同一個原生鍵盤事件只讓一個處理者使用（多個場景都會收到同一個事件）。 */

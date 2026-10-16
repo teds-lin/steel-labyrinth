@@ -221,13 +221,11 @@ test.describe('M1 修正', () => {
     expect(afterLoads.Map.resume).toBeLessThanOrEqual(1);
 
     for (let i = 0; i < 4; i++) {
-      // 選單 → 回標題 → 確認 → 繼續 → 存檔 1
+      // 選單 → 回標題 → 確認 → 繼續 → 存檔 1（選單項目依標籤選，不寫死位置）
       await g.key('Escape');
       await g.waitScene('Menu');
       await g.sleep(80);
-      await g.key('ArrowDown');
-      await g.key('ArrowDown');
-      await g.key('Enter');
+      await g.pickMenu('回標題');
       await g.sleep(80);
       await g.key('ArrowUp');
       await g.key('Enter');

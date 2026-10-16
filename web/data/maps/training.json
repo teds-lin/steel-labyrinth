@@ -1,0 +1,58 @@
+{
+  "id": "training",
+  "name": "白燈保全公司・地下練習室",
+  "tiles": [
+    "##########",
+    "#^.......#",
+    "#.mmmmmm.#",
+    "#.mmmmmm.#",
+    "#.mmmmmm.#",
+    "#.mmmmmm.#",
+    "#R.......#",
+    "##########"
+  ],
+  "legend": {
+    "#": "wall",
+    "^": "stairs_up",
+    ".": "floor",
+    "m": "training_mat",
+    "R": "weapon_rack"
+  },
+  "on_enter": "dlg_training_enter",
+  "spawns": [
+    {
+      "id": "from_office",
+      "x": 2,
+      "y": 1,
+      "dir": "down"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_marlo_train",
+      "x": 5,
+      "y": 3,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_spar_start"
+    },
+    {
+      "id": "obj_dummy",
+      "x": 8,
+      "y": 5,
+      "sprite": "practice_dummy",
+      "solid": true,
+      "look": "dlg_dummy_look",
+      "echo": "dlg_dummy_echo"
+    }
+  ],
+  "exits": [
+    {
+      "x": 1,
+      "y": 1,
+      "to": "office",
+      "spawn": "from_training"
+    }
+  ],
+  "triggers": []
+}

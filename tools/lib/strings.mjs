@@ -2,7 +2,7 @@
 const arr = (v) => (Array.isArray(v) ? v : []);
 const isStr = (v) => typeof v === 'string';
 
-/** 回傳 [{ unique_id: "<檔案>#<路徑>", text }]，順序：地圖 → 道具 → 對話。 */
+/** 回傳 [{ unique_id: "<檔案>#<路徑>", text }]，順序：地圖 → 道具 → 角色 → 技能 → 敵人 → 對話。 */
 export function collectStrings(bundle) {
   const rows = [];
   const add = (file, path, text) => { if (isStr(text)) rows.push({ unique_id: `${file}#${path}`, text }); };
@@ -11,6 +11,12 @@ export function collectStrings(bundle) {
     add('items.json', `${item.id}.name`, item.name);
     add('items.json', `${item.id}.desc`, item.desc);
   }
+  for (const c of arr(bundle.characters)) add('characters.json', `${c.id}.name`, c.name);
+  for (const s of arr(bundle.skills)) {
+    add('skills.json', `${s.id}.name`, s.name);
+    add('skills.json', `${s.id}.desc`, s.desc);
+  }
+  for (const e of arr(bundle.enemies)) add('enemies.json', `${e.id}.name`, e.name);
   for (const story of arr(bundle.story)) {
     const file = `story/${story.id}.json`;
     for (const dlg of arr(story.dialogues)) {

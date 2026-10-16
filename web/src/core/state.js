@@ -2,6 +2,7 @@
 import { sanitizeName } from './name.js';
 import { ECHO_TAG, hasEcho } from './echo.js';
 import { CURRENT_VERSION, MAX_ECHO_CHARGES } from './save.js';
+import { HERO_ID, reachedRanksOf, deriveStats as deriveCharStats } from './stats.js';
 
 /** manifest.start.echo_charges 沒寫時的殘響次數。序章在 manifest 裡寫 3。 */
 export const DEFAULT_ECHO_CHARGES = 0;
@@ -40,16 +41,15 @@ export function newGame({ name, manifest, maps } = {}) {
     chapter: manifest.chapters?.[0] ?? null,
     chapter_done: [],
     playtime_s: 0,
+    party: [{ id: HERO_ID, hp: null, sp: null }], // null＝滿值（上限由 deriveStats 算）
+    ammo: 0,
+    pending: null,
   };
 }
 
 /** 目前譜系已達到的階位（rank 數字 >= 目前階位）。找不到譜系回空陣列。 */
 function reachedRanks(state, data) {
-  const lin = state?.lineage;
-  if (!lin) return [];
-  const def = findById(data?.lineages, lin.id);
-  if (!def || !Array.isArray(def.ranks)) return [];
-  return def.ranks.filter((r) => typeof r?.rank === 'number' && r.rank >= lin.rank);
+  return reachedRanksOf(state?.lineage, data);
 }
 
 /** 譜系提供的永久標籤（排序、不重複）。 */
@@ -68,11 +68,12 @@ export function availableFieldTags(state, data) {
   return [...new Set([...lineageFieldTags(state, data), ...temporaryFieldTags(state)])].sort();
 }
 
-/** 能力值（M1 無戰鬥）：回傳目前階位 stats 的複本，沒有則空物件。 */
-export function deriveStats(state, data) {
-  const lin = state?.lineage;
-  if (!lin) return {};
-  const def = findById(data?.lineages, lin.id);
-  const cur = def?.ranks?.find?.((r) => r?.rank === lin.rank);
-  return cur?.stats ? { ...cur.stats } : {};
+/**
+ * 能力值：轉呼叫 stats.js。
+ * - 新介面 deriveStats(charId, state, data)。
+ * - M1 舊介面 deriveStats(state, data)：等同 deriveStats('hero', state, data)。
+ */
+export function deriveStats(...args) {
+  if (typeof args[0] === 'string') return deriveCharStats(args[0], args[1], args[2]);
+  return deriveCharStats(HERO_ID, args[0], args[1]);
 }

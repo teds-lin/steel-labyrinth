@@ -1,0 +1,109 @@
+{
+  "id": "warehouse",
+  "name": "碼頭區・東倉",
+  "tiles": [
+    "DDDDDDDDDDDDDDDD",
+    "D.cc........cc.D",
+    "D..............D",
+    "D.....~~~~.....D",
+    "D..............D",
+    "Dcccccc..ccccccD",
+    "D..............D",
+    "D.c..........c.D",
+    "Dcccccc..ccccccD",
+    "D..cc......cc..D",
+    "D..............D",
+    "DDDDDDD_DDDDDDDD"
+  ],
+  "legend": {
+    "D": "warehouse_wall",
+    ".": "concrete_floor",
+    "c": "crate",
+    "~": "mist",
+    "_": "threshold"
+  },
+  "on_enter": "dlg_wh_enter",
+  "spawns": [
+    {
+      "id": "from_dock",
+      "x": 7,
+      "y": 10,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_wh_crate",
+      "x": 13,
+      "y": 10,
+      "sprite": "supply_box",
+      "solid": true,
+      "look": "dlg_wh_crate"
+    },
+    {
+      "id": "obj_rest",
+      "x": 1,
+      "y": 6,
+      "sprite": "rest_crate",
+      "solid": true,
+      "look": "dlg_rest"
+    },
+    {
+      "id": "obj_hauler",
+      "x": 7,
+      "y": 2,
+      "sprite": "silent_hauler",
+      "solid": true,
+      "look": "dlg_boss_intro",
+      "if": {
+        "not_flag": "boss_done"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 7,
+      "y": 11,
+      "to": "dock",
+      "spawn": "from_warehouse"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_fog3_a",
+      "x": 7,
+      "y": 8,
+      "dialogue": "dlg_fog3_start",
+      "if": {
+        "not_flag": "fog3_done"
+      }
+    },
+    {
+      "id": "trg_fog3_b",
+      "x": 8,
+      "y": 8,
+      "dialogue": "dlg_fog3_start",
+      "if": {
+        "not_flag": "fog3_done"
+      }
+    },
+    {
+      "id": "trg_boss_warn_a",
+      "x": 7,
+      "y": 5,
+      "dialogue": "dlg_boss_warn",
+      "if": {
+        "not_flag": "boss_warned"
+      }
+    },
+    {
+      "id": "trg_boss_warn_b",
+      "x": 8,
+      "y": 5,
+      "dialogue": "dlg_boss_warn",
+      "if": {
+        "not_flag": "boss_warned"
+      }
+    }
+  ]
+}

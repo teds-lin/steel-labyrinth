@@ -148,7 +148,10 @@ describe('build-data：剝除 _ 開頭的私有欄位', () => {
     w('maps/attic.json', { id: 'attic', _design: 'x', name: '閣樓', tiles: ['_'], legend: { _: 'floor' }, spawns: [{ id: 'default', x: 0, y: 0, _n: 1 }] });
     w('story/prologue.json', { id: 'prologue', _draft: true, dialogues: [{ id: 'd', _memo: 'x', start: 'n1', nodes: [{ id: 'n1', text: 'a', next: 'END', _alt: 'b' }] }] });
     const out = join(dir, 'out-data'); // 不存在的新目錄
-    const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'build-data.mjs')], { encoding: 'utf8', env: { ...process.env, DESIGN_DIR: design, OUT_DIR: out } });
+    // 用測試自己的開放清單，不受真實 tools/release.json 開放哪些章節影響。
+    const release = join(dir, 'release-test.json');
+    writeFileSync(release, JSON.stringify({ unlocked: ['prologue'] }));
+    const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'build-data.mjs')], { encoding: 'utf8', env: { ...process.env, DESIGN_DIR: design, OUT_DIR: out, RELEASE_FILE: release } });
     expect(r.status, r.stderr).toBe(0);
     const files = ['manifest.json', 'tiles.json', 'items.json', 'maps/attic.json', 'story/prologue.json'];
     for (const f of files) {
@@ -157,5 +160,115 @@ describe('build-data：剝除 _ 開頭的私有欄位', () => {
     }
     expect(JSON.parse(readFileSync(join(out, 'maps/attic.json'), 'utf8')).legend).toEqual({ _: 'floor' });
     expect(existsSync(join(ROOT, 'web', 'data', 'manifest.json'))).toBe(true); // 沒動到正式輸出
+  });
+});
+
+// ───────────── M2：戰鬥資料的四個新檔案 ─────────────
+describe('M2：loadBundle／collectStrings 支援 characters／skills／enemies／encounters', () => {
+  const battleFiles = () => {
+    write('characters.json', [{ id: 'hero', name: '{name}', base: { hp: 60, sp: 20, atk: 10, def: 6, spd: 10, will: 10, eva: 5 }, skills: ['attack'] },
+      { id: 'ada', name: '艾妲', base: { hp: 50, sp: 30, atk: 7, def: 5, spd: 12, will: 14, eva: 5 }, skills: ['attack'] }]);
+    write('skills.json', [{ id: 'attack', name: '攻擊', desc: '普通攻擊。', target: 'enemy', effects: [{ type: 'damage', power: 100 }] }]);
+    write('enemies.json', [{ id: 'fog', name: '霧行者', rank: 9, stats: { hp: 40, sp: 0, atk: 9, def: 4, spd: 9, will: 5, eva: 5 }, skills: ['attack'], ai: [{ skill: 'attack', weight: 1 }] }]);
+    write('encounters.json', [{ id: 'enc_a', enemies: ['fog'] }]);
+  };
+  it('四個檔案存在時讀進 bundle；不存在時是空陣列（序章資料沒有它們）', () => {
+    writeGood();
+    let { bundle, errors } = loadBundle(dir);
+    expect(errors).toEqual([]);
+    for (const k of ['characters', 'skills', 'enemies', 'encounters']) expect(bundle[k], k).toEqual([]);
+    battleFiles();
+    ({ bundle, errors } = loadBundle(dir));
+    expect(errors).toEqual([]);
+    expect(bundle.characters.map((c) => c.id)).toEqual(['hero', 'ada']);
+    expect(bundle.encounters[0].id).toBe('enc_a');
+    write('skills.json', '{bad');
+    expect(loadBundle(dir).errors.join('\n')).toMatch(/skills\.json.*JSON/);
+  });
+  it('字串匯出包含角色名、技能名與說明、敵人名（接在道具後面）', () => {
+    writeGood();
+    battleFiles();
+    const rows = collectStrings(loadBundle(dir).bundle);
+    const ids = rows.map((r) => r.unique_id);
+    expect(ids.slice(3, 9)).toEqual([
+      'characters.json#hero.name', 'characters.json#ada.name', 'skills.json#attack.name', 'skills.json#attack.desc', 'enemies.json#fog.name',
+      'story/prologue.json#dlg_a.n1.speaker',
+    ]);
+    expect(rows.find((r) => r.unique_id === 'enemies.json#fog.name').text).toBe('霧行者');
+    expect(() => assertUniqueIds(rows)).not.toThrow();
+  });
+  it('check-data 對含戰鬥資料的目錄照樣檢查（壞引用 → 結束碼 1）', () => {
+    writeGood();
+    battleFiles();
+    expect(run('check-data.mjs', [dir]).status).toBe(0);
+    write('encounters.json', [{ id: 'enc_a', enemies: ['ghost'] }]);
+    const r = run('check-data.mjs', [dir]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/ghost/);
+  });
+});
+
+describe('M2：build-data 多章合併', () => {
+  const chapterWriter = (design, chapter) => (rel, obj) => {
+    const p = join(design, 'story', chapter, rel);
+    mkdirSync(join(p, '..'), { recursive: true });
+    writeFileSync(p, JSON.stringify(obj));
+  };
+  const setup = () => {
+    const design = join(dir, 'design');
+    const p = chapterWriter(design, 'prologue');
+    p('manifest.json', { start: { map: 'attic', spawn: 'default' } });
+    p('tiles.json', [{ id: 'floor', solid: false }]);
+    p('items.json', [{ id: 'key', name: '鑰匙', desc: 'x' }]);
+    p('maps/attic.json', { id: 'attic', name: '閣樓', tiles: ['.'], legend: { '.': 'floor' }, spawns: [{ id: 'default', x: 0, y: 0 }] });
+    p('story/prologue.json', { id: 'prologue', dialogues: [] });
+    const c1 = chapterWriter(design, 'chapter1');
+    c1('items.json', [{ id: 'bandage', name: '繃帶', desc: 'x' }]);
+    c1('characters.json', [{ id: 'hero', name: '{name}', _note: '私有' }]);
+    c1('skills.json', [{ id: 'attack', name: '攻擊' }]);
+    c1('enemies.json', [{ id: 'fog', name: '霧行者' }]);
+    c1('encounters.json', [{ id: 'enc_a', enemies: ['fog'] }]);
+    c1('maps/office.json', { id: 'office', name: '辦公室', tiles: ['.'], legend: { '.': 'floor' }, spawns: [{ id: 'door', x: 0, y: 0 }] });
+    c1('story/chapter1.json', { id: 'chapter1', dialogues: [] });
+    const c2 = chapterWriter(design, 'chapter2');
+    c2('enemies.json', [{ id: 'porter', name: '搬運工' }]);
+    c2('story/chapter2.json', { id: 'chapter2', dialogues: [] });
+    const release = join(dir, 'release-all.json');
+    writeFileSync(release, JSON.stringify({ unlocked: ['prologue', 'chapter1', 'chapter2'] }));
+    return { design, release, c2 };
+  };
+  const build = (design, release, out) => spawnSync(process.execPath, [join(ROOT, 'tools', 'build-data.mjs')],
+    { encoding: 'utf8', env: { ...process.env, DESIGN_DIR: design, OUT_DIR: out, RELEASE_FILE: release } });
+  it('合併三章的四個新檔案；manifest 只取有 manifest.json 的章節（序章），chapters 列出全部開放章節', () => {
+    const { design, release } = setup();
+    const out = join(dir, 'out');
+    const r = build(design, release, out);
+    expect(r.status, r.stderr).toBe(0);
+    const read = (f) => JSON.parse(readFileSync(join(out, f), 'utf8'));
+    expect(read('characters.json')).toEqual([{ id: 'hero', name: '{name}' }]);
+    expect(read('enemies.json').map((e) => e.id)).toEqual(['fog', 'porter']);
+    expect(read('skills.json').map((e) => e.id)).toEqual(['attack']);
+    expect(read('encounters.json').map((e) => e.id)).toEqual(['enc_a']);
+    expect(read('items.json').map((e) => e.id)).toEqual(['key', 'bandage']);
+    const m = read('manifest.json');
+    expect(m.start).toEqual({ map: 'attic', spawn: 'default' });
+    expect(m.chapters).toEqual(['prologue', 'chapter1', 'chapter2']);
+    expect(m.files.maps).toEqual(['attic', 'office']);
+    expect(m.files.story).toEqual(['prologue', 'chapter1', 'chapter2']);
+  });
+  it('跨章 id 重複就中止', () => {
+    const { design, release, c2 } = setup();
+    c2('enemies.json', [{ id: 'fog', name: '另一隻' }]);
+    const r = build(design, release, join(dir, 'out2'));
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/enemies.*fog/);
+  });
+  it('沒有戰鬥資料的章節：四個檔案輸出空陣列', () => {
+    const { design } = setup();
+    const release = join(dir, 'release-prologue.json');
+    writeFileSync(release, JSON.stringify({ unlocked: ['prologue'] }));
+    const out = join(dir, 'out3');
+    expect(build(design, release, out).status).toBe(0);
+    expect(JSON.parse(readFileSync(join(out, 'characters.json'), 'utf8'))).toEqual([]);
   });
 });

@@ -1,0 +1,36 @@
+{
+  "id": "dream",
+  "source": "mirror",
+  "nature": "撫平恐懼",
+  "ranks": [
+    {
+      "rank": 9,
+      "name": "入夢者",
+      "field": [
+        "dream"
+      ],
+      "skills": [
+        "hypnosis"
+      ],
+      "stats": {
+        "sp": 6,
+        "will": 3
+      }
+    },
+    {
+      "rank": 8,
+      "name": "安眠師",
+      "field": [
+        "calm"
+      ],
+      "skills": [
+        "requiem"
+      ],
+      "stats": {
+        "hp": 6,
+        "sp": 6,
+        "will": 3
+      }
+    }
+  ]
+}

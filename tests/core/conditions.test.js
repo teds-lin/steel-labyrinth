@@ -88,3 +88,23 @@ describe('原型鍵不可繞過檢查', () => {
     expect(evalCondition({ flag: 'constructor' }, st())).toBe(false);
   });
 });
+
+// ───────────── M2：隊伍與子彈條件 ─────────────
+describe('M2 條件：in_party／ammo_gte', () => {
+  const st = (over = {}) => ({ flags: {}, items: {}, party: [{ id: 'hero', hp: null, sp: null }, { id: 'ada', hp: 1, sp: 1 }], ammo: 2, ...over });
+  it('in_party：隊伍裡有該角色', () => {
+    expect(evalCondition({ in_party: 'ada' }, st())).toBe(true);
+    expect(evalCondition({ in_party: 'herb' }, st())).toBe(false);
+    expect(evalCondition({ in_party: 'ada' }, st({ party: undefined }))).toBe(false);
+  });
+  it('ammo_gte：子彈 ≥ n（沒有 ammo 欄位視為 0）', () => {
+    expect(evalCondition({ ammo_gte: 2 }, st())).toBe(true);
+    expect(evalCondition({ ammo_gte: 3 }, st())).toBe(false);
+    expect(evalCondition({ ammo_gte: 0 }, st({ ammo: undefined }))).toBe(true);
+  });
+  it('寫法不合法丟錯', () => {
+    expect(checkCondition({ in_party: '' }).length).toBe(1);
+    expect(checkCondition({ ammo_gte: '1' }).length).toBe(1);
+    expect(() => evalCondition({ in_party: 3 }, st())).toThrow();
+  });
+});

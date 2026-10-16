@@ -1,0 +1,268 @@
+[
+  {
+    "id": "attack",
+    "name": "攻擊",
+    "desc": "用手邊的武器打過去。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 100
+      }
+    ]
+  },
+  {
+    "id": "guard",
+    "name": "防禦",
+    "desc": "擺好架勢，到下次行動前受到的傷害減半。",
+    "target": "self",
+    "effects": [
+      {
+        "type": "status",
+        "status": "guard",
+        "chance": 100,
+        "turns": 1
+      }
+    ]
+  },
+  {
+    "id": "shoot",
+    "name": "開槍",
+    "desc": "消耗 1 發子彈，造成固定傷害，無視防禦。",
+    "cost": {
+      "ammo": 1
+    },
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "fixed": 14,
+        "ignore_def": true
+      }
+    ]
+  },
+  {
+    "id": "omen",
+    "name": "預兆",
+    "desc": "看穿敵人的下一步，並更容易閃避。",
+    "cost": {
+      "sp": 4
+    },
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "reveal_intent"
+      },
+      {
+        "type": "buff",
+        "stat": "eva",
+        "amount": 40,
+        "turns": 3,
+        "on": "self"
+      }
+    ]
+  },
+  {
+    "id": "hypnosis",
+    "name": "催眠",
+    "desc": "低聲哼唱，讓一名敵人陷入沉睡。",
+    "cost": {
+      "sp": 6
+    },
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "status",
+        "status": "sleep",
+        "chance": 75,
+        "turns": 2
+      }
+    ]
+  },
+  {
+    "id": "requiem",
+    "name": "鎮魂",
+    "desc": "安撫腦中的雜音，降低崩解。",
+    "cost": {
+      "sp": 6
+    },
+    "target": "ally",
+    "effects": [
+      {
+        "type": "collapse",
+        "amount": -10
+      }
+    ]
+  },
+  {
+    "id": "vigil",
+    "name": "警戒",
+    "desc": "提高警覺，動作變快，也更難被打中。",
+    "cost": {
+      "sp": 3
+    },
+    "target": "self",
+    "effects": [
+      {
+        "type": "buff",
+        "stat": "spd",
+        "pct": 25,
+        "turns": 3
+      },
+      {
+        "type": "buff",
+        "stat": "eva",
+        "pct": 100,
+        "turns": 3
+      }
+    ]
+  },
+  {
+    "id": "taunt",
+    "name": "嘲諷",
+    "desc": "大聲挑釁，讓敵人優先攻擊自己。",
+    "cost": {
+      "sp": 4
+    },
+    "target": "self",
+    "effects": [
+      {
+        "type": "status",
+        "status": "taunt",
+        "chance": 100,
+        "turns": 2
+      }
+    ]
+  },
+  {
+    "id": "cover",
+    "name": "掩護",
+    "desc": "擋在隊友身前，讓對方受到的傷害減半。",
+    "cost": {
+      "sp": 5
+    },
+    "target": "ally",
+    "effects": [
+      {
+        "type": "status",
+        "status": "guard",
+        "chance": 100,
+        "turns": 1
+      },
+      {
+        "type": "buff",
+        "stat": "def",
+        "pct": 30,
+        "turns": 1,
+        "on": "self"
+      }
+    ]
+  },
+  {
+    "id": "consult",
+    "name": "查閱",
+    "desc": "翻出敵人的紀錄，看穿下一步與破綻。",
+    "cost": {
+      "sp": 3
+    },
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "reveal_intent"
+      },
+      {
+        "type": "debuff",
+        "stat": "def",
+        "pct": 30,
+        "turns": 3
+      }
+    ]
+  },
+  {
+    "id": "spar_heavy",
+    "name": "全力一擊",
+    "desc": "馬洛收起手下留情，認真打出的一拳。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 160
+      }
+    ]
+  },
+  {
+    "id": "fog_claw",
+    "name": "霧爪",
+    "desc": "凝成爪形的霧氣，冰冷又鋒利。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 130
+      }
+    ]
+  },
+  {
+    "id": "whisper_minor",
+    "name": "耳語",
+    "desc": "貼在耳邊的低語，讓崩解上升。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 40
+      },
+      {
+        "type": "collapse",
+        "amount": 4
+      }
+    ],
+    "tags": [
+      "whisper"
+    ]
+  },
+  {
+    "id": "hauler_slam",
+    "name": "重摔",
+    "desc": "把整個人當成貨箱一樣摔出去。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 210
+      }
+    ]
+  },
+  {
+    "id": "hauler_whisper",
+    "name": "閉口的耳語",
+    "desc": "喉嚨深處沒有字句的聲音：閉上嘴，閉上嘴。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 30
+      },
+      {
+        "type": "collapse",
+        "amount": 9
+      }
+    ],
+    "tags": [
+      "whisper"
+    ]
+  },
+  {
+    "id": "call_fog",
+    "name": "呼喚霧氣",
+    "desc": "從地板的縫隙裡喚出霧行者。",
+    "target": "self",
+    "effects": [
+      {
+        "type": "summon",
+        "enemy": "fogwalker",
+        "max": 2
+      }
+    ]
+  }
+]

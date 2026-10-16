@@ -13,6 +13,8 @@ const LEAF = Object.freeze(Object.assign(Object.create(null), {
   lineage: isNonEmptyStr,
   echo_gte: isNum,
   rank_lte: isNum,
+  in_party: isNonEmptyStr,
+  ammo_gte: isNum,
 }));
 /** 只讀自有屬性（不吃原型鏈）。 */
 const own = (obj, k) => (isObj(obj) && Object.hasOwn(obj, k) ? obj[k] : undefined);
@@ -48,6 +50,8 @@ function evalChecked(cond, state) {
     case 'echo_gte': return (state?.echo?.charges ?? 0) >= v;
     case 'lineage': return state?.lineage?.id === v;
     case 'rank_lte': return state?.lineage != null && isNum(state.lineage.rank) && state.lineage.rank <= v;
+    case 'in_party': return Array.isArray(state?.party) && state.party.some((m) => m?.id === v);
+    case 'ammo_gte': return (isNum(state?.ammo) ? state.ammo : 0) >= v;
     case 'all': return v.every((c) => evalChecked(c, state));
     case 'any': return v.some((c) => evalChecked(c, state));
     case 'not': return !evalChecked(v, state);

@@ -1,0 +1,89 @@
+[
+  {
+    "id": "enc_sparring",
+    "enemies": [
+      "sparring_marlo"
+    ],
+    "bg": "training_room",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "sparred"
+        }
+      ],
+      "dialogue": "dlg_spar_after"
+    },
+    "on_lose": "continue"
+  },
+  {
+    "id": "enc_dock_1",
+    "enemies": [
+      "fogwalker"
+    ],
+    "bg": "dock",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "fog1_done"
+        }
+      ],
+      "dialogue": "dlg_after_fog1"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_dock_2",
+    "enemies": [
+      "fogwalker",
+      "fogwalker"
+    ],
+    "bg": "dock",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "fog2_done"
+        }
+      ],
+      "dialogue": "dlg_after_fog2"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_warehouse",
+    "enemies": [
+      "fogwalker",
+      "fogwalker"
+    ],
+    "bg": "warehouse",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "fog3_done"
+        }
+      ],
+      "dialogue": "dlg_after_fog3"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_boss",
+    "enemies": [
+      "silent_hauler"
+    ],
+    "bg": "warehouse",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "boss_done"
+        }
+      ],
+      "dialogue": "dlg_boss_after"
+    },
+    "on_lose": "retry"
+  }
+]

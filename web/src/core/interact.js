@@ -112,10 +112,17 @@ export function echo(obj, state, data) {
  * - 已解開的 lock 物件：[look]，unlocked true。
  * - 鎖著：先 look，再嘗試免費解法（譜系標籤、道具）；成功接 on_tag／on_item，失敗接 locked。
  *   locked 只在沒有 look 時代替它（也就是 [locked]）——有 look 時是 [look, locked]。
+ * - 物件有 battle（遭遇 id）時回傳值多一個 battle 鍵：畫面播完 dialogues 後開戰。
  * 注意：回傳的 state 已含解鎖旗標；look 對話若以 lock.flag 分歧，解鎖成功那一輪會看到「已開」分支，
  *   內容請改用 on_tag／on_item 對話自己設的旗標分歧（序章用 door_seen_open）。
  */
 export function investigate(obj, state, data) {
+  const out = investigateInner(obj, state, data);
+  if (typeof obj?.battle === 'string') out.battle = obj.battle; // 播完 dialogues 後開戰
+  return out;
+}
+
+function investigateInner(obj, state, data) {
   const lookId = typeof obj?.look === 'string' ? obj.look : null;
   if (!obj?.lock) return { state, dialogues: lookId ? [lookId] : [], unlocked: null };
   if (isUnlocked(obj, state)) return { state, dialogues: lookId ? [lookId] : [], unlocked: true };

@@ -135,10 +135,16 @@ test('正常模式（打字機開啟）只用 tap 全程通關：新遊戲 → �
   await sleep(200);
   const loadSlots = await page.evaluate(() => window.__btns('Menu'));
   await tapLabel(page, g, 'Menu', loadSlots[0].label);
-  await g.waitScene('Map');
+  // 序章已完成而且有下一章：讀檔後回到章節結束畫面，點「繼續」進第一章
+  await g.waitScene('ChapterEnd');
 
   const s = await g.st();
   expect(s.chapter_done).toContain('prologue');
   expect(s.player.name).toBe('小明');
+  await g.noHScroll();
+  await tapLabel(page, g, 'ChapterEnd', '繼續', 10_000);
+  await g.waitScene('Map');
+  await g.waitDialogue();
+  expect((await g.st()).chapter).toBe('chapter1');
   await g.noHScroll();
 });

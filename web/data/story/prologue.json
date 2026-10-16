@@ -3,7 +3,12 @@
   "title": "序章",
   "end_screen": {
     "title": "序章　完",
-    "subtitle": "第一章　製作中"
+    "subtitle": "第一章　白燈保全公司",
+    "continue": {
+      "map": "street",
+      "spawn": "default",
+      "dialogue": "dlg_ch1_opening"
+    }
   },
   "dialogues": [
     {

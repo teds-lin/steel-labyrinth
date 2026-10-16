@@ -13,5 +13,39 @@
     "id": "pocket_watch",
     "name": "停住的懷錶",
     "desc": "銀色懷錶，指針停在三點整，怎麼上發條都不肯走。"
+  },
+  {
+    "id": "bandage",
+    "name": "繃帶",
+    "desc": "老賀伯配發的乾淨繃帶。纏上去，傷口就不會一直滲血。",
+    "target": "ally",
+    "battle_effects": [
+      {
+        "type": "heal",
+        "amount": 25
+      }
+    ]
+  },
+  {
+    "id": "sedative_incense",
+    "name": "鎮靜香",
+    "desc": "用油紙包著的線香，聞起來像雨後的松林。能壓下腦中的雜音。",
+    "target": "self",
+    "battle_effects": [
+      {
+        "type": "collapse",
+        "amount": -15
+      }
+    ]
+  },
+  {
+    "id": "warehouse_key",
+    "name": "倉庫鑰匙",
+    "desc": "工頭給的鐵鑰匙，上面掛著一塊寫著「東倉」的木牌。"
+  },
+  {
+    "id": "mouth_cloth",
+    "name": "閉口布條",
+    "desc": "綁在卡爾手腕上的布條，用黑線縫著一張被橫線封住的嘴。"
   }
 ]

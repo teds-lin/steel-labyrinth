@@ -1,0 +1,50 @@
+{
+  "id": "watch",
+  "source": "forge",
+  "nature": "守住身後的人",
+  "ranks": [
+    {
+      "rank": 9,
+      "name": "守夜人",
+      "field": [
+        "dark"
+      ],
+      "skills": [
+        "vigil"
+      ],
+      "stats": {
+        "hp": 6,
+        "spd": 1
+      }
+    },
+    {
+      "rank": 8,
+      "name": "執盾者",
+      "field": [
+        "force"
+      ],
+      "skills": [
+        "taunt"
+      ],
+      "stats": {
+        "hp": 8,
+        "def": 2
+      }
+    },
+    {
+      "rank": 7,
+      "name": "鐵衛",
+      "field": [
+        "force"
+      ],
+      "skills": [
+        "cover"
+      ],
+      "stats": {
+        "hp": 10,
+        "atk": 2,
+        "def": 2
+      }
+    }
+  ]
+}

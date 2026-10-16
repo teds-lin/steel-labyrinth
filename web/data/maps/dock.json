@@ -1,0 +1,199 @@
+{
+  "id": "dock",
+  "name": "卡斯特維爾・碼頭區",
+  "tiles": [
+    "WWWWWWWWWWWWWWWWWWWW",
+    "WWWWPPWWWWWWWWWWWPWW",
+    "PPPPPPPbPP%%PPPPWPWW",
+    "PHHPPPPPPP%%PPHHPPPP",
+    ",HH,,,o,,,%%,,HH,,o,",
+    ",,,,,,,,,,~~,,,,,,,,",
+    "==========~~========",
+    ",,,,,,,,,,~~,,,,,,,,",
+    ",,,cc,,,,,%%,,,,,cc,",
+    "##_##,,o,,%%,,,,,,,,",
+    "#...#,,,,,%%,,,,,,,,",
+    "#...#,,cc,%%,o,,,,,,",
+    "#####,,,,,%%DDDDD_DD",
+    "%%%%%%%%%%%%DDDDD_DD"
+  ],
+  "legend": {
+    "W": "harbor_water",
+    "P": "pier",
+    "b": "bollard",
+    "H": "crane",
+    ",": "cobblestone",
+    "o": "gas_lamp",
+    "%": "fog",
+    "~": "mist",
+    "=": "rail_track",
+    "c": "crate",
+    "#": "facade",
+    ".": "floor",
+    "_": "threshold",
+    "D": "warehouse_wall"
+  },
+  "spawns": [
+    {
+      "id": "entry",
+      "x": 0,
+      "y": 6,
+      "dir": "right"
+    },
+    {
+      "id": "from_warehouse",
+      "x": 17,
+      "y": 11,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_wife",
+      "x": 1,
+      "y": 7,
+      "sprite": "lina",
+      "solid": true,
+      "look": "dlg_wife_talk"
+    },
+    {
+      "id": "obj_foreman",
+      "x": 4,
+      "y": 5,
+      "sprite": "foreman",
+      "solid": true,
+      "look": "dlg_foreman_talk",
+      "echo": "dlg_foreman_echo"
+    },
+    {
+      "id": "obj_glove",
+      "x": 5,
+      "y": 1,
+      "sprite": "wet_glove",
+      "solid": true,
+      "look": "dlg_glove_look",
+      "echo": "dlg_glove_echo"
+    },
+    {
+      "id": "obj_shed_stove",
+      "x": 1,
+      "y": 11,
+      "sprite": "shed_stove",
+      "solid": true,
+      "look": "dlg_shed_stove"
+    },
+    {
+      "id": "obj_shed_box",
+      "x": 3,
+      "y": 11,
+      "sprite": "supply_box",
+      "solid": true,
+      "look": "dlg_shed_box"
+    },
+    {
+      "id": "obj_drag",
+      "x": 16,
+      "y": 9,
+      "sprite": "drag_marks",
+      "solid": true,
+      "look": "dlg_drag_look",
+      "echo": "dlg_drag_echo"
+    },
+    {
+      "id": "obj_fog_shadow",
+      "x": 17,
+      "y": 2,
+      "sprite": "fogwalker",
+      "solid": true,
+      "look": "dlg_fog_shadow",
+      "if": {
+        "not_flag": "fog2_done"
+      }
+    },
+    {
+      "id": "obj_pillar",
+      "x": 17,
+      "y": 1,
+      "sprite": "crane_pillar_mark",
+      "solid": true,
+      "look": "dlg_pillar_look",
+      "echo": "dlg_pillar_echo"
+    },
+    {
+      "id": "obj_marlo_dock",
+      "x": 16,
+      "y": 11,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_marlo_dock"
+    },
+    {
+      "id": "obj_wh_door",
+      "x": 17,
+      "y": 12,
+      "sprite": "warehouse_door",
+      "solid": true,
+      "look": "dlg_whdoor_look",
+      "lock": {
+        "flag": "wh_door_open",
+        "solvable_by": [
+          "trace"
+        ],
+        "fallback": "item:warehouse_key",
+        "on_tag": {
+          "trace": "dlg_whdoor_trace"
+        },
+        "on_item": "dlg_whdoor_key",
+        "locked": "dlg_whdoor_locked"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 17,
+      "y": 13,
+      "to": "warehouse",
+      "spawn": "from_dock",
+      "requires": {
+        "all": [
+          {
+            "flag": "wh_door_open"
+          },
+          {
+            "flag": "ch2_deduced"
+          }
+        ]
+      },
+      "blocked": "dlg_wh_blocked"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_fog1_1",
+      "x": 10,
+      "y": 5,
+      "dialogue": "dlg_fog1_start",
+      "if": {
+        "not_flag": "fog1_done"
+      }
+    },
+    {
+      "id": "trg_fog1_2",
+      "x": 10,
+      "y": 6,
+      "dialogue": "dlg_fog1_start",
+      "if": {
+        "not_flag": "fog1_done"
+      }
+    },
+    {
+      "id": "trg_fog1_3",
+      "x": 10,
+      "y": 7,
+      "dialogue": "dlg_fog1_start",
+      "if": {
+        "not_flag": "fog1_done"
+      }
+    }
+  ]
+}

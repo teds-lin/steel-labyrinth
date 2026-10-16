@@ -33,3 +33,27 @@ export function collapseHud(c, max = COLLAPSE_HUD_MAX) {
   const value = toInt(c, 0, top);
   return { value, text: `崩解 ${value}/${top}`, ratio: value / top, danger: value >= top * 0.6 };
 }
+
+/** 子彈：持有左輪或還有子彈時才顯示。回傳 { text, show }。 */
+export function ammoHud(ammo, { hasGun = false } = {}) {
+  const n = toInt(ammo, 0, 99);
+  return { text: `子彈 ${n}`, show: hasGun || n > 0, value: n };
+}
+
+/** 讀痕者共鳴度：resonance 各事件的合計（M2 只顯示、不晉升）。 */
+export function resonanceHud(resonance) {
+  const vals = resonance && typeof resonance === 'object' ? Object.values(resonance) : [];
+  const total = vals.reduce((a, v) => a + toInt(v, 0, 9999), 0);
+  return { text: `共鳴 ${total}`, value: total };
+}
+
+/** 隊伍生命的精簡顯示：[{ name, hp, max, ratio, text }]（名字只取前兩個字）。 */
+export function partyHud(list) {
+  return (Array.isArray(list) ? list : []).map((m) => {
+    const max = toInt(m?.max?.hp, 0, 99999);
+    const hp = toInt(m?.hp, 0, max || 99999);
+    const name = String(m?.name ?? '');
+    const short = Array.from(name.split('・')[0]).slice(0, 2).join('');
+    return { id: m?.id ?? null, name: short, hp, max, ratio: max > 0 ? hp / max : 0, text: `${short} ${hp}/${max}` };
+  });
+}

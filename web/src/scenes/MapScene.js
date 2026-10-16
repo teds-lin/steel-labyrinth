@@ -1,7 +1,9 @@
 // 地圖：繪製地形與物件、主角格子移動（補間）、鏡頭跟隨、出口／觸發點／互動。
-import { TILE, MAP_ZOOM, MAP_VIEW, COLORS } from '../config.js';
+// 劇情流程（對話 → pending 的 battle／goto → 戰鬥 → on_win 對話 → …）都在這裡依序 await。
+import { TILE, MAP_ZOOM, MAP_VIEW, COLORS, TEST_MODE, battleSeed } from '../config.js';
 import { session } from '../session.js';
 import { step, enterMap, mapSize, tileIdAt, objectVisible, isUnlocked } from '../core/grid.js';
+import { takePending } from '../core/effects.js';
 import { tileKey, spriteKey, heroKey } from '../textures.js';
 import { investigateFacing, echoFacing, loadNotice } from '../adapters.js';
 
@@ -19,6 +21,7 @@ export class MapScene extends Phaser.Scene {
     session.scene = 'Map';
     this.moving = false;
     this.busy = false;
+    this.flow = 0;
     this.queued = null;
     this.ended = false;
     const cam = this.cameras.main;
@@ -45,7 +48,11 @@ export class MapScene extends Phaser.Scene {
     });
     // resume 監聽器：場景的 events 跨 restart 保留，所以要在 shutdown 時拿掉，否則每次讀檔多一個
     this.events.on('resume', this.onResume, this);
-    this.events.once('shutdown', () => this.events.off('resume', this.onResume, this));
+    this.events.on('wake', this.onResume, this);
+    this.events.once('shutdown', () => {
+      this.events.off('resume', this.onResume, this);
+      this.events.off('wake', this.onResume, this);
+    });
 
     if (this.notice) {
       const msg = this.notice;
@@ -57,8 +64,11 @@ export class MapScene extends Phaser.Scene {
     if (this.intro.length) {
       const list = this.intro;
       this.intro = [];
-      this.busy = true;
-      this.time.delayedCall(0, () => this.runDialogues(list));
+      this.flow += 1; // 開場對話開始前就鎖住移動
+      this.time.delayedCall(0, () => {
+        this.flow -= 1;
+        this.runDialogues(list);
+      });
     }
   }
 
@@ -164,7 +174,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   canAct() {
-    return !this.moving && !this.busy && !this.ended && !session.inDialogue && session.state !== null;
+    return !this.moving && !this.busy && this.flow === 0 && !this.ended && !session.inDialogue && session.state !== null;
   }
 
   heldDir() {
@@ -213,19 +223,39 @@ export class MapScene extends Phaser.Scene {
 
   async handleEvent(ev) {
     if (!ev) return;
-    if (ev.type === 'trigger' && ev.dialogue) {
-      await this.runDialogue(ev.dialogue);
+    if (ev.type === 'trigger' && (ev.dialogue || ev.battle)) {
+      await this.locked(async () => {
+        if (ev.dialogue) await this.runDialogue(ev.dialogue);
+        if (ev.battle && !this.ended) await this.doBattle(ev.battle);
+      });
     } else if (ev.type === 'exit') {
-      this.busy = true;
-      const cam = this.cameras.main;
-      await new Promise((res) => { cam.fadeOut(160, 0, 0, 0); cam.once('camerafadeoutcomplete', res); });
-      const r = enterMap(session.state, session.data, ev.to, ev.spawn);
-      session.setState(r.state);
-      this.buildMap();
-      await new Promise((res) => { cam.fadeIn(160, 0, 0, 0); cam.once('camerafadeincomplete', res); });
-      if (r.dialogue) await this.runDialogue(r.dialogue);
-      this.busy = false;
+      await this.locked(async () => {
+        await this.fade(false);
+        const r = enterMap(session.state, session.data, ev.to, ev.spawn);
+        session.setState(r.state);
+        this.buildMap();
+        await this.fade(true);
+        if (r.dialogue) await this.runDialogue(r.dialogue);
+      });
     }
+  }
+
+  /** 劇情流程鎖：流程進行中（含等待戰鬥結束）不能移動或開選單。 */
+  async locked(fn) {
+    this.flow += 1;
+    try {
+      await fn();
+    } finally {
+      this.flow -= 1;
+    }
+  }
+
+  fade(fadeIn, ms = 160) {
+    const cam = this.cameras.main;
+    const d = TEST_MODE ? 60 : ms;
+    return new Promise((res) => {
+      if (fadeIn) { cam.fadeIn(d, 0, 0, 0); cam.once('camerafadeincomplete', res); } else { cam.fadeOut(d, 0, 0, 0); cam.once('camerafadeoutcomplete', res); }
+    });
   }
 
   // ---------- 互動 ----------
@@ -241,40 +271,117 @@ export class MapScene extends Phaser.Scene {
     try {
       r = fn(this.mapDef, session.state, session.data);
     } catch (e) {
-      console.error(e);
+      console.warn(e);
       this.ui.toast('這裡好像出了點問題');
       return;
     }
     session.setState(r.state);
-    if (r.dialogues.length) this.runDialogues(r.dialogues);
+    if (r.dialogues.length || r.battle) this.runDialogues(r.dialogues, r.battle ?? null);
     else if (r.message) this.ui.toast(r.message);
   }
 
-  /** 依序播放多段對話（例如調查上鎖的門：look → on_item／locked）；章節結束就停。 */
-  async runDialogues(ids) {
-    this.busy = true;
-    for (const id of ids) {
-      if (this.ended) return;
-      await this.runDialogue(id);
-    }
-    if (!this.ended) this.busy = false;
+  /** 依序播放多段對話（例如調查上鎖的門：look → on_item／locked）；章節結束就停。battle：播完後開戰。 */
+  async runDialogues(ids, battle = null) {
+    await this.locked(async () => {
+      for (const id of ids) {
+        if (this.ended) return;
+        await this.runDialogue(id);
+      }
+      if (battle && !this.ended) await this.doBattle(battle);
+    });
   }
 
-  /** 播放對話；結束後若發生 chapter_end 就進章節結束畫面。 */
+  /**
+   * 播放對話；結束後若發生 chapter_end 就進章節結束畫面，否則依序處理對話留下的 pending（battle／goto）。
+   */
   async runDialogue(id) {
-    const before = new Set(session.state.chapter_done ?? []);
-    this.busy = true;
-    await this.waitUi();
-    await this.ui.dialogue.play(id);
-    this.busy = false;
-    this.refreshObjects();
-    const ended = (session.state.chapter_done ?? []).find((c) => !before.has(c));
-    if (ended && !this.ended) {
-      this.ended = true;
-      session.foldPlaytime();
-      this.cameras.main.fadeOut(600, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.leave('ChapterEnd', { chapter: ended }));
+    await this.locked(async () => {
+      const before = new Set(session.state.chapter_done ?? []);
+      await this.waitUi();
+      if (this.ended) return;
+      await this.ui.dialogue.play(id);
+      this.refreshObjects();
+      const ended = (session.state.chapter_done ?? []).find((c) => !before.has(c));
+      if (ended && !this.ended) {
+        this.ended = true;
+        session.setState(takePending(session.state).state); // 章節結束後不再執行剩下的 pending
+        session.foldPlaytime();
+        this.cameras.main.fadeOut(TEST_MODE ? 150 : 600, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => this.leave('ChapterEnd', { chapter: ended }));
+        return;
+      }
+      await this.runPending();
+    });
+  }
+
+  /** 取出 state.pending 依序執行：goto 移動地圖（再播 on_enter／dialogue），battle 開戰並等它結束。 */
+  async runPending() {
+    for (let guard = 0; guard < 50 && !this.ended; guard++) {
+      const { state, pending } = takePending(session.state);
+      if (pending.length === 0) return;
+      session.setState(state);
+      for (const p of pending) {
+        if (this.ended) return;
+        if (p.type === 'goto') await this.doGoto(p);
+        else if (p.type === 'battle') await this.doBattle(p.encounter);
+        else console.warn('不認得的 pending', p);
+      }
     }
+  }
+
+  async doGoto(p) {
+    await this.fade(false, 300);
+    let r;
+    try {
+      r = enterMap(session.state, session.data, p.map, p.spawn);
+    } catch (e) {
+      console.warn('goto 失敗', e);
+      await this.fade(true);
+      return;
+    }
+    session.setState(r.state);
+    this.buildMap();
+    await this.fade(true, 300);
+    for (const d of [...new Set([r.dialogue, p.dialogue].filter((x) => typeof x === 'string'))]) {
+      if (this.ended) return;
+      await this.runDialogue(d);
+    }
+  }
+
+  /** 開戰（先自動存檔），等戰鬥結束回到地圖後播 on_win 的對話。 */
+  async doBattle(encId) {
+    const res = await this.battle(encId);
+    if (this.ended || !res) return;
+    if (res.next?.type === 'dialogue') await this.runDialogue(res.next.dialogue);
+  }
+
+  battle(encId) {
+    session.foldPlaytime();
+    const snap = session.snapshot();
+    // 戰前自動存檔：給「重新挑戰」用；儲存空間不能用時，GameOver 改用記憶體中的備份
+    const saved = session.storage.saveAuto(snap, { battle: encId });
+    if (!saved.ok && saved.code !== 'unavailable') console.warn('自動存檔失敗', saved.code, saved.reason);
+    session.preBattle = { state: snap, encounter: encId };
+    return new Promise((resolve) => {
+      session.battleReturn = (res) => {
+        this.scene.wake('UI');
+        this.scene.wake();
+        session.scene = 'Map';
+        this.refreshObjects();
+        this.placePlayer();
+        this.cameras.main.fadeIn(TEST_MODE ? 0 : 250, 0, 0, 0);
+        resolve(res);
+      };
+      const go = () => {
+        if (this.ended) return;
+        this.scene.sleep('UI');
+        this.scene.sleep();
+        this.scene.launch('Battle', { encounter: encId, seed: battleSeed() });
+      };
+      if (TEST_MODE) { go(); return; }
+      this.cameras.main.flash(180, 240, 240, 255);
+      this.time.delayedCall(200, go);
+    });
   }
 
   openMenu() {

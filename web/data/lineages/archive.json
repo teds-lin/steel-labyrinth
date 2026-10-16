@@ -1,0 +1,21 @@
+{
+  "id": "archive",
+  "source": "tide",
+  "nature": "讓事物保持原樣",
+  "ranks": [
+    {
+      "rank": 9,
+      "name": "檔案員",
+      "field": [
+        "archive"
+      ],
+      "skills": [
+        "consult"
+      ],
+      "stats": {
+        "sp": 6,
+        "will": 2
+      }
+    }
+  ]
+}

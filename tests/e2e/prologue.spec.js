@@ -70,8 +70,16 @@ test.describe('序章', () => {
     await g.waitScene('ChapterEnd');
     await g.sleep(1200);
 
+    // 章節結束畫面：文字與「繼續」都來自 story 的 end_screen
+    const story = await page.evaluate(() => fetch('data/story/prologue.json').then((r) => r.json()));
+    const ce = (await page.evaluate(() => window.__SL.debug())).chapterEnd;
+    expect(ce.title).toBe(story.end_screen.title);
+    expect(ce.subtitle).toBe(story.end_screen.subtitle ?? '');
+    expect(ce.continue).toEqual(story.end_screen.continue ?? null);
+    expect(ce.items.map((i) => i.label)).toEqual([...(story.end_screen.continue ? ['繼續'] : []), '存檔', '回標題']);
+
     // 存檔（章節結束畫面 → 存檔 → 槽 1）
-    await g.key('Enter');
+    await g.pickChapterEnd('存檔');
     await g.waitScene('Menu');
     await g.sleep(100);
     await g.key('Enter');
@@ -80,8 +88,7 @@ test.describe('序章', () => {
     await g.waitScene('ChapterEnd');
 
     // 回標題 → 繼續 → 讀取槽 1
-    await g.key('ArrowDown');
-    await g.key('Enter');
+    await g.pickChapterEnd('回標題');
     await g.waitScene('Title');
     await g.sleep(250);
     await g.key('ArrowDown');
@@ -89,21 +96,23 @@ test.describe('序章', () => {
     await g.waitScene('Menu');
     await g.sleep(100);
     await g.key('Enter');
-    await g.waitScene('Map');
+    // 存檔停在已完成、而且有下一章的章節結尾 → 回到章節結束畫面（可以「繼續」進下一章）
+    await g.waitScene(story.end_screen.continue ? 'ChapterEnd' : 'Map');
     const loaded = await g.st();
     expect(loaded.location.map).toBe('street');
     expect(loaded.chapter_done).toContain('prologue');
     expect(loaded.player.name).toBe('艾琳');
     expect(loaded.items.attic_key).toBe(1);
     expect(loaded.flags.told_truth).toBe(true);
+    if (!story.end_screen.continue) return;
 
-    // 讀檔後還能移動、能開選單
-    await g.stepDir('right');
-    expect((await g.st()).location.x).toBe(loaded.location.x + 1);
-    await g.act('menu');
-    await g.waitScene('Menu');
-    await g.key('Escape');
+    // 繼續 → 下一章的地圖與開場對話
+    await g.pickChapterEnd('繼續');
     await g.waitScene('Map');
+    await g.waitDialogue();
+    const next = await g.st();
+    expect(next.location.map).toBe(story.end_screen.continue.map);
+    expect(next.chapter).not.toBe('prologue');
   });
 
   test('(b) 用殘響的路線：藥瓶殘響、殘響開門、房東說謊後看穿', async ({ page }, testInfo) => {

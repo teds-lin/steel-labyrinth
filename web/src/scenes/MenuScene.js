@@ -1,8 +1,14 @@
-// 選單（疊在其他場景上方）：存檔（3 槽，覆蓋前確認）、讀取、回標題。
+// 選單（疊在其他場景上方）：存檔（3 槽，覆蓋前確認）、讀取、道具、隊伍、回標題。
 // mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）。
 import { WIDTH, HEIGHT, COLORS } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
 import { addText, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
+import { fieldItems, useFieldItem } from '../core/items.js';
+import { partyStatus, availableSkills } from '../core/stats.js';
+
+const STAT_LABELS = [['atk', '攻擊'], ['def', '防禦'], ['spd', '速度'], ['will', '意志'], ['eva', '閃避']];
+/** 道具頁一頁最多幾項（再加「下一頁」「返回」）。 */
+const ITEMS_PER_PAGE = 4;
 
 const BLOCKED_MSG = '目前無法存檔（瀏覽器封鎖了儲存空間），\n遊戲仍可繼續';
 
@@ -37,15 +43,18 @@ export class MenuScene extends Phaser.Scene {
     else this.showMain();
   }
 
-  setPage(page, title, note, items, { y = 200, h = 52, fontSize = 17 } = {}) {
+  setPage(page, title, note, items, { y = 200, h = 52, fontSize = 17, gap = 10, noteAlign = 'center' } = {}) {
     this.page = page;
     this.list?.destroy();
     this.extra.forEach((o) => o.destroy());
     this.extra = [];
     this.title.setText(title);
+    // 說明文字：一般置中；隊伍成員的詳細資料（多行清單）靠左
+    if (noteAlign === 'left') this.note.setAlign('left').setOrigin(0, 0).setX(32).setWordWrapWidth(WIDTH - 64, true);
+    else this.note.setAlign('center').setOrigin(0.5, 0).setX(WIDTH / 2).setWordWrapWidth(WIDTH - 72, true);
     this.note.setText(note ?? '');
     const top = this.note.text ? Math.max(y, 136 + this.note.height + 24) : y;
-    this.list = new ButtonList(this, { x: WIDTH / 2, y: top + h / 2, w: WIDTH - 72, h, gap: 10, items, align: 'left', fontSize });
+    this.list = new ButtonList(this, { x: WIDTH / 2, y: top + h / 2, w: WIDTH - 72, h, gap, items, align: 'left', fontSize });
     // 副標（名字、損壞原因）太長時以「…」截斷：只截名字／原因的部分
     this.list.buttons.forEach((b, i) => {
       const it = items[i];
@@ -64,8 +73,8 @@ export class MenuScene extends Phaser.Scene {
       title: this.title.text,
       note: this.note.text,
       dimmed: this.dim.visible && this.dim.fillAlpha >= 0.5,
-      items: (this.list?.buttons ?? []).map((b) => ({
-        label: b.label.text, sub: b.sub?.text ?? null, enabled: b.enabled, x: b.x, y: b.y,
+      items: (this.list?.buttons ?? []).map((b, i) => ({
+        label: b.label.text, sub: b.sub?.text ?? null, enabled: b.enabled, focused: i === this.list.index, x: b.x, y: b.y, w: b.w, h: b.h,
         subWidth: b.sub ? b.sub.displayWidth : 0, room: b.w - 24,
       })),
     };
@@ -73,12 +82,106 @@ export class MenuScene extends Phaser.Scene {
 
   showMain(note = null) {
     const blocked = !session.storageAvailable;
-    this.setPage('main', '選單', note ?? (blocked ? BLOCKED_MSG : null), [
+    const hasParty = (session.data?.characters ?? []).length > 0;
+    const items = [
       { label: '存檔', enabled: !blocked, onSelect: () => this.showSlots('save') },
       { label: '讀取', enabled: !blocked, onSelect: () => this.showSlots('load') },
-      { label: '回標題', onSelect: () => this.confirmTitle() },
-      { label: '返回遊戲', onSelect: () => this.close() },
-    ]);
+      { label: '道具', onSelect: () => this.showItems(0) },
+    ];
+    if (hasParty) items.push({ label: '隊伍', onSelect: () => this.showParty() });
+    items.push({ label: '回標題', onSelect: () => this.confirmTitle() }, { label: '返回遊戲', onSelect: () => this.close() });
+    this.setPage('main', '選單', note ?? (blocked ? BLOCKED_MSG : null), items, { y: 176, h: 50, gap: 9 });
+  }
+
+  // ---------- 道具 ----------
+  /** 持有的道具：地圖上能用的（field_effects）可以選，其他（戰鬥用、劇情道具）只列出來。 */
+  itemRows() {
+    const s = session.state;
+    const usable = new Map(fieldItems(s, session.data).map((it) => [it.id, it]));
+    const rows = [];
+    for (const [id, count] of Object.entries(s?.items ?? {})) {
+      if (!Number.isInteger(count) || count <= 0) continue;
+      const def = (session.data?.items ?? []).find((x) => x.id === id);
+      const name = def?.name ?? id;
+      if (usable.has(id)) rows.push({ id, label: `${name}　×${count}`, sub: def?.desc ?? '', usable: true });
+      else rows.push({ id, label: `${name}　×${count}`, sub: Array.isArray(def?.battle_effects) ? '戰鬥中才能使用' : '劇情道具', usable: false });
+    }
+    return rows.sort((a, b) => Number(b.usable) - Number(a.usable));
+  }
+
+  showItems(page = 0, note = null) {
+    const rows = this.itemRows();
+    const pages = Math.max(1, Math.ceil(rows.length / ITEMS_PER_PAGE));
+    const p = Math.min(Math.max(0, page), pages - 1);
+    const items = rows.slice(p * ITEMS_PER_PAGE, (p + 1) * ITEMS_PER_PAGE).map((r) => ({
+      label: r.label, sub: r.sub, enabled: r.usable, onSelect: () => this.useItem(r.id, p),
+    }));
+    if (pages > 1) items.push({ label: `下一頁（${p + 1}/${pages}）`, onSelect: () => this.showItems((p + 1) % pages) });
+    items.push({ label: '返回', onSelect: () => this.showMain() });
+    const msg = note ?? (rows.length === 0 ? '沒有任何道具' : (rows.some((r) => r.usable) ? '選擇要使用的道具' : '目前沒有可以在這裡使用的道具'));
+    this.itemPage = p;
+    this.setPage('items', '道具', msg, items, { h: 56, fontSize: 15 });
+  }
+
+  useItem(id, page) {
+    let next;
+    try {
+      next = useFieldItem(id, session.state, session.data);
+    } catch (e) {
+      console.warn('無法使用道具', e);
+      this.showItems(page, '這個道具現在不能使用');
+      return;
+    }
+    const def = (session.data?.items ?? []).find((x) => x.id === id);
+    session.setState(next);
+    this.showItems(page, `使用了${def?.name ?? id}`);
+  }
+
+  // ---------- 隊伍 ----------
+  showParty() {
+    let list = [];
+    try {
+      list = partyStatus(session.state, session.data);
+    } catch (e) {
+      console.warn('partyStatus 失敗', e);
+    }
+    const items = list.map((m) => ({
+      label: `${m.name}　生命 ${m.hp}/${m.max.hp}　靈性 ${m.sp}/${m.max.sp}`,
+      sub: STAT_LABELS.map(([k, n]) => `${n} ${m.max[k]}`).join('　'),
+      onSelect: () => this.showMember(m.id),
+    }));
+    items.push({ label: '返回', onSelect: () => this.showMain() });
+    this.setPage('party', '隊伍', `子彈 ${session.state?.ammo ?? 0}　崩解 ${session.state?.collapse ?? 0}/100`, items, { h: 58, fontSize: 15 });
+  }
+
+  showMember(id) {
+    const m = partyStatus(session.state, session.data).find((x) => x.id === id);
+    if (!m) { this.showParty(); return; }
+    const skills = availableSkills(id, session.state, session.data).map((sid) => {
+      const sk = (session.data?.skills ?? []).find((x) => x.id === sid);
+      // 數字前用不換行空白，避免自動換行把「（靈性」和「6）」拆到兩行
+      const cost = [sk?.cost?.sp ? `靈性\u00a0${sk.cost.sp}` : null, sk?.cost?.ammo ? `子彈\u00a0${sk.cost.ammo}` : null].filter(Boolean).join('・');
+      return `・${sk?.name ?? sid}${cost ? `（${cost}）` : ''}：${sk?.desc ?? ''}`;
+    });
+    const lin = this.lineageName(id);
+    const note = [
+      lin ? `譜系：${lin}` : null,
+      `生命 ${m.hp}/${m.max.hp}　靈性 ${m.sp}/${m.max.sp}`,
+      STAT_LABELS.map(([k, n]) => `${n} ${m.max[k]}`).join('　'),
+      '',
+      '技能',
+      ...skills,
+    ].filter((x) => x !== null).join('\n');
+    this.memberSkills = skills;
+    this.setPage('member', m.name, note, [{ label: '返回', onSelect: () => this.showParty() }], { y: 420, noteAlign: 'left' });
+  }
+
+  lineageName(id) {
+    const lin = id === 'hero' ? session.state?.lineage : (session.data?.characters ?? []).find((c) => c.id === id)?.lineage;
+    if (!lin) return null;
+    const def = (session.data?.lineages ?? []).find((l) => l.id === lin.id);
+    const rank = def?.ranks?.find((r) => r.rank === lin.rank);
+    return rank ? `${rank.name}（階 ${lin.rank}）` : null;
   }
 
   slotItems(kind) {
@@ -146,7 +249,8 @@ export class MenuScene extends Phaser.Scene {
     this.scene.stop('UI');
     if (this.from !== 'Map') this.scene.stop(this.from);
     this.scene.stop('Map');
-    this.scene.start('Map', { notices: r.warnings });
+    const target = session.resumeTarget(r.state, r.warnings);
+    this.scene.start(target.scene, target.data);
   }
 
   confirmTitle() {
@@ -169,7 +273,8 @@ export class MenuScene extends Phaser.Scene {
       if (this.title.text === '回標題') this.showMain(); else this.showSlots('save');
       return;
     }
-    if ((this.page === 'save' || this.page === 'load') && this.mode === 'game') { this.showMain(); return; }
+    if ((this.page === 'save' || this.page === 'load' || this.page === 'items' || this.page === 'party') && this.mode === 'game') { this.showMain(); return; }
+    if (this.page === 'member') { this.showParty(); return; }
     this.close();
   }
 

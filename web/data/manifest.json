@@ -1,6 +1,8 @@
 {
   "chapters": [
-    "prologue"
+    "prologue",
+    "chapter1",
+    "chapter2"
   ],
   "start": {
     "map": "attic",
@@ -12,13 +14,22 @@
     "maps": [
       "attic",
       "hallway",
-      "street"
+      "street",
+      "office",
+      "training",
+      "dock",
+      "warehouse"
     ],
     "story": [
-      "prologue"
+      "prologue",
+      "chapter1",
+      "chapter2"
     ],
     "lineages": [
-      "trace"
+      "trace",
+      "archive",
+      "dream",
+      "watch"
     ]
   }
 }

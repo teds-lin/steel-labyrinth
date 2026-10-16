@@ -1,0 +1,158 @@
+[
+  {
+    "id": "sparring_marlo",
+    "name": "馬洛・瑞德（對練）",
+    "sprite": "marlo",
+    "rank": 7,
+    "stats": {
+      "hp": 70,
+      "sp": 0,
+      "atk": 8,
+      "def": 4,
+      "spd": 9,
+      "will": 10,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "spar_heavy"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 1
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 80,
+        "dialogue": "dlg_tut_shoot"
+      },
+      {
+        "hp_lte_pct": 55,
+        "add_ai": [
+          {
+            "skill": "spar_heavy",
+            "weight": 1
+          }
+        ],
+        "dialogue": "dlg_tut_omen"
+      },
+      {
+        "hp_lte_pct": 30,
+        "add_ai": [
+          {
+            "skill": "spar_heavy",
+            "weight": 2
+          }
+        ],
+        "dialogue": "dlg_tut_guard"
+      }
+    ],
+    "drops": []
+  },
+  {
+    "id": "fogwalker",
+    "name": "霧行者",
+    "sprite": "fogwalker",
+    "rank": 9,
+    "stats": {
+      "hp": 32,
+      "sp": 0,
+      "atk": 9,
+      "def": 3,
+      "spd": 9,
+      "will": 5,
+      "eva": 5
+    },
+    "skills": [
+      "attack",
+      "fog_claw",
+      "whisper_minor"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "fog_claw",
+        "weight": 1,
+        "if": {
+          "turn_gte": 2
+        }
+      },
+      {
+        "skill": "whisper_minor",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "drops": [
+      {
+        "item": "bandage",
+        "chance": 20
+      }
+    ]
+  },
+  {
+    "id": "silent_hauler",
+    "name": "沉默的搬運工",
+    "sprite": "silent_hauler",
+    "rank": 9,
+    "stats": {
+      "hp": 170,
+      "sp": 0,
+      "atk": 21,
+      "def": 2,
+      "spd": 8,
+      "will": 45,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "hauler_slam",
+      "hauler_whisper",
+      "call_fog"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "hauler_slam",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      },
+      {
+        "skill": "hauler_whisper",
+        "weight": 2
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 50,
+        "add_ai": [
+          {
+            "skill": "call_fog",
+            "weight": 4,
+            "if": {
+              "allies_lte": 1
+            }
+          },
+          {
+            "skill": "hauler_whisper",
+            "weight": 2
+          }
+        ],
+        "dialogue": "dlg_boss_phase2"
+      }
+    ],
+    "drops": []
+  }
+]

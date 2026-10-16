@@ -8,7 +8,7 @@ export const TILE = 24;
 export const MAP_ZOOM = 1.5;
 
 /** 版面：上方 HUD、中段地圖、下方操作區（對話框出現時蓋住操作區）。 */
-export const HUD_H = 44;
+export const HUD_H = 62;
 export const PANEL_Y = 470;
 export const MAP_VIEW = { x: 0, y: HUD_H, w: WIDTH, h: PANEL_Y - HUD_H };
 
@@ -42,3 +42,16 @@ export const TEST_MODE = (() => {
 
 /** 文字貼圖解析度：避免高解析度螢幕上中文字模糊。 */
 export const TEXT_RESOLUTION = Math.min(3, Math.max(2, Math.ceil(window.devicePixelRatio || 1)));
+
+/**
+ * 戰鬥亂數種子：?test=1&seed=N 時固定為 N（E2E 重現用）；否則每場戰鬥由時間＋亂數產生。
+ */
+export function battleSeed() {
+  if (TEST_MODE) {
+    try {
+      const raw = new URLSearchParams(window.location.search).get('seed');
+      if (raw !== null && /^\d{1,10}$/.test(raw)) return Number(raw) >>> 0;
+    } catch { /* 沒有 seed 參數就照一般方式產生 */ }
+  }
+  return ((Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 0x100000000)) >>> 0;
+}

@@ -160,3 +160,137 @@ web/data/
 - 譜系本身已提供 `trace` 時，【殘響】／【回溯】**免費**，不扣次數、不加崩解。
 - 【調查】絕不消耗殘響：調查鎖住的物件時只嘗試免費解法（譜系標籤、道具），都沒有就播 `locked`。
 - 鎖住的物件如果有 `look`，調查時先播 `look` 再嘗試解鎖；`locked` 只在 `look` 不存在時代替它。
+
+---
+
+# 戰鬥與隊伍（M2 起）
+
+## 新增檔案
+```
+web/data/
+├─ characters.json   主角與隊友
+├─ skills.json       技能
+├─ enemies.json      敵人
+└─ encounters.json   遭遇（敵人組合）
+```
+`manifest.files` 不需要列這四個檔案（固定檔名，和 tiles／items 一樣）。
+
+## 能力值
+| 鍵 | 意義 |
+|---|---|
+| `hp` | 生命上限 |
+| `sp` | 靈性上限（施放技能的消耗） |
+| `atk`／`def` | 攻擊／防禦 |
+| `spd` | 速度（行動順序） |
+| `will` | 意志（減免崩解、抵抗異常狀態） |
+| `eva` | 閃避率（%） |
+
+能力值＝`characters.base`＋該角色譜系**已達到的所有階位**（rank ≥ 目前階位）的 `stats` 加總＋裝備（M2 沒有裝備）。由 `deriveStats` 算出，存檔不存。
+
+## characters.json
+```json
+[ { "id": "hero", "name": "{name}", "sprite": "hero",
+    "base": { "hp": 60, "sp": 20, "atk": 10, "def": 6, "spd": 10, "will": 10, "eva": 5 },
+    "skills": ["attack", "guard", "shoot"] },
+  { "id": "ada", "name": "艾妲・費恩", "sprite": "ada", "lineage": { "id": "dream", "rank": 8 },
+    "base": { "hp": 50, "sp": 30, "atk": 7, "def": 5, "spd": 12, "will": 14, "eva": 5 },
+    "skills": ["attack", "guard"] } ]
+```
+- `skills`：不靠譜系的共通技能。實際可用技能＝`skills` ∪ 譜系已達到階位的 `skills`。
+- 主角的譜系來自遊戲狀態 `lineage`（喝下靈劑後才有）；隊友的譜系固定寫在這裡。
+
+## lineages/<id>.json 的 rank 擴充
+```json
+{ "rank": 9, "name": "讀痕者", "field": ["trace"], "skills": ["omen"],
+  "stats": { "hp": 10, "sp": 10, "will": 4 } }
+```
+
+## skills.json
+```jsonc
+[ { "id": "omen", "name": "預兆", "desc": "看穿敵人的下一步，並更容易閃避。",
+    "cost": { "sp": 4 },               // 選填：sp／ammo
+    "target": "enemy",                 // enemy／enemy_all／ally／ally_all／self
+    "effects": [ { "type": "reveal_intent" }, { "type": "buff", "stat": "eva", "amount": 40, "turns": 3, "on": "self" } ],
+    "tags": [] } ]                     // 選填：例如 "whisper"
+```
+- 每個效果積木預設作用在技能的 `target`；寫 `"on": "self"` 則作用在施放者自己。
+
+### 效果積木
+| type | 欄位 | 說明 |
+|---|---|---|
+| `damage` | `power`（%）、`stat`（預設 atk）、`ignore_def`、`fixed` | 見傷害公式；有 `fixed` 就是固定傷害 |
+| `heal` | `pct`（生命上限的 %）或 `amount` | 回復生命，不超過上限 |
+| `sp` | `amount` | 回復／扣除靈性 |
+| `buff`／`debuff` | `stat`、`pct`、`turns` | 能力值 ±pct%；同一能力值同類效果取最新的覆蓋 |
+| `status` | `status`（sleep／confuse／taunt／guard）、`chance`（%）、`turns` | 機率受目標 `will` 減免：實際機率＝chance × 50 ÷ (50＋will) |
+| `reveal_intent` | — | 顯示目標敵人下一次行動（技能與目標） |
+| `collapse` | `amount` | 增加主角崩解：實際值＝round(amount × 50 ÷ (50＋主角 will))；主角不在場也照算 |
+| `summon` | `enemy`、`max` | 召喚敵人，場上同種敵人不超過 max |
+
+未知的 type 或欄位型別錯誤一律丟錯（validate 會先擋）。
+
+### 公式（引擎與平衡測試共用，改公式必須同步改測試）
+- **命中**：攻擊方是敵人時，命中率＝100 − 目標 eva（含增益）；`fixed` 傷害與 `ignore_def` 也會被閃避。
+- **傷害**：base＝攻擊方 stat × power ÷ 100；未 `ignore_def` 時 base −＝ 目標 def × 0.5；
+  再乘亂數 0.9～1.1、暴擊（5%）× 1.5、目標防禦中（guard）× 0.5；最後 round，最少 1。
+- **行動順序（CTB）**：每位行動者有行動值 ct，從 0 開始；每一跳所有人 ct ＋＝ spd，最先達到 100 的人行動，行動後 ct −＝ 100。
+  同一跳有多人達到 100：ct 高者先；再平手時我方先於敵方，同陣營依隊伍順序。睡眠中的角色照樣累積 ct，但輪到時跳過並減少睡眠回合。
+- **敵人意圖**：敵人在戰鬥開始時、以及每次行動後，立刻決定「下一次行動」（技能與目標）並記在戰鬥狀態裡。
+  預兆顯示的就是這個意圖，所以必定成真；目標若在那之前倒下，改打隊伍中下一位存活者（依隊伍順序）。
+
+## enemies.json
+```jsonc
+[ { "id": "fogwalker", "name": "霧行者", "sprite": "fogwalker", "rank": 9,
+    "stats": { "hp": 40, "sp": 0, "atk": 9, "def": 4, "spd": 9, "will": 5, "eva": 5 },
+    "skills": ["attack", "whisper_minor"],
+    "ai": [ { "skill": "whisper_minor", "weight": 1, "if": { "turn_gte": 2 } }, { "skill": "attack", "weight": 3 } ],
+    "phases": [ { "hp_lte_pct": 50, "add_ai": [ { "skill": "call_fog", "weight": 2 } ], "dialogue": "dlg_x" } ],  // 選填
+    "drops": [ { "item": "bandage", "chance": 30 } ] } ]
+```
+- AI：先過濾 `if` 成立的規則，再依 weight 加權抽選（用戰鬥 PRNG）；至少要有一條沒有 `if` 的規則。
+- 戰鬥條件：`hp_lte_pct`、`turn_gte`、`allies_lte`（場上敵人數）、`target_has_status`、`all`／`any`／`not`。
+- 目標選擇：單體技能選我方「生命比例最低」者；有 taunt 的角色優先。
+
+## encounters.json
+```jsonc
+[ { "id": "enc_dock_1", "enemies": ["fogwalker", "fogwalker"], "bg": "dock",
+    "can_flee": true,
+    "on_win": { "effects": [ { "set_flag": "dock_fight_1" } ], "dialogue": "dlg_after_fight" },
+    "on_lose": "retry" } ]             // retry＝回到戰前自動存檔；continue＝照樣執行 on_win 的劇情（教學戰用）
+```
+
+## 地圖與對話的擴充
+- 物件與觸發點可以加 `"battle": "enc_id"`：調查物件或踩到觸發點時，先播 `look`／`dialogue`（若有），再開始戰鬥。
+- 新增對話效果：
+| 寫法 | 意義 |
+|---|---|
+| `{ "battle": "enc_id" }` | 這段對話結束後開始戰鬥 |
+| `{ "set_lineage": { "id": "trace", "rank": 9 } }` | 主角成為該譜系、階位 |
+| `{ "join_party": "ada" }`／`{ "leave_party": "ada" }` | 隊友加入／離開（隊伍最多 3 人，主角永遠在） |
+| `{ "give_ammo": 6 }` | 子彈增加（上限 12） |
+| `{ "heal_party": true }` | 全隊生命與靈性回滿 |
+| `{ "goto": { "map": "office", "spawn": "door", "dialogue": "dlg_x" } }` | 對話結束後移動到其他地圖（dialogue 選填） |
+- story 的 `end_screen` 可以加 `"continue": { "map": …, "spawn": …, "dialogue": … }`：章節結束畫面出現「繼續」，進入下一章。
+- 新增條件：`{ "in_party": "ada" }`、`{ "ammo_gte": 1 }`。
+
+## 存檔 v2（新增的事實欄位）
+```jsonc
+{ "schema_version": 2,
+  "party": [ { "id": "hero", "hp": 70, "sp": 30 }, { "id": "ada", "hp": 50, "sp": 30 } ],   // 目前值；上限由 deriveStats 算
+  "ammo": 3,
+  "pending": null }                    // 對話結束後要執行的事（battle／goto），存檔時一律為 null
+```
+- v1→v2 遷移：`party` ＝ 只有主角、生命與靈性為滿值（遷移時無法算上限，記為 `null`，讀檔時由 `sanitizeLoadedState` 補成上限）；`ammo` ＝ 持有 revolver 時 3，否則 0。
+- 讀檔驗證：hp／sp 為 0 以上的整數或 null（超過上限時夾到上限並警告 `party_clamped`，不拒絕，以免調降數值後舊存檔無法讀取）；隊伍成員必須存在於 characters.json、主角必須在第一位、不可重複；ammo 0～12 整數。
+- 戰鬥開始前自動存檔到 `steel-labyrinth:save:auto`，給「重新挑戰」使用；不占用 3 個手動存檔槽。
+
+## 規格補充（2026-10-16，依第一、二章設計回饋定案）
+1. **道具**：items.json 的道具可以加
+   - `"target"`（同技能的 target）＋`"battle_effects": [效果積木]`：戰鬥中使用，用掉 1 個。
+   - `"field_effects": [對話效果]`：在地圖選單中使用（例如鎮靜香 `{ "collapse": -15 }`），用掉 1 個。
+   兩者都沒有的道具是劇情道具，不能使用。
+2. **buff／debuff 可以用加法**：寫 `"amount": 20` 代表能力值直接 ±20（eva 這類百分比能力值請用 amount）；`pct` 與 `amount` 擇一。
+3. **意志減免只套用在敵對效果**：`status` 的機率減免、只有在「施放者與目標不同陣營」時才計算；我方對自己或隊友施放的 guard、taunt 必定成功。
+4. **崩解減免只套用在增加**：`collapse` 的 amount 為負（降低崩解）時不受意志縮放。崩解只屬於主角，`collapse` 積木不論 target 是誰都作用在主角身上。
+5. **phases**：`add_ai`、`dialogue` 都是選填。一次攻擊跨過多個門檻時，依門檻由高到低依序觸發，每段只觸發一次。
+6. **免費可達性分析**的入口也包含：`goto` 的 dialogue、`end_screen.continue` 的地圖與 dialogue、遭遇 `on_win.dialogue`（遭遇本身必須能從免費入口觸發）。

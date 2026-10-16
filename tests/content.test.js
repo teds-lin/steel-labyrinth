@@ -1,15 +1,17 @@
-// 內容測試：用真實的序章資料（web/data/）＋ core 引擎模擬遊玩，證明序章可以通關。
-// 座標與 id 一律從載入的資料動態查，不寫死，地圖改版時仍有效。
+// 內容測試：用真實資料（web/data/）＋ core 引擎模擬遊玩，證明序章可以通關、而且可以一路玩到第二章結束。
+// 座標與 id 一律從載入的資料動態查，不寫死，地圖改版時仍有效。模擬器在 tests/lib/sim.js（平衡測試共用）。
 import { describe, it, expect, beforeAll } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { loadBundle } from '../tools/lib/bundle.mjs';
-import { newGame } from '../web/src/core/state.js';
-import { step, canMove, enterMap, DIRS } from '../web/src/core/grid.js';
-import { facingTarget, echo, investigate, NO_CHARGE_MESSAGE } from '../web/src/core/interact.js';
-import { startDialogue } from '../web/src/core/dialogue.js';
+import { NO_CHARGE_MESSAGE } from '../web/src/core/interact.js';
+import { simulate, finishBattle } from '../web/src/core/battle/engine.js';
+import { migrations, sanitizeLoadedState, serialize, CURRENT_VERSION } from '../web/src/core/save.js';
+import { deriveStats } from '../web/src/core/stats.js';
+import { Sim as BaseSim, DEFAULT_NAME, playPrologue, playChapter1, playChapter2 } from './lib/sim.js';
+import { makeSmartPolicy } from './lib/policies.js';
 
 const DATA_DIR = fileURLToPath(new URL('../web/data/', import.meta.url));
-const NAME = '測試員';
+const NAME = DEFAULT_NAME;
 
 // ───────────── 資料查詢 ─────────────
 let data;
@@ -21,200 +23,26 @@ beforeAll(() => {
   dialogues = new Map(data.story.flatMap((s) => s.dialogues).map((d) => [d.id, d]));
 });
 
-const mapOf = (id) => data.maps.find((m) => m.id === id);
 const allObjects = () => data.maps.flatMap((m) => (m.objects ?? []).map((o) => ({ map: m, obj: o })));
 const dialogueHasEffect = (dlg, pred) => dlg.nodes.some((n) => [...(n.effects ?? []), ...(n.choices ?? []).flatMap((c) => c.effects ?? [])].some(pred));
 
-// ───────────── 模擬器 ─────────────
-// choiceRules：選項節點遇到時，依序找第一條「文字包含 rule」的可見選項；找不到就選第 0 個。
-class Sim {
-  constructor({ name = NAME, charges, choiceRules = [] } = {}) {
-    this.state = newGame({ name, manifest: data.manifest, maps: data.maps });
-    if (charges !== undefined) this.state = { ...this.state, echo: { charges } };
-    this.choiceRules = choiceRules;
-    this.usedRules = new Set();
-    this.log = []; // 實際播放過的節點 { dialogue, speaker, text, choices }
-    this.messages = []; // 引擎回傳的提示訊息
-    this.dialoguesPlayed = [];
-  }
-
-  get map() { return mapOf(this.state.location.map); }
-
-  pick(cur) {
-    for (const rule of this.choiceRules) {
-      const hit = cur.choices.find((c) => c.text.includes(rule));
-      if (hit) { this.usedRules.add(rule); return hit.index; }
-    }
-    return 0;
-  }
-
-  /** 把一段對話跑到結束；picker 可覆寫選項策略。 */
-  play(dlgId, picker = (cur) => this.pick(cur), maxSteps = 500) {
-    if (dlgId === null || dlgId === undefined) return;
-    const dlg = dialogues.get(dlgId);
-    if (!dlg) throw new Error(`找不到對話「${dlgId}」`);
-    this.dialoguesPlayed.push(dlgId);
-    const r = startDialogue(dlg, this.state);
-    let n = 0;
-    while (!r.done) {
-      if (++n > maxSteps) throw new Error(`對話 ${dlgId} 超過 ${maxSteps} 步仍未結束`);
-      const cur = r.current();
-      this.log.push({ dialogue: dlgId, speaker: cur.speaker, text: cur.text, choices: cur.choices?.map((c) => c.text) ?? null });
-      if (cur.choices) r.choose(picker(cur)); else r.advance();
-    }
-    this.state = r.state;
-    return n;
-  }
-
-  /** 開場對話（manifest.start.dialogue）。 */
-  start() { this.play(data.manifest.start.dialogue); return this; }
-
-  handleEvent(ev) {
-    if (!ev) return;
-    if (ev.type === 'exit') {
-      const r = enterMap(this.state, data, ev.to, ev.spawn);
-      this.state = r.state;
-      this.play(r.dialogue);
-    } else if (ev.type === 'trigger') {
-      this.play(ev.dialogue);
-    } else if (ev.type === 'blocked') {
-      this.play(ev.dialogue);
-    }
-  }
-
-  /** 在目前地圖上 BFS 找到 (gx,gy) 的方向序列。非目標的出口與觸發點不走（避免誤觸）。 */
-  path(gx, gy) {
-    const map = this.map;
-    const { x: sx, y: sy } = this.state.location;
-    const special = new Set([...(map.exits ?? []), ...(map.triggers ?? [])].map((t) => `${t.x},${t.y}`));
-    const prev = new Map([[`${sx},${sy}`, null]]);
-    const queue = [[sx, sy]];
-    while (queue.length) {
-      const [x, y] = queue.shift();
-      if (x === gx && y === gy) {
-        const dirs = [];
-        for (let k = `${x},${y}`; prev.get(k); k = prev.get(k).from) dirs.unshift(prev.get(k).dir);
-        return dirs;
-      }
-      if (special.has(`${x},${y}`) && !(x === sx && y === sy)) continue;
-      for (const [dir, d] of Object.entries(DIRS)) {
-        const nx = x + d.dx;
-        const ny = y + d.dy;
-        const key = `${nx},${ny}`;
-        if (prev.has(key) || !canMove(map, this.state, nx, ny, data)) continue;
-        if (special.has(key) && !(nx === gx && ny === gy)) continue;
-        prev.set(key, { from: `${x},${y}`, dir });
-        queue.push([nx, ny]);
-      }
-    }
-    return null;
-  }
-
-  /** 逐格走到 (gx,gy)；途中遇到出口就 enterMap、遇到觸發點就把對話跑完。回傳事件陣列。 */
-  walkTo(gx, gy) {
-    const dirs = this.path(gx, gy);
-    if (!dirs) throw new Error(`地圖 ${this.state.location.map} 找不到從 (${this.state.location.x},${this.state.location.y}) 到 (${gx},${gy}) 的路`);
-    const events = [];
-    for (const dir of dirs) {
-      const r = step(this.map, this.state, dir, data);
-      this.state = r.state;
-      if (!r.moved) throw new Error(`走不過去：${JSON.stringify(r.event)}`);
-      if (r.event) events.push(r.event);
-      const mapBefore = this.state.location.map;
-      this.handleEvent(r.event);
-      if (this.state.location.map !== mapBefore) break; // 換地圖了，舊路徑作廢
-    }
-    return events;
-  }
-
-  /** 走到物件旁並面向它（物件本身是 solid，站在四鄰中最近且走得到的格子）。 */
-  faceObject(objId) {
-    const obj = (this.map.objects ?? []).find((o) => o.id === objId);
-    if (!obj) throw new Error(`地圖 ${this.map.id} 沒有物件「${objId}」`);
-    let best = null;
-    for (const [dir, d] of Object.entries(DIRS)) {
-      const sx = obj.x - d.dx; // 站的位置；面向 dir 就會看到物件
-      const sy = obj.y - d.dy;
-      if (!canMove(this.map, this.state, sx, sy, data)) continue;
-      const p = this.path(sx, sy);
-      if (p && (!best || p.length < best.p.length)) best = { p, sx, sy, dir };
-    }
-    if (!best) throw new Error(`走不到物件「${objId}」旁邊`);
-    this.walkTo(best.sx, best.sy);
-    this.state = { ...this.state, location: { ...this.state.location, dir: best.dir } };
-    const t = facingTarget(this.map, this.state, data);
-    if (t?.id !== objId) throw new Error(`面向的是「${t?.id}」而不是「${objId}」`);
-    return obj;
-  }
-
-  /** 【調查】：core 的 investigate 決定要依序播哪些對話（look 先播；鎖著時再試免費解法）。 */
-  investigate(objId) {
-    const obj = this.faceObject(objId);
-    const r = investigate(obj, this.state, data);
-    this.state = r.state;
-    for (const id of r.dialogues) this.play(id);
-    return r;
-  }
-
-  /** 某段對話在 log 裡播出的文字。 */
-  textsOf(dlgId) { return this.log.filter((l) => l.dialogue === dlgId).map((l) => l.text); }
-
-  /** 【殘響】。 */
-  echoOn(objId) {
-    const obj = this.faceObject(objId);
-    const r = echo(obj, this.state, data);
-    this.state = r.state;
-    if (r.message) this.messages.push(r.message);
-    this.play(r.dialogue);
-    return r;
-  }
-
-  /** 地圖圖：從目前地圖到 targetMap 要依序走的出口（BFS，忽略 requires）。 */
-  routeTo(targetMap) {
-    const from = this.state.location.map;
-    const prev = new Map([[from, null]]);
-    const queue = [from];
-    while (queue.length) {
-      const m = queue.shift();
-      if (m === targetMap) break;
-      for (const e of mapOf(m).exits ?? []) {
-        if (prev.has(e.to)) continue;
-        prev.set(e.to, { from: m, exit: e });
-        queue.push(e.to);
-      }
-    }
-    if (!prev.has(targetMap)) throw new Error(`地圖 ${from} 到 ${targetMap} 沒有出口相連`);
-    const hops = [];
-    for (let m = targetMap; prev.get(m); m = prev.get(m).from) hops.unshift({ map: prev.get(m).from, exit: prev.get(m).exit });
-    return hops;
-  }
-
-  /** 沿出口走到 targetMap（每一段出口若有多個格子，挑走得到的）。 */
-  travelTo(targetMap) {
-    for (const hop of this.routeTo(targetMap)) {
-      if (this.state.location.map !== hop.map) throw new Error(`預期在 ${hop.map}，實際在 ${this.state.location.map}`);
-      const cands = (this.map.exits ?? []).filter((e) => e.to === hop.exit.to);
-      const ok = cands.find((e) => this.path(e.x, e.y));
-      if (!ok) throw new Error(`地圖 ${hop.map} 走不到通往 ${hop.exit.to} 的出口`);
-      this.walkTo(ok.x, ok.y);
-      if (this.state.location.map !== hop.exit.to) throw new Error(`出口被擋住，沒能進入 ${hop.exit.to}（flags=${JSON.stringify(this.state.flags)}）`);
-    }
-    return this;
-  }
+/** 序章測試用的模擬器（data 由 beforeAll 載入）。 */
+class Sim extends BaseSim {
+  constructor(opts = {}) { super(data, opts); }
 }
 
 // ───────────── 從資料找出關鍵物件 ─────────────
 function findKeyLayout() {
-  const doorEntry = allObjects().find(({ obj }) => obj.lock);
+  const doorEntry = allObjects().find(({ obj }) => obj.lock && dialogues.get(obj.look) && data.story.find((st) => st.id === 'prologue').dialogues.some((d) => d.id === obj.look));
   expect(doorEntry, '資料裡必須有 lock 物件').toBeTruthy();
   const keyId = doorEntry.obj.lock.fallback.replace(/^item:/, '');
   // 提供鑰匙的對話：給 keyId 的對話中，被某物件當 look 的那段（不是 lock 的 on_tag）
   const keyDialogues = [...dialogues.values()].filter((d) => dialogueHasEffect(d, (e) => e.give_item === keyId)).map((d) => d.id);
   const drawerEntry = allObjects().find(({ obj }) => keyDialogues.includes(obj.look));
   expect(drawerEntry, '必須有物件的 look 對話會給鑰匙').toBeTruthy();
-  const endingMap = data.maps.find((m) => (m.triggers ?? []).some((t) => dialogueHasEffect(dialogues.get(t.dialogue), (e) => e.chapter_end)));
+  const endingMap = data.maps.find((m) => (m.triggers ?? []).some((t) => t.dialogue && dialogueHasEffect(dialogues.get(t.dialogue), (e) => e.chapter_end)));
   expect(endingMap, '必須有觸發 chapter_end 的觸發點').toBeTruthy();
-  const endingTrigger = endingMap.triggers.find((t) => dialogueHasEffect(dialogues.get(t.dialogue), (e) => e.chapter_end));
+  const endingTrigger = endingMap.triggers.find((t) => t.dialogue && dialogueHasEffect(dialogues.get(t.dialogue), (e) => e.chapter_end));
   const chapterId = [...dialogues.get(endingTrigger.dialogue).nodes.flatMap((n) => n.effects ?? [])].find((e) => e.chapter_end).chapter_end;
   return { door: doorEntry.obj, doorMap: doorEntry.map, keyId, drawer: drawerEntry.obj, drawerMap: drawerEntry.map, endingMap, endingTrigger, chapterId };
 }
@@ -410,7 +238,7 @@ describe('序章內容：用真實資料模擬遊玩', () => {
 
     // 另外把每一段對話都播一遍（選第 0 個）
     const all = new Sim({ name: NAME, charges: 5 });
-    for (const id of dialogues.keys()) all.play(id, () => 0);
+    for (const id of dialogues.keys()) all.playOnly(id, () => 0);
 
     for (const sim of [keyRun, echoRun, all]) {
       expect(sim.log.length).toBeGreaterThan(0);
@@ -436,10 +264,125 @@ describe('序章內容：用真實資料模擬遊玩', () => {
         for (const id of dialogues.keys()) {
           const sim = new Sim({ charges: 5 });
           let steps;
-          expect(() => { steps = sim.play(id, picker, 200); }, `對話 ${id}`).not.toThrow();
+          expect(() => { steps = sim.playOnly(id, picker, 200); }, `對話 ${id}`).not.toThrow();
           expect(steps, `對話 ${id}`).toBeLessThanOrEqual(200);
         }
       });
     }
+  });
+});
+
+// ───────────── M2：序章 → 第一章 → 第二章 ─────────────
+
+const MAX_RETRIES = 10;
+const CONTENT_SEED = 7100;
+
+/**
+ * 戰鬥解析器：用 simulate＋合理策略（不用任何道具；預兆可以用）、固定種子打；
+ * 輸了（retry）就換下一個種子重打，模擬「重新挑戰」，最多 10 次。用了道具就直接失敗。
+ */
+function noItemResolver(record) {
+  const smart = makeSmartPolicy({ useItems: false });
+  const policy = (battle, cmds, d) => {
+    const cmd = smart(battle, cmds, d);
+    if (cmd.type === 'item') throw new Error(`策略用了道具：${JSON.stringify(cmd)}`);
+    return cmd;
+  };
+  return (encId, state) => {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const r = simulate(encId, state, data, CONTENT_SEED + attempt, policy);
+      const f = finishBattle(r.battle, state, data);
+      if (f.next?.type !== 'retry') {
+        record.push({ encounter: encId, attempts: attempt + 1, outcome: f.outcome });
+        return f;
+      }
+    }
+    throw new Error(`戰鬥「${encId}」重新挑戰 ${MAX_RETRIES} 次仍然過不了`);
+  };
+}
+
+const ENCOUNTER_ORDER = ['enc_sparring', 'enc_dock_1', 'enc_dock_2', 'enc_warehouse', 'enc_boss'];
+const itemsTotal = (s) => Object.values(s.items).reduce((a, b) => a + b, 0);
+
+/** 第一章、第二章走完後共同的檢查。 */
+function expectChapter2Done(sim, record) {
+  const s = sim.state;
+  expect(s.chapter_done).toEqual(['prologue', 'chapter1', 'chapter2']);
+  expect(s.lineage).toEqual({ id: 'trace', rank: 9 });
+  expect(s.party.map((m) => m.id)).toEqual(['hero', 'ada']);
+  expect(s.flags).toMatchObject({ drank_potion: true, sparred: true, fog1_done: true, fog2_done: true, fog3_done: true, boss_done: true, ch2_deduced: true });
+  expect(s.flags).toMatchObject({ clue_glove: true, clue_drag: true, clue_mark: true });
+  expect(s.items.mouth_cloth).toBe(1);
+  expect(record.map((r) => r.encounter)).toEqual(ENCOUNTER_ORDER);
+  for (const r of record) expect(r.attempts).toBeLessThanOrEqual(MAX_RETRIES);
+  expect(record.filter((r) => r.encounter !== 'enc_sparring').every((r) => r.outcome === 'victory')).toBe(true);
+  // 第二章沒有 continue：結束畫面是「第二章　完／第三章　製作中」
+  const ch2 = data.story.find((st) => st.id === 'chapter2');
+  expect(ch2.end_screen.continue).toBeUndefined();
+  expect(ch2.end_screen).toMatchObject({ title: '第二章　完', subtitle: '第三章　製作中' });
+  // 存檔仍然合法
+  expect(sanitizeLoadedState(JSON.parse(serialize(s)), data).ok).toBe(true);
+}
+
+describe('M2 內容：從新遊戲一路玩到第二章結束（不使用任何道具）', () => {
+  for (const route of ['key', 'echo']) {
+    it(`序章（${route === 'key' ? '鑰匙' : '殘響'}路線）→ 第一章 → 第二章完；戰鬥用合理策略，輸了換種子重新挑戰（最多 ${MAX_RETRIES} 次）`, () => {
+      const record = [];
+      const sim = new BaseSim(data, { battle: noItemResolver(record) });
+      playPrologue(sim, route);
+      expect(sim.state.chapter_done).toEqual(['prologue']);
+
+      // end_screen.continue → 第一章
+      sim.continueChapter();
+      expect(sim.state.location.map).toBe('office');
+      expect(sim.state.flags.ch1_briefed).toBe(true);
+      const before = itemsTotal(sim.state);
+      playChapter1(sim);
+      expect(sim.state.chapter_done).toEqual(['prologue', 'chapter1']);
+      expect(sim.state.lineage).toEqual({ id: 'trace', rank: 9 });
+      expect(sim.state.party.map((m) => m.id)).toEqual(['hero', 'ada']);
+      expect(sim.state.party.every((m) => m.hp === null && m.sp === null)).toBe(true); // 補給：全隊回滿
+      expect(sim.state.ammo).toBe(9);
+      expect(itemsTotal(sim.state)).toBeGreaterThan(before); // 拿到繃帶、鎮靜香
+      expect(sim.state.items.bandage).toBe(2);
+      expect(sim.state.items.sedative_incense).toBe(1);
+
+      // end_screen.continue → 第二章
+      sim.continueChapter();
+      expect(sim.state.location.map).toBe('dock');
+      playChapter2(sim);
+      expectChapter2Done(sim, record);
+      // 一個道具都沒用：補給與撿到的繃帶、鎮靜香全部還在（戰鬥掉落只會多不會少）
+      expect(sim.state.items.bandage).toBeGreaterThanOrEqual(4);
+      expect(sim.state.items.sedative_incense).toBe(2);
+    });
+  }
+
+  it('序章 v1 存檔（M1 格式）用 migrations[1] 遷移後，可以接著進入第一章並玩到第二章完', () => {
+    // M1 的存檔樣本：序章通關時的狀態，只留 v1 的欄位
+    const prologue = playPrologue(new BaseSim(data), 'key').state;
+    const { party, ammo, pending, ...v1Fields } = prologue;
+    const v1 = { ...JSON.parse(JSON.stringify(v1Fields)), schema_version: 1 };
+    expect(Object.keys(v1).sort()).toEqual(['chapter', 'chapter_done', 'collapse', 'echo', 'flags', 'items', 'lineage', 'location', 'player', 'playtime_s', 'resonance', 'schema_version']);
+    expect(v1.chapter_done).toEqual(['prologue']);
+
+    const v2 = migrations[1](structuredClone(v1));
+    expect(v2.schema_version).toBe(CURRENT_VERSION);
+    expect(v2.party).toEqual([{ id: 'hero', hp: null, sp: null }]);
+    expect(v2.ammo).toBe(v1.items.revolver ? 3 : 0);
+    const loaded = sanitizeLoadedState(v2, data);
+    expect(loaded.ok, loaded.reason).toBe(true);
+    expect(loaded.state.party).toEqual([{ id: 'hero', ...(({ hp, sp }) => ({ hp, sp }))(deriveStats('hero', loaded.state, data)) }]);
+
+    const record = [];
+    const sim = new BaseSim(data, { state: loaded.state, battle: noItemResolver(record) });
+    sim.continueChapter();
+    expect(sim.state.location.map).toBe('office');
+    playChapter1(sim);
+    expect(sim.state.chapter_done).toEqual(['prologue', 'chapter1']);
+    expect(sim.state.party.map((m) => m.id)).toEqual(['hero', 'ada']);
+    sim.continueChapter();
+    playChapter2(sim);
+    expectChapter2Done(sim, record);
   });
 });

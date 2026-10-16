@@ -292,6 +292,166 @@ export function game(page, { touch = false } = {}) {
     await sleep(200);
   }
 
+  /**
+   * 選單（Menu 場景）選某個標籤開頭的項目：桌機用方向鍵移到它再按 Enter，手機直接點。
+   * 選單項目的順序會隨資料改變（例如有隊伍時多出「隊伍」），所以一律用標籤找，不寫死位置。
+   */
+  async function pickMenu(label) {
+    await page.waitForFunction((l) => (window.__SL.menu()?.items ?? []).some((it) => it.label.startsWith(l) && it.enabled), label, { timeout: 5_000 });
+    if (touch) {
+      const it = (await page.evaluate(() => window.__SL.menu().items)).find((x) => x.label.startsWith(label));
+      await tap(it.x, it.y);
+      return;
+    }
+    for (let i = 0; i < 12; i++) {
+      const items = (await page.evaluate(() => window.__SL.menu().items));
+      if (items.find((x) => x.focused)?.label.startsWith(label)) { await key('Enter'); return; }
+      await key('ArrowDown');
+    }
+    throw new Error(`選單裡移不到「${label}」`);
+  }
+
+  /** 章節結束畫面：等按鈕出現後選某個標籤（桌機用方向鍵＋Enter，手機直接點）。 */
+  async function pickChapterEnd(label) {
+    await page.waitForFunction((l) => (window.__SL.debug().chapterEnd?.items ?? []).some((it) => it.label === l), label, { timeout: 8_000 });
+    if (touch) {
+      const it = (await page.evaluate(() => window.__SL.debug().chapterEnd.items)).find((x) => x.label === label);
+      await tap(it.x + it.w / 2, it.y + it.h / 2);
+      return;
+    }
+    for (let i = 0; i < 6; i++) {
+      const items = await page.evaluate(() => window.__SL.debug().chapterEnd.items);
+      if (items.find((x) => x.focused)?.label === label) { await key('Enter'); return; }
+      await key('ArrowDown');
+    }
+    throw new Error(`章節結束畫面移不到「${label}」`);
+  }
+
+  // ---------- 戰鬥 ----------
+  const bt = () => page.evaluate(() => window.__SL.battle());
+
+  /**
+   * 等到戰鬥需要玩家輸入（選單出現）或戰鬥畫面結束。過程中出現的階段對話（DialogueBox）直接播完。
+   * 回傳 __SL.battle()；已離開戰鬥畫面時回 null。
+   */
+  async function battleWait(timeout = 20_000) {
+    const t0 = Date.now();
+    for (;;) {
+      if (Date.now() - t0 > timeout) throw new Error(`戰鬥一直沒有等到輸入：${JSON.stringify(await bt())?.slice(0, 400)}`);
+      if ((await scene()) !== 'Battle') return null;
+      if (await dlg()) { await finishDialogue(); continue; }
+      const b = await bt();
+      if (b && b.menu && b.mode !== 'busy') return b;
+      await sleep(30);
+    }
+  }
+
+  /** 戰鬥選單：選標籤符合的按鈕（手機點、桌機用左右鍵移過去再按 Enter）。 */
+  async function battleButton(match) {
+    const ok = (bb) => (typeof match === 'function' ? match(bb) : bb.label === match);
+    const b = await battleWait();
+    if (!b) throw new Error('已經不在戰鬥畫面');
+    const i = b.menu.buttons.findIndex(ok);
+    if (i < 0) throw new Error(`戰鬥選單沒有「${String(match)}」：${JSON.stringify(b.menu.buttons.map((x) => x.label))}`);
+    const before = JSON.stringify([b.mode, b.menu.title, b.menu.buttons.map((x) => x.label), b.log.length]);
+    if (touch) {
+      const r = b.menu.buttons[i];
+      await tap(r.x + r.w / 2, r.y + r.h / 2);
+    } else {
+      const n = b.menu.buttons.length;
+      const steps = (i - b.menu.index + n) % n;
+      for (let k = 0; k < steps; k++) await key('ArrowRight');
+      await key('Enter');
+    }
+    // 等畫面反應（換頁或開始播放）
+    await page.waitForFunction((bf) => {
+      const x = window.__SL.battle();
+      if (!x) return true;
+      return JSON.stringify([x.mode, x.menu?.title ?? null, (x.menu?.buttons ?? []).map((y) => y.label), x.log.length]) !== bf || x.mode === 'busy';
+    }, before, { timeout: 5_000 });
+  }
+
+  /** 選目標：手機點敵人立繪（我方用指令區的目標按鈕），桌機用左右鍵移動游標再按 Enter。 */
+  async function battleTarget(uid) {
+    const b = await battleWait();
+    if (b.mode !== 'target') throw new Error(`不在選目標模式：${b.mode}`);
+    const unit = b.units.find((u) => u.uid === uid);
+    if (touch) {
+      if (unit.side === 'enemy' && unit.rect) {
+        await tap(unit.rect.x + unit.rect.w / 2, unit.rect.y + unit.rect.h / 2);
+      } else {
+        const r = b.menu.buttons.find((x) => x.uid === uid);
+        await tap(r.x + r.w / 2, r.y + r.h / 2);
+      }
+    } else {
+      for (let k = 0; k < 8; k++) {
+        const x = await bt();
+        if (x.cursor === uid) break;
+        await key('ArrowRight');
+      }
+      if ((await bt()).cursor !== uid) throw new Error(`游標移不到 ${uid}`);
+      await key('Enter');
+    }
+    await page.waitForFunction(() => window.__SL.battle()?.mode !== 'target', null, { timeout: 5_000 });
+  }
+
+  /**
+   * 下一個指令：{ skill, target? }／{ item, target? }／{ flee:true }。
+   * 攻擊／開槍／防禦在根選單；其他技能在「技能」，道具在「道具」。
+   */
+  async function battleCommand(cmd) {
+    const b = await battleWait();
+    if (b.mode !== 'root') throw new Error(`不在根選單：${b.mode}`);
+    const c = b.commands;
+    if (cmd.flee) { await battleButton('逃跑'); return; }
+    let needTarget = false;
+    if (cmd.skill) {
+      const s = c.skills.find((x) => x.id === cmd.skill);
+      if (!s) throw new Error(`行動者沒有技能 ${cmd.skill}`);
+      needTarget = s.target === 'enemy' || s.target === 'ally';
+      if (['attack', 'shoot', 'guard'].includes(s.id)) {
+        await battleButton(s.name);
+      } else {
+        await battleButton('技能');
+        await battleButton(s.name);
+      }
+    } else if (cmd.item) {
+      const it = c.items.find((x) => x.id === cmd.item);
+      if (!it) throw new Error(`沒有道具 ${cmd.item}`);
+      needTarget = it.target === 'enemy' || it.target === 'ally';
+      await battleButton('道具');
+      await battleButton((x) => x.label.startsWith(it.name));
+    }
+    if (needTarget) await battleTarget(cmd.target);
+  }
+
+  /**
+   * 打完一場戰鬥：policy(battle) → 指令。結果畫面出現時按「繼續」回地圖（或 Game Over 時停下）。
+   * 回傳 { first（第一個輸入點的摘要）, last（結束時的摘要）, turns }。
+   */
+  async function fightBattle(policy, { maxTurns = 200 } = {}) {
+    let first = null;
+    let last = null;
+    for (let turn = 0; turn < maxTurns; turn++) {
+      const b = await battleWait(30_000);
+      if (!b) return { first, last, turns: turn, scene: await scene() };
+      if (!first) first = b;
+      last = b;
+      if (b.mode === 'result') {
+        await battleButton('繼續');
+        await page.waitForFunction(() => window.__SL.currentScene() !== 'Battle', null, { timeout: 8_000 });
+        return { first, last, turns: turn, scene: await scene() };
+      }
+      if (b.mode !== 'root') {
+        // 子選單開著（例如上一輪操作被打斷）：先回根選單
+        await battleButton('返回');
+        continue;
+      }
+      await battleCommand(policy(b));
+    }
+    throw new Error('戰鬥回合數超過上限');
+  }
+
   async function noHScroll() {
     const r = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth, bw: document.body.scrollWidth }));
     expect(r.sw, `documentElement.scrollWidth ${r.sw} 應 <= innerWidth ${r.iw}`).toBeLessThanOrEqual(r.iw);
@@ -300,6 +460,7 @@ export function game(page, { touch = false } = {}) {
 
   return {
     st, scene, dlg, key, sleep, tap, pointAt, tapChoice, advanceToChoice, press, act, waitScene, waitDialogue, finishDialogue, newGame,
-    stepDir, goTo, faceObject, useOn, takeExit, mapData, noHScroll,
+    stepDir, goTo, faceObject, useOn, takeExit, mapData, noHScroll, pickMenu, pickChapterEnd,
+    bt, battleWait, battleButton, battleTarget, battleCommand, fightBattle,
   };
 }

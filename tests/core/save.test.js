@@ -18,7 +18,7 @@ const throwingBackend = () => ({
 
 describe('serialize / deserialize', () => {
   it('版本常數', () => {
-    expect(CURRENT_VERSION).toBe(1);
+    expect(CURRENT_VERSION).toBe(2);
     expect(SLOT_COUNT).toBe(3);
     expect(KEY_PREFIX).toBe('steel-labyrinth:save:');
   });
@@ -36,7 +36,7 @@ describe('serialize / deserialize', () => {
     expect(() => deserialize(undefined)).toThrow(/損壞/);
   });
   it('未來版本 → 明確錯誤', () => {
-    expect(() => deserialize(JSON.stringify({ ...game(), schema_version: 2 }))).toThrow(/版本 2.*較新|較新/);
+    expect(() => deserialize(JSON.stringify({ ...game(), schema_version: 3 }))).toThrow(/版本 3.*較新|較新/);
   });
   it('缺版本或版本不是整數 → 錯誤', () => {
     const { schema_version, ...rest } = game();
@@ -44,7 +44,7 @@ describe('serialize / deserialize', () => {
     expect(() => deserialize(JSON.stringify({ ...rest, schema_version: '1' }))).toThrow(/schema_version/);
   });
   it('缺欄位 → 指出哪個欄位', () => {
-    for (const field of ['player', 'location', 'flags', 'items', 'echo', 'collapse', 'resonance', 'chapter_done', 'playtime_s', 'lineage']) {
+    for (const field of ['player', 'location', 'flags', 'items', 'echo', 'collapse', 'resonance', 'chapter_done', 'playtime_s', 'lineage', 'party', 'ammo', 'pending']) {
       const s = game();
       delete s[field];
       expect(() => deserialize(JSON.stringify(s)), field).toThrow(new RegExp(field));
@@ -94,7 +94,7 @@ describe('createStorage', () => {
     expect(r.ok).toBe(true);
     expect(r.state).toEqual(game());
     expect(st.remove(1)).toEqual({ ok: true });
-    expect(st.load(1)).toEqual({ ok: false, reason: 'empty' });
+    expect(st.load(1)).toEqual({ ok: false, reason: 'empty', code: 'empty' });
   });
   it('不合法的槽位回 ok:false', () => {
     const st = createStorage(memoryBackend());
@@ -138,7 +138,7 @@ describe('createStorage', () => {
     expect(st.listSlots()).toEqual([
       { slot: 1, ok: true, empty: false, name: '艾琳', map: 'attic', chapter: 'prologue', playtime_s: 125 },
       { slot: 2, ok: true, empty: true },
-      { slot: 3, ok: false, empty: false, reason: expect.stringMatching(/較新/) },
+      { slot: 3, ok: false, empty: false, reason: expect.stringMatching(/較新/), code: 'newer' },
     ]);
   });
 });
@@ -246,5 +246,166 @@ describe('sanitizeLoadedState', () => {
   it('地圖沒有任何 spawn 又需要搬移 → 拒絕', () => {
     const d2 = { ...data, maps: [{ ...data.maps[0], spawns: [] }] };
     expect(sanitizeLoadedState({ ...good(), location: { map: 'attic', x: 0, y: 0, dir: 'down' } }, d2).ok).toBe(false);
+  });
+});
+
+// ───────────── M2：存檔 v2 ─────────────
+import { battleData } from './battle/fixture.js';
+
+const v1Save = (over = {}) => ({
+  schema_version: 1, player: { name: '艾琳' }, lineage: null,
+  location: { map: 'attic', x: 1, y: 1, dir: 'down' },
+  flags: { 'enter:attic': true }, items: {}, echo: { charges: 3 }, collapse: 5, resonance: {},
+  chapter: 'prologue', chapter_done: ['prologue'], playtime_s: 10, ...over,
+});
+
+describe('v1 → v2 遷移', () => {
+  it('party＝只有主角、hp/sp 為 null（讀檔時補成上限）；沒有 revolver 時 ammo 0；pending null', () => {
+    const v2 = migrations[1](structuredClone(v1Save()));
+    expect(v2.schema_version).toBe(2);
+    expect(v2.party).toEqual([{ id: 'hero', hp: null, sp: null }]);
+    expect(v2.ammo).toBe(0);
+    expect(v2.pending).toBe(null);
+    expect(v2.flags).toEqual({ 'enter:attic': true });
+  });
+  it('持有 revolver 時 ammo 3', () => {
+    expect(migrations[1](v1Save({ items: { revolver: 1 } })).ammo).toBe(3);
+  });
+  it('不修改輸入；deserialize 從 v1 與 v0 都能一路遷移到 v2', () => {
+    const v1 = v1Save();
+    const before = JSON.stringify(v1);
+    migrations[1](v1);
+    expect(JSON.stringify(v1)).toBe(before);
+    const loaded = deserialize(JSON.stringify(v1));
+    expect(loaded.schema_version).toBe(2);
+    expect(loaded.party).toEqual([{ id: 'hero', hp: null, sp: null }]);
+    const v0 = { schema_version: 0, name: '舊', lineage: null, location: { map: 'attic', x: 1, y: 1, dir: 'down' },
+      flags: {}, items: { revolver: 1 }, collapse: 0, chapter: 'prologue', chapter_done: [], playtime_s: 0 };
+    expect(deserialize(JSON.stringify(v0))).toMatchObject({ schema_version: 2, ammo: 3, player: { name: '舊' } });
+  });
+});
+
+describe('v2 格式檢查（deserialize）', () => {
+  const bad = (mut) => { const s = game(); mut(s); return () => deserialize(JSON.stringify(s)); };
+  it('party 必須是陣列，成員 { id:字串, hp/sp:非負整數或 null }', () => {
+    expect(bad(() => {})).not.toThrow();
+    for (const party of [null, {}, 'hero', [{ hp: 1, sp: 1 }], [{ id: 'hero', hp: -1, sp: 0 }], [{ id: 'hero', hp: 1.5, sp: 0 }],
+      [{ id: 'hero', hp: '3', sp: 0 }], [{ id: 'hero', sp: 0 }], [null]]) {
+      expect(bad((s) => { s.party = party; }), JSON.stringify(party)).toThrow(/party/);
+    }
+    expect(bad((s) => { s.party = [{ id: 'hero', hp: 0, sp: null }]; })).not.toThrow();
+  });
+  it('ammo 為 0～12 的整數', () => {
+    for (const v of [-1, 13, 1.5, '3', null]) expect(bad((s) => { s.ammo = v; }), String(v)).toThrow(/ammo/);
+    for (const v of [0, 12]) expect(bad((s) => { s.ammo = v; })).not.toThrow();
+  });
+  it('pending 為 null 或陣列', () => {
+    expect(bad((s) => { s.pending = 'x'; })).toThrow(/pending/);
+  });
+  it('serialize 一律把 pending 寫成 null（對話結束後的待辦不進存檔）', () => {
+    const s = { ...game(), pending: [{ type: 'battle', encounter: 'enc_one' }] };
+    expect(JSON.parse(serialize(s)).pending).toBe(null);
+    expect(s.pending).toHaveLength(1);
+  });
+  it('拒絕時錯誤帶 code：corrupt／newer', () => {
+    const codeOf = (fn) => { try { fn(); } catch (e) { return e.code; } return 'no-throw'; };
+    expect(codeOf(() => deserialize('{x'))).toBe('corrupt');
+    expect(codeOf(() => deserialize(JSON.stringify({ ...game(), schema_version: 9 })))).toBe('newer');
+    expect(codeOf(bad((s) => { s.ammo = 99; }))).toBe('corrupt');
+  });
+});
+
+describe('createStorage：code 與自動存檔槽', () => {
+  it('load 失敗帶 code（empty／newer／corrupt／invalid_slot／unavailable）', () => {
+    const be = memoryBackend();
+    const st = createStorage(be);
+    expect(st.load(1).code).toBe('empty');
+    be.setItem('steel-labyrinth:save:2', '{broken');
+    expect(st.load(2)).toMatchObject({ ok: false, code: 'corrupt', reason: expect.stringMatching(/損壞/) });
+    be.setItem('steel-labyrinth:save:3', JSON.stringify({ ...game(), schema_version: 9 }));
+    expect(st.load(3)).toMatchObject({ ok: false, code: 'newer', reason: expect.stringMatching(/較新/) });
+    expect(st.load(9).code).toBe('invalid_slot');
+    expect(createStorage(null).load(1).code).toBe('unavailable');
+    expect(createStorage(throwingBackend()).save(1, game()).code).toBe('storage_error');
+  });
+  it('saveAuto／loadAuto 存在 steel-labyrinth:save:auto，附帶要重新挑戰的遭遇 id；不影響 listSlots 的 3 格', () => {
+    const be = memoryBackend();
+    const st = createStorage(be);
+    expect(st.loadAuto()).toMatchObject({ ok: false, code: 'empty' });
+    expect(st.saveAuto(game(), { battle: 'enc_one' })).toEqual({ ok: true });
+    expect([...be.m.keys()]).toEqual(['steel-labyrinth:save:auto']);
+    const r = st.loadAuto();
+    expect(r.ok).toBe(true);
+    expect(r.state).toEqual(game());
+    expect(r.battle).toBe('enc_one');
+    expect(st.listSlots()).toHaveLength(3);
+    expect(st.listSlots().every((x) => x.empty)).toBe(true);
+    st.saveAuto(game());
+    expect(st.loadAuto().battle).toBe(null);
+  });
+  it('自動存檔損壞 → ok:false 帶 code；backend 丟錯不當機', () => {
+    const be = memoryBackend();
+    be.setItem('steel-labyrinth:save:auto', '{x');
+    expect(createStorage(be).loadAuto()).toMatchObject({ ok: false, code: 'corrupt' });
+    expect(createStorage(throwingBackend()).saveAuto(game()).ok).toBe(false);
+    expect(createStorage(null).loadAuto().ok).toBe(false);
+  });
+});
+
+describe('sanitizeLoadedState（v2）', () => {
+  const bd = battleData();
+  const data = {
+    ...bd,
+    tiles: [{ id: 'wall', solid: true }, { id: 'floor', solid: false }],
+    maps: [{ id: 'attic', tiles: ['#####', '#...#', '#####'], legend: { '#': 'wall', '.': 'floor' },
+      spawns: [{ id: 'default', x: 1, y: 1, dir: 'down' }] }],
+  };
+  const good = (over = {}) => ({ ...game(), location: { map: 'attic', x: 1, y: 1, dir: 'down' }, ...over });
+  it('hp/sp 的 null 補成上限（由 deriveStats 算），不算警告', () => {
+    const r = sanitizeLoadedState(good({ party: [{ id: 'hero', hp: null, sp: 5 }, { id: 'ada', hp: 10, sp: null }] }), data);
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+    expect(r.state.party).toEqual([{ id: 'hero', hp: 60, sp: 5 }, { id: 'ada', hp: 10, sp: 35 }]);
+  });
+  it('超過上限 → 夾到上限並警告（code: party_clamped）', () => {
+    const r = sanitizeLoadedState(good({ party: [{ id: 'hero', hp: 999, sp: 20 }] }), data);
+    expect(r.ok).toBe(true);
+    expect(r.state.party[0].hp).toBe(60);
+    expect(r.warnings.map((w) => w.code)).toEqual(['party_clamped']);
+  });
+  it('隊伍不合法 → 拒絕（code: party_invalid）：不存在的角色、主角不在第一位、重複、超過 3 人、空隊伍', () => {
+    const parties = [
+      [{ id: 'hero', hp: 1, sp: 1 }, { id: 'ghost', hp: 1, sp: 1 }],
+      [{ id: 'ada', hp: 1, sp: 1 }, { id: 'hero', hp: 1, sp: 1 }],
+      [{ id: 'hero', hp: 1, sp: 1 }, { id: 'ada', hp: 1, sp: 1 }, { id: 'ada', hp: 1, sp: 1 }],
+      [{ id: 'hero', hp: 1, sp: 1 }, { id: 'ada', hp: 1, sp: 1 }, { id: 'herb', hp: 1, sp: 1 }, { id: 'toString', hp: 1, sp: 1 }],
+      [],
+    ];
+    for (const party of parties) {
+      const r = sanitizeLoadedState(good({ party }), data);
+      expect(r.ok, JSON.stringify(party)).toBe(false);
+      expect(r.code, JSON.stringify(party)).toBe('party_invalid');
+    }
+  });
+  it('序章資料沒有 characters.json：主角照樣可讀（hp/sp 維持 null）', () => {
+    const { characters, ...noChars } = data;
+    const r = sanitizeLoadedState(good(), noChars);
+    expect(r.ok).toBe(true);
+    expect(r.state.party).toEqual([{ id: 'hero', hp: null, sp: null }]);
+    expect(sanitizeLoadedState(good({ party: [{ id: 'hero', hp: null, sp: null }, { id: 'ada', hp: 1, sp: 1 }] }), noChars).ok).toBe(false);
+  });
+  it('pending 一律清成 null', () => {
+    const r = sanitizeLoadedState(good({ pending: [{ type: 'goto', map: 'attic', spawn: 'default' }] }), data);
+    expect(r.state.pending).toBe(null);
+  });
+  it('警告與拒絕原因帶 code，訊息字串照舊（String(warning) 仍是原本的文字）', () => {
+    const r = sanitizeLoadedState(good({ player: { name: '長'.repeat(20) }, location: { map: 'attic', x: 0, y: 0, dir: 'down' } }), data);
+    expect(r.warnings.map((w) => w.code)).toEqual(['name_sanitized', 'relocated']);
+    expect(String(r.warnings[0])).toMatch(/名字/);
+    expect(String(r.warnings[1])).toMatch(/位置/);
+    expect(r.warnings[1].message).toBe(String(r.warnings[1]));
+    expect(sanitizeLoadedState(good({ location: { map: 'roof', x: 1, y: 1, dir: 'down' } }), data).code).toBe('unknown_map');
+    expect(sanitizeLoadedState(good({ lineage: { id: 'ghost', rank: 9 } }), data).code).toBe('unknown_lineage');
+    expect(sanitizeLoadedState(null, data).code).toBe('corrupt');
   });
 });

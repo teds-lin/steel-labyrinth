@@ -2,6 +2,13 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+/** 戰鬥資料的固定檔名（manifest.files 不列）；不存在時視為空陣列（序章資料沒有它們）。 */
+export const BATTLE_FILES = ['characters', 'skills', 'enemies', 'encounters'];
+
+function readOptionalJson(dir, rel, errors) {
+  return existsSync(join(dir, rel)) ? readJson(dir, rel, errors) ?? [] : [];
+}
+
 function readJson(dir, rel, errors) {
   const p = join(dir, rel);
   if (!existsSync(p)) {
@@ -41,5 +48,6 @@ export function loadBundle(dataDir) {
     maps: loadKind('maps'),
     story: loadKind('story'),
   };
+  for (const kind of BATTLE_FILES) bundle[kind] = readOptionalJson(dataDir, `${kind}.json`, errors);
   return { bundle, errors };
 }

@@ -227,3 +227,14 @@ describe('echoAvailable（HUD 用）', () => {
     expect(echoAvailable(st({ echo: { charges: 0 }, lineage: { id: 'hound', rank: 9 } }), data)).toEqual({ free: true, charges: 0, usable: true });
   });
 });
+
+// ───────────── M2：物件的 battle 欄位 ─────────────
+import { investigate } from '../../web/src/core/interact.js';
+describe('調查有 battle 的物件', () => {
+  it('先播 look，再開戰：回傳值帶 battle；沒有 battle 的物件不帶這個鍵', () => {
+    const foe = { id: 'obj_foe', x: 1, y: 0, solid: true, look: 'dlg_foe', battle: 'enc_one' };
+    expect(investigate(foe, st(), data)).toEqual({ state: st(), dialogues: ['dlg_foe'], unlocked: null, battle: 'enc_one' });
+    expect(investigate({ ...foe, look: undefined }, st(), data)).toEqual({ state: st(), dialogues: [], unlocked: null, battle: 'enc_one' });
+    expect(Object.hasOwn(investigate(plain, st(), data), 'battle')).toBe(false);
+  });
+});

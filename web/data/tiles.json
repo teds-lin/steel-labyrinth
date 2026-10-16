@@ -110,5 +110,80 @@
     "id": "fog",
     "solid": true,
     "color": "#b4bec8"
+  },
+  {
+    "id": "bookshelf",
+    "solid": true,
+    "color": "#4a3a2c"
+  },
+  {
+    "id": "medicine_cabinet",
+    "solid": true,
+    "color": "#6b7f86"
+  },
+  {
+    "id": "sofa",
+    "solid": true,
+    "color": "#6e3b34"
+  },
+  {
+    "id": "tea_table",
+    "solid": true,
+    "color": "#7a5a3c"
+  },
+  {
+    "id": "counter",
+    "solid": true,
+    "color": "#5f4a36"
+  },
+  {
+    "id": "training_mat",
+    "solid": false,
+    "color": "#6a5f4a"
+  },
+  {
+    "id": "weapon_rack",
+    "solid": true,
+    "color": "#4b4038"
+  },
+  {
+    "id": "harbor_water",
+    "solid": true,
+    "color": "#2f4250"
+  },
+  {
+    "id": "pier",
+    "solid": false,
+    "color": "#6b5840"
+  },
+  {
+    "id": "bollard",
+    "solid": true,
+    "color": "#3a3d44"
+  },
+  {
+    "id": "crane",
+    "solid": true,
+    "color": "#7a5230"
+  },
+  {
+    "id": "rail_track",
+    "solid": false,
+    "color": "#4c4a48"
+  },
+  {
+    "id": "crate",
+    "solid": true,
+    "color": "#7b6040"
+  },
+  {
+    "id": "warehouse_wall",
+    "solid": true,
+    "color": "#3e4048"
+  },
+  {
+    "id": "concrete_floor",
+    "solid": false,
+    "color": "#5c5f63"
   }
 ]

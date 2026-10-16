@@ -8,6 +8,9 @@ import { MapScene } from './scenes/MapScene.js';
 import { UIScene } from './scenes/UIScene.js';
 import { MenuScene } from './scenes/MenuScene.js';
 import { ChapterEndScene } from './scenes/ChapterEndScene.js';
+import { BattleScene } from './scenes/BattleScene.js';
+import { GameOverScene } from './scenes/GameOverScene.js';
+import { artReport } from './textures.js';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -19,7 +22,8 @@ const game = new Phaser.Game({
   dom: { createContainer: true },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   input: { activePointers: 3 },
-  scene: [BootScene, TitleScene, NameScene, MapScene, UIScene, MenuScene, ChapterEndScene],
+  // 順序＝繪製順序：Battle 蓋在（睡眠中的）Map／UI 上，Menu 一律 bringToTop
+  scene: [BootScene, TitleScene, NameScene, MapScene, UIScene, BattleScene, GameOverScene, MenuScene, ChapterEndScene],
 });
 
 function deepFreeze(o) {
@@ -54,11 +58,30 @@ if (TEST_MODE) {
     choiceRects: () => ro(activeScene('UI')?.dialogue?.choiceRects() ?? []),
     /** 名牌排版：給定名字時名牌實際顯示的文字與寬度。 */
     nameplate: (name) => ro(activeScene('UI')?.dialogue?.nameplateLayout(String(name ?? '')) ?? null),
+    /** 戰鬥畫面的唯讀摘要：行動者、指令、敵我生命、被揭露的意圖、選單按鈕位置、結果、完整 log。不在戰鬥中時為 null。 */
+    battle: () => ro(activeScene('Battle')?.debugInfo()),
+    /** Game Over 畫面（標題、按鈕位置）。不在該畫面時為 null。 */
+    gameOver: () => ro(activeScene('GameOver')?.debugInfo()),
+    /** 美術覆蓋：資料裡出現但沒有專屬畫法的 sprite／tile／戰鬥背景，以及貼圖是否都已產生。 */
+    art: () => {
+      const rep = artReport(session.data);
+      const tex = game.textures;
+      const sprites = new Set();
+      for (const m of session.data?.maps ?? []) for (const o of m.objects ?? []) if (typeof o.sprite === 'string') sprites.add(o.sprite);
+      const fighters = [...(session.data?.characters ?? []), ...(session.data?.enemies ?? [])].map((c) => c.sprite ?? c.id);
+      const missingTextures = [
+        ...[...sprites, ...fighters].filter((n) => !tex.exists(`spr:${n}`)).map((n) => `spr:${n}`),
+        ...fighters.filter((n) => !tex.exists(`bspr:${n}`)).map((n) => `bspr:${n}`),
+        ...(session.data?.tiles ?? []).filter((t) => !tex.exists(`tile:${t.id}`)).map((t) => `tile:${t.id}`),
+        ...(session.data?.encounters ?? []).filter((e) => e.bg && !tex.exists(`bg:${e.bg}`)).map((e) => `bg:${e.bg}`),
+      ];
+      return ro({ ...rep, missingTextures });
+    },
     /** 除錯資訊：場景順序、監聽器數量、光暈數量、章節結束畫面文字。 */
     debug: () => ro({
       // 繪製順序（後面的畫在上面），包含暫停中但仍顯示的場景
       sceneOrder: game.scene.scenes.filter((s) => s.sys.isActive() || s.sys.isPaused()).map((s) => s.sys.settings.key),
-      listeners: Object.fromEntries(['Map', 'Title', 'ChapterEnd', 'Menu', 'UI'].map((k) => {
+      listeners: Object.fromEntries(['Map', 'Title', 'ChapterEnd', 'Menu', 'UI', 'Battle', 'GameOver'].map((k) => {
         const sc = game.scene.getScene(k);
         return [k, {
           resume: sc?.events?.listenerCount('resume') ?? 0,

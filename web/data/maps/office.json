@@ -1,0 +1,118 @@
+{
+  "id": "office",
+  "name": "白燈保全公司・辦公室",
+  "tiles": [
+    "##ww###L###ww#",
+    "#KKK.......CC#",
+    "#............#",
+    "#.DD....ss...#",
+    "#.DD....tt...#",
+    "#.......ss...#",
+    "#............#",
+    "#===.........#",
+    "#...........v#",
+    "######+#######"
+  ],
+  "legend": {
+    "#": "wall",
+    "w": "window",
+    "L": "wall_lamp",
+    "K": "bookshelf",
+    ".": "floor",
+    "C": "medicine_cabinet",
+    "D": "desk",
+    "s": "sofa",
+    "t": "tea_table",
+    "=": "counter",
+    "v": "stairs_down",
+    "+": "front_door"
+  },
+  "spawns": [
+    {
+      "id": "door",
+      "x": 6,
+      "y": 8,
+      "dir": "up"
+    },
+    {
+      "id": "from_training",
+      "x": 11,
+      "y": 8,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_office_shelf",
+      "x": 4,
+      "y": 1,
+      "sprite": "file_shelf",
+      "solid": true,
+      "look": "dlg_shelf_look"
+    },
+    {
+      "id": "obj_notice",
+      "x": 7,
+      "y": 1,
+      "sprite": "notice_board",
+      "solid": true,
+      "look": "dlg_notice_look"
+    },
+    {
+      "id": "obj_cabinet",
+      "x": 11,
+      "y": 2,
+      "sprite": "potion_cabinet",
+      "solid": true,
+      "look": "dlg_cabinet"
+    },
+    {
+      "id": "obj_marlo_office",
+      "x": 4,
+      "y": 4,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_marlo_office",
+      "if": {
+        "not_flag": "drank_potion"
+      }
+    },
+    {
+      "id": "obj_ada_office",
+      "x": 10,
+      "y": 4,
+      "sprite": "ada",
+      "solid": true,
+      "look": "dlg_ada_office"
+    },
+    {
+      "id": "obj_herb",
+      "x": 2,
+      "y": 8,
+      "sprite": "herb",
+      "solid": true,
+      "look": "dlg_herb_office"
+    },
+    {
+      "id": "obj_office_door",
+      "x": 6,
+      "y": 9,
+      "sprite": "office_door",
+      "solid": true,
+      "look": "dlg_office_door"
+    }
+  ],
+  "exits": [
+    {
+      "x": 12,
+      "y": 8,
+      "to": "training",
+      "spawn": "from_office",
+      "requires": {
+        "flag": "drank_potion"
+      },
+      "blocked": "dlg_stairs_blocked"
+    }
+  ],
+  "triggers": []
+}

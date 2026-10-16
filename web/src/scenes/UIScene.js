@@ -5,7 +5,8 @@ import { addText, Button } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { COLLAPSE_MAX } from '../core/echo.js';
 import { echoAvailable } from '../core/interact.js';
-import { echoHud, collapseHud } from '../ui/hud.js';
+import { echoHud, collapseHud, ammoHud, resonanceHud, partyHud } from '../ui/hud.js';
+import { partyStatus } from '../core/stats.js';
 
 const DIR_KEYS = {
   ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
@@ -34,16 +35,20 @@ export class UIScene extends Phaser.Scene {
   get map() { return this.scene.get('Map'); }
 
   // ---------- HUD ----------
+  // 第一列：地圖名稱｜殘響（或「回溯 ∞」）；第二列：子彈、共鳴｜崩解；第三列：隊伍生命（精簡）。
   buildHud() {
     const g = this.add.graphics().setDepth(10);
     g.fillStyle(0x0d1015, 0.92);
     g.fillRect(0, 0, WIDTH, HUD_H);
     g.lineStyle(1, COLORS.gasDeep, 1);
     g.lineBetween(0, HUD_H - 0.5, WIDTH, HUD_H - 0.5);
-    this.mapName = addText(this, 10, HUD_H / 2, '', { fontSize: '14px', color: '#f0d2a0' }).setOrigin(0, 0.5).setDepth(11);
+    this.mapName = addText(this, 10, 12, '', { fontSize: '14px', color: '#f0d2a0' }).setOrigin(0, 0.5).setDepth(11);
     this.echoText = addText(this, WIDTH - 10, 12, '', { fontSize: '13px', color: COLORS.text }).setOrigin(1, 0.5).setDepth(11);
+    this.infoText = addText(this, 10, 31, '', { fontSize: '12px', color: COLORS.textDim }).setOrigin(0, 0.5).setDepth(11);
     this.collapseText = addText(this, WIDTH - 10, 31, '', { fontSize: '11px', color: COLORS.textDim }).setOrigin(1, 0.5).setDepth(11);
     this.collapseBar = this.add.graphics().setDepth(11);
+    this.partyBars = this.add.graphics().setDepth(11);
+    this.partyTexts = [0, 1, 2].map((i) => addText(this, 10 + i * 118, 50, '', { fontSize: '11px', color: COLORS.text }).setOrigin(0, 0.5).setDepth(11));
   }
 
   refreshHud() {
@@ -61,7 +66,6 @@ export class UIScene extends Phaser.Scene {
     this.echoView = echoHud({ free: view?.free, charges: view?.charges, max: session.data?.manifest?.start?.echo_charges ?? 0 });
     this.echoText.setText(this.echoView.text);
     const col = collapseHud(s.collapse, COLLAPSE_MAX);
-    const c = col.value;
     this.collapseText.setText(col.text);
     // 崩解條：放在文字左邊
     const bw = 64;
@@ -75,8 +79,32 @@ export class UIScene extends Phaser.Scene {
     g.fillRect(bx + 1, by + 1, Math.round((bw - 2) * col.ratio), 6);
     g.lineStyle(1, COLORS.line, 1);
     g.strokeRect(bx, by, bw, 8);
+    // 子彈與共鳴度（讀痕者才有共鳴度）
+    const ammo = ammoHud(s.ammo, { hasGun: (s.items?.revolver ?? 0) > 0 });
+    const reso = s.lineage?.id === 'trace' ? resonanceHud(s.resonance) : null;
+    this.hudInfo = { ammo: ammo.show ? ammo.text : null, resonance: reso ? reso.text : null };
+    this.infoText.setText([this.hudInfo.ammo, this.hudInfo.resonance].filter(Boolean).join('　'));
+    // 隊伍生命
+    let party = [];
+    try {
+      party = (session.data?.characters ?? []).length ? partyHud(partyStatus(s, session.data)) : [];
+    } catch (e) {
+      console.warn('partyStatus 失敗，HUD 不顯示隊伍', e);
+    }
+    this.partyView = party;
+    const pg = this.partyBars;
+    pg.clear();
+    this.partyTexts.forEach((t, i) => {
+      const m = party[i];
+      t.setText(m ? m.text : '');
+      if (!m) return;
+      const x = 10 + i * 118;
+      const w = 108;
+      pg.fillStyle(0x222832, 1).fillRect(x, 57, w, 3);
+      pg.fillStyle(m.ratio > 0.35 ? 0x6fa86a : COLORS.danger, 1).fillRect(x, 57, Math.round(w * m.ratio), 3);
+    });
     // 地圖名稱太長時避免壓到右邊
-    const room = Math.min(bx, WIDTH - 10 - this.echoText.width) - 16;
+    const room = WIDTH - 10 - this.echoText.width - 16 - 10;
     this.mapName.setScale(this.mapName.width > room ? room / this.mapName.width : 1);
   }
 
@@ -129,6 +157,9 @@ export class UIScene extends Phaser.Scene {
       echo: this.echoText.text,
       echoFilled: this.echoView?.filled ?? 0,
       collapse: this.collapseText.text,
+      ammo: this.hudInfo?.ammo ?? null,
+      resonance: this.hudInfo?.resonance ?? null,
+      party: (this.partyView ?? []).map((m) => m.text),
       toast: this.toastText.visible ? this.toastText.text : null,
     };
   }

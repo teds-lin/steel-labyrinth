@@ -1,0 +1,87 @@
+[
+  {
+    "id": "hero",
+    "name": "{name}",
+    "sprite": "hero",
+    "base": {
+      "hp": 60,
+      "sp": 20,
+      "atk": 10,
+      "def": 6,
+      "spd": 10,
+      "will": 10,
+      "eva": 5
+    },
+    "skills": [
+      "attack",
+      "guard",
+      "shoot"
+    ]
+  },
+  {
+    "id": "ada",
+    "name": "艾妲・費恩",
+    "sprite": "ada",
+    "lineage": {
+      "id": "dream",
+      "rank": 8
+    },
+    "base": {
+      "hp": 50,
+      "sp": 30,
+      "atk": 7,
+      "def": 5,
+      "spd": 12,
+      "will": 14,
+      "eva": 5
+    },
+    "skills": [
+      "attack",
+      "guard"
+    ]
+  },
+  {
+    "id": "marlo",
+    "name": "馬洛・瑞德",
+    "sprite": "marlo",
+    "lineage": {
+      "id": "watch",
+      "rank": 7
+    },
+    "base": {
+      "hp": 70,
+      "sp": 18,
+      "atk": 12,
+      "def": 9,
+      "spd": 9,
+      "will": 12,
+      "eva": 3
+    },
+    "skills": [
+      "attack",
+      "guard"
+    ]
+  },
+  {
+    "id": "herb",
+    "name": "老賀伯",
+    "sprite": "herb",
+    "lineage": {
+      "id": "archive",
+      "rank": 9
+    },
+    "base": {
+      "hp": 46,
+      "sp": 22,
+      "atk": 7,
+      "def": 6,
+      "spd": 8,
+      "will": 16,
+      "eva": 3
+    },
+    "skills": [
+      "attack",
+      "guard"
+    ]
+  }
+]
