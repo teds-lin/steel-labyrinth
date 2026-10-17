@@ -238,3 +238,42 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 - 客戶端回報通關遇到 429、逾時、網路錯誤或 5xx 時，把這筆記在本機 `steel-labyrinth:cloud-clear-queue`（`{ player_id, records:{ <章>: { chapter, ending, play_seconds, collapse } } }`，**各章只留最新一筆**）。
 - 下次啟動（`recover`）或下次通關回報成功後，每筆**補送一次**：成功或 400 → 刪除；429 → 這次停止、保留到下次；401 或停用雲端 → 全部清掉；換了帳號（player_id 不同）→ 舊帳號的紀錄作廢。
 - 伺服器端的通關紀錄只在成績改善時更新，重送同一筆不會讓紀錄變差。
+
+---
+
+# 鐘塔之夢（M4，2026-10-17）
+
+## Turnstile
+- Worker secret `TURNSTILE_SECRET`；vars `TURNSTILE_HOSTNAMES`（逗號分隔，siteverify 回傳的 hostname 必須在清單內）。
+- 驗證：Worker 呼叫 `https://challenges.cloudflare.com/turnstile/v0/siteverify`（`secret`、`response`、`remoteip`），要求 `success: true`、`hostname` 在清單內、`action` 符合端點（見下）。逾時 5 秒或失敗 → 403 `turnstile_failed`（「人機驗證失敗，請再試一次」）。
+- 本機與測試使用 Cloudflare 官方測試金鑰（always-pass／always-fail），E2E 不連外網：Worker 的 siteverify 呼叫可由測試替換。
+- **`POST /api/player` 改為需要** `turnstile_token`（action `create_player`）。冪等規則優先：若 `token` 的雜湊已存在 → 直接 200，不驗證 Turnstile（Turnstile token 只能用一次，逾時重送時已失效）。
+
+## `POST /api/dream/pass` — 取得夢境通行證
+- 需要 `Authorization: Bearer <token>`；body `{ "turnstile_token" }`（action `dream_pass`）。
+- 200：`{ "pass": "<通行證>", "expires_at": <秒> }`。通行證＝`base64url(payload).base64url(HMAC-SHA256)`，payload `{ "p": player_id, "exp": 秒 }`，有效 30 分鐘；HMAC 金鑰是 Worker secret `DREAM_PASS_SECRET`。
+- 限流：同一玩家每小時 6 次。
+
+## `POST /api/dream/chat` — 與夢客對話
+- 需要 `Authorization: Bearer <token>`，且 body 帶有效的 `pass`（屬於同一玩家、未過期）；否則 401 `pass_invalid`（客戶端重新取得通行證）。
+- body：
+  ```json
+  { "pass": "…", "guest": "three", "chapter": "chapter3",
+    "history": [ { "role": "player", "text": "…" }, { "role": "guest", "text": "…" } ],
+    "input": "你是誰？" }
+  ```
+  - `guest`：`[a-z0-9_]{1,32}`，必須是已上傳的夢客。`input` 1～120 字（以字元計，去頭尾空白、移除控制與 Cf 字元）；`history` 最多 6 則、每則 ≤ 150 字，超過就截掉較舊的。
+  - `chapter`：玩家目前所在章節；**伺服器取 min(宣稱的章節, `CHAPTERS` 中最後一個)**，以 `CHAPTERS` 的順序比較；不在清單內 → 400。夢客的知識卡只取到這一章為止。
+- 200（一律 200，用 `source` 區分）：
+  ```json
+  { "reply": "……", "source": "ai" | "scripted", "reason": null | "quota" | "budget" | "ai_error" | "filtered", "remaining_today": 17 }
+  ```
+  - `source: "scripted"` 時，`reply` 取自該夢客的預寫台詞（依 reason 選對應的一組，隨機一句）。
+- 額度：每位玩家每 UTC 日 `DREAM_CHATS_PER_DAY=20` 句（`scripted` 不扣）；全站每日 neurons 預算 `DREAM_NEURONS_PER_DAY=8000`。每次呼叫 AI 前先預扣估計值，呼叫後依實際 usage（若模型回報）修正。
+- AI：Workers AI binding `AI`，模型由 vars `DREAM_MODEL` 決定；`max_tokens` 300；溫度 0.7。
+- 輸出處理（依序）：去除 `<think>…</think>` 與 Markdown 符號 → 去除 HTML 標籤 → 截到 150 字（在句號處截斷）→ 用 `dream_lexicon` 檢查簡體字與陸用語，命中就重新生成一次，仍命中 → `scripted`＋`filtered` → 檢查是否自稱 AI、提到人設規則用語（由人設的 `leak_markers` 定義），命中同樣重試一次再改用預寫。
+- 隱私：不儲存 `input`、`history`、`reply`；log 只記 reason 與耗時。
+
+## 私有資料上傳
+- `tools/upload-dream.mjs`（公開 repo 的工具，資料來自私有 repo）：把 `dream/personas/*.json` 與 `dream/lexicon.json` 轉成 SQL，`wrangler d1 execute --remote --file` 寫入 `dream_personas`、`dream_lexicon`。Worker 讀取後快取在記憶體（每個 isolate 最多 10 分鐘）。
+- 公開 repo 不包含任何人設內容與詞表；測試使用 `tests/worker/fixtures/` 的假人設與假詞表。

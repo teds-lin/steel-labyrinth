@@ -314,3 +314,34 @@ web/data/
 3. **隊伍上限檢查**：validate 計算「可能同時在隊」的人數時要算進 `leave_party`；輪替隊友（任何時刻 ≤ 3 人）不可誤報。
 4. **一次性觸發點的戰鬥**：觸發點同時有 `once: true` 與可逃跑（`can_flee: true`）的 `battle` 時，validate 報錯（逃跑後遭遇會永久消失）；請改用 `if: { not_flag }` 搭配勝利旗標。
 5. **逃跑退回**：前一格目前不能站（`canMove` 為 false）時，留在原地。
+
+---
+
+# 鐘塔之夢（M4 起）
+
+## 地圖
+- 地圖可以加 `"dream": true`：這是夢境地圖。進入夢境時記住現實的位置，醒來時回到那裡。
+- 夢境地圖的物件可以加 `"guest": "three"`：夢客。調查時先播 `look` 對話；`look` 對話可以有效果 `{ "open_chat": "three" }`，對話結束後開啟自由交談介面（需要雲端；未啟用時播放 `"not_open"` 預寫台詞）。
+
+## 入夢與醒來（對話效果）
+| 寫法 | 意義 |
+|---|---|
+| `{ "enter_dream": { "map": "clocktower", "spawn": "center" } }` | 對話結束後入夢：記住目前的現實位置到 `state.dream_return`，移動到夢境地圖 |
+| `{ "wake": true }` | 對話結束後醒來：回到 `state.dream_return`，並清除它 |
+| `{ "open_chat": "three" }` | 對話結束後開啟與該夢客的自由交談 |
+
+- 現實地圖的物件可以加 `"dream": { "if": {條件} }`：調查時在 `look` 之後多一個選項「入夢」（條件成立才出現）。
+- 存檔 v3：新增 `dream_return`（null 或 `{ map, x, y, dir }`）。v2→v3 遷移補 null。夢境中存檔、讀檔都允許；讀檔時 `dream_return` 指向的地圖必須存在，否則改成該章的預設起點並警告。
+
+## 夢客的預寫台詞（公開，放在章節的 story 檔）
+```jsonc
+{ "id": "chapter3", "guests": [
+  { "id": "three", "name": "三點", "sprite": "guest_three",
+    "scripted": {
+      "greeting": ["……又見面了。", "鐘聲還沒響完，你可以多待一會兒。"],
+      "fallback": ["霧太濃了，我聽不清楚你說什麼。"],     // ai_error
+      "quota":    ["夢境變得模糊了，今天先聊到這裡吧。"],   // quota／budget
+      "filtered": ["……我好像說錯話了，當我沒說。"],        // filtered
+      "not_open": ["（啟用雲端存檔後，可以和夢客自由交談。）"] } } ] }
+```
+- 這些台詞只能寫已開放章節的內容；夢客的人設、知識卡與 AI 提示詞**不放在公開資料**。
