@@ -59,21 +59,43 @@ function validReturn(ret, state, data) {
   return cleanLocation(ret);
 }
 
+/** 地圖的 spawn → { map, x, y, dir }；spawnId 找不到時用第一個 spawn（與讀檔校正相同）；沒有 spawn → null。 */
+function spawnPlace(map, spawnId) {
+  const list = Array.isArray(map?.spawns) ? map.spawns.filter(isObj) : [];
+  const sp = list.find((x) => x.id === spawnId) ?? list[0];
+  if (!sp) return null;
+  return { map: map.id, x: sp.x, y: sp.y, dir: Object.hasOwn(DIRS, sp.dir ?? '') ? sp.dir : 'down' };
+}
+
+/** 目的地 { map, spawn } → 位置；地圖不存在或是夢境地圖 → null。 */
+function placeOf(target, data) {
+  if (!isObj(target) || typeof target.map !== 'string') return null;
+  const map = findById(data?.maps, target.map);
+  return map && !isDreamMap(map) ? spawnPlace(map, target.spawn) : null;
+}
+
+/**
+ * 該章的起點（DATA-FORMAT 補充（2026-10-18）2）：前一章的 end_screen.continue；
+ * 序章（manifest.chapters[0]）、不認得的章節、前一章沒有可用的 continue → manifest.start。都找不到回 null。
+ */
+export function chapterStartPlace(chapter, data) {
+  const chapters = Array.isArray(data?.manifest?.chapters) ? data.manifest.chapters : [];
+  const i = chapters.indexOf(chapter);
+  const prev = i > 0 ? findById(data?.story, chapters[i - 1]) : undefined;
+  return placeOf(prev?.end_screen?.continue, data) ?? placeOf(data?.manifest?.start, data);
+}
+
 /**
  * 醒來：回到 dream_return（不重播 on_enter、不改旗標），並清除它。
- * dream_return 不合法時回到 manifest 的起點，relocated 為 true（畫面提示玩家）。回傳 { state, relocated }。
+ * dream_return 不合法時回到該章起點（chapterStartPlace；不是序章的閣樓），relocated 為 true（畫面提示玩家）。
+ * 回傳 { state, relocated }。
  */
 export function wakeUp(state, data) {
   const loc = validReturn(state.dream_return, state, data);
   if (loc) return { state: { ...state, location: loc, dream_return: null }, relocated: false };
-  const start = data?.manifest?.start;
-  const map = findById(data?.maps, start?.map);
-  const sp = findById(map?.spawns, start?.spawn);
-  if (!sp) throw new Error('醒來的位置不合法，而且找不到起點');
-  return {
-    state: { ...state, location: { map: map.id, x: sp.x, y: sp.y, dir: Object.hasOwn(DIRS, sp.dir ?? '') ? sp.dir : 'down' }, dream_return: null },
-    relocated: true,
-  };
+  const start = chapterStartPlace(state.chapter, data);
+  if (!start) throw new Error('醒來的位置不合法，而且找不到這一章的起點');
+  return { state: { ...state, location: start, dream_return: null }, relocated: true };
 }
 
 /** 依 id 找夢客（所有章節的 guests）；沒有回 null。 */

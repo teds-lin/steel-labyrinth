@@ -12,7 +12,8 @@
     "e2e": "playwright test",
     "e2e:cloud": "playwright test --config playwright.cloud.config.js",
     "test:worker": "vitest run tests/worker",
-    "worker:dev": "npm run worker:migrate:local && wrangler dev --local --config worker/wrangler.toml --port 8787 --var TRANSFER_PEPPER:local-dev-only-pepper ALLOWED_ORIGINS:https://teds-lin.github.io,http://localhost:8080,http://localhost:8091",
+    "worker:dev": "wrangler d1 migrations apply steel-labyrinth --local --config worker/wrangler.e2e.toml && wrangler dev --local --config worker/wrangler.e2e.toml --port 8787 --var ALLOWED_ORIGINS:https://teds-lin.github.io,http://localhost:8080,http://localhost:8091",
+    "worker:dev:real-ai": "npm run worker:migrate:local && wrangler dev --local --config worker/wrangler.toml --port 8787 --var TRANSFER_PEPPER:local-dev-only-pepper TURNSTILE_SECRET:1x0000000000000000000000000000000AA TURNSTILE_ALLOW_TEST_SECRET:1 DREAM_PASS_SECRET:local-dev-only-dream-pass-secret-0123456789 ALLOWED_ORIGINS:https://teds-lin.github.io,http://localhost:8080,http://localhost:8091",
     "worker:build": "wrangler deploy --dry-run --config worker/wrangler.toml --outdir node_modules/.cache/steel-labyrinth-worker-build",
     "worker:migrate:local": "wrangler d1 migrations apply steel-labyrinth --local --config worker/wrangler.toml",
     "worker:migrate:remote": "wrangler d1 migrations apply steel-labyrinth --remote --config worker/wrangler.toml",
@@ -20,7 +21,7 @@
     "worker:dev:e2e": "wrangler d1 migrations apply steel-labyrinth --local --config worker/wrangler.e2e.toml && wrangler dev --local --config worker/wrangler.e2e.toml --port 8787 --var ALLOWED_ORIGINS:https://teds-lin.github.io,http://localhost:8080,http://localhost:8091",
     "dream:lexicon": "node tools/gen-dream-lexicon.mjs",
     "dream:upload": "node tools/upload-dream.mjs",
-    "dream:upload:e2e": "node tools/upload-dream.mjs --personas tests/worker/fixtures/dream/personas --lexicon tests/worker/fixtures/dream/lexicon.json --story tests/worker/fixtures/dream/story --config worker/wrangler.e2e.toml --out /tmp/steel-labyrinth-dream-e2e.sql --apply-local"
+    "dream:upload:e2e": "node tools/upload-dream.mjs --personas tests/worker/fixtures/dream/personas --lexicon tests/worker/fixtures/dream/lexicon.json --blocklist tests/worker/fixtures/dream/blocklist.json --story tests/worker/fixtures/dream/story --config worker/wrangler.e2e.toml --out /tmp/steel-labyrinth-dream-e2e.sql --apply-local"
   },
   "engines": {
     "node": ">=22"

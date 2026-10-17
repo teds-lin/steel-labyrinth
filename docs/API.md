@@ -282,3 +282,42 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 ## 私有資料上傳
 - `tools/upload-dream.mjs`（公開 repo 的工具，資料來自私有 repo）：把 `dream/personas/*.json` 與 `dream/lexicon.json` 轉成 SQL，`wrangler d1 execute --remote --file` 寫入 `dream_personas`、`dream_lexicon`。Worker 讀取後快取在記憶體（每個 isolate 最多 10 分鐘）。
 - 公開 repo 不包含任何人設內容與詞表；測試使用 `tests/worker/fixtures/` 的假人設與假詞表。
+
+# 鐘塔之夢 修訂 1（2026-10-18，依 M4 第一輪對抗審查定案；與前文衝突時以本節為準）
+
+## A. AI 呼叫次數與速度限制（修正：讓回覆被過濾就能無限呼叫 AI）
+- 新增每位玩家每 UTC 日的 **AI 呼叫次數** bucket `pl:dcall`，上限 `DREAM_CALLS_PER_DAY`（＝`DREAM_CHATS_PER_DAY × 2`）。**每次實際呼叫 AI 都計入，任何結果都不退還**（含 filtered、ai_error、重試）。
+- `remaining_today` 的句數照舊（filtered／ai_error 不扣句數，玩家體驗不變），但 `pl:dcall` 用完時回 `scripted`＋`quota`。
+- 每位玩家每分鐘最多 `DREAM_CHATS_PER_MINUTE=6` 次 chat 請求，超過回 429。
+- 每次 AI 呼叫的 neurons 計費夾在 `[DREAM_NEURONS_MIN_PER_CALL, DREAM_NEURONS_MAX_PER_CALL]`（最大值約為估計值的 3 倍），不完全信任 usage。
+
+## B. 通行證容量（修正：失敗的 Turnstile 就能耗盡全站通行證）
+- 依序：權杖驗證 → 計入**玩家** bucket → 驗證 Turnstile → **通過後**才計入全站 `g:dpass`。Turnstile 失敗不消耗全站額度。
+- 通行證有效時間改為 `DREAM_PASS_TTL_S=7200`（2 小時）；全站上限依每日寫入算式重新評估（目標：同時入夢的玩家 ≥ 100 人），結果寫進 vars。
+- 200 回應新增 `ttl_s`（剩餘秒數）。**客戶端以「收到回應的本機時間＋ttl_s」判斷過期**，不使用 `expires_at` 與裝置時鐘比較（修正：裝置時鐘不準時無限重新驗證）。客戶端一次送出最多重新驗證 1 次。
+
+## C. 夢客回覆簽章（修正：偽造夢客說過的話）
+- 每則 `source: "ai"` 或 `"scripted"` 的回覆，回應帶 `sig`＝`base64url(HMAC-SHA256(DREAM_PASS_SECRET, player_id ‖ guest ‖ reply))`。
+- `history` 中 `role: "guest"` 的項目必須帶正確的 `sig`，否則伺服器**丟掉該則**（不報錯）；`role: "player"` 的項目照舊（玩家自己說的話）。
+- 客戶端把回應的 `sig` 原樣保存在對話紀錄裡，送 history 時帶上。
+
+## D. 輸出檢查（修正：品牌、時事、不雅、非中文、正規化繞過）
+- 所有檢查前先做正規化：NFKC → 移除 `\p{Cc}`、`\p{Cf}`（零寬、RTL 等）→ 比對用的版本再移除空白與標點。**送給玩家的回覆本身也要移除 Cc／Cf**。
+- AI 自稱、`leak_markers`、詞表、照抄人設（含 `deflect_topics`）都用正規化後的文字比對。
+- 新增拒絕規則（命中 → 重試一次 → 預寫 `filtered`）：
+  - 網址或網域（含 `www.`、`.com`、`.tw` 等）、電子郵件、電話或 6 位以上連續數字、「LINE ID」之類的聯絡方式；
+  - 假冒系統訊息：以「【」「系統」「公告」「通知」開頭，或含「轉移碼」「存檔已」「刪除」「密碼」「帳號」；
+  - 中文字比例過低：去除標點後，CJK 字少於全部文字的 60%；
+  - 不雅、仇恨、自我傷害、政治與統戰用語清單 `dream_blocklist`（**放在私有 repo `dream/blocklist.json`，部署時上傳到 D1**）。
+
+## E. 其他
+- `deflect_topics` 改為依章節分層（`{ "chapter3": ["……"] }`，只取到伺服器判定的章節為止），寫法以抽象主題為主（不暗示答案存在）。
+- `npm run worker:dev` 改為預設使用模擬 AI（不連 Cloudflare）；連真 AI 的版本改名為 `worker:dev:real-ai`，README 註明會用掉額度。
+
+## 鐘塔之夢 修訂 1a（2026-10-18，實作定案；與修訂 1 衝突時以本節為準）
+1. **通行證計數順序**：驗證 Turnstile 前只「讀」玩家 bucket（滿了 429、不呼叫 siteverify）；通過 → 玩家 bucket 與 `g:dpass` 一起原子計數；失敗 → 玩家 bucket 與 `g:dpassfail`（`RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR=10`）一起計，`g:dpassfail` 滿了就一列都不寫（照樣 403）。
+2. **每分鐘限制**只計算實際會呼叫 AI 的請求；quota／budget 的預寫回應不計數、不寫入。
+3. **句數 `pl:dchat`** 在 AI 回覆通過檢查後才原子計入（不預扣再退還）。並行時可能多呼叫幾次 AI，但仍受每分鐘 6 次、每日 `DREAM_CALLS_PER_DAY=40` 次限制。chat 可能回 `reason: "quota"` 但 `remaining_today > 0`（當日 AI 呼叫次數用完）。
+4. `sig` 的 HMAC 內容是 `player_id + "\n" + guest + "\n" + reply`；history 中 guest 項目的 `text` 必須與收到的 `reply` 完全相同。
+5. 回覆含方向控制字元（RTL 等）一律拒絕；只含零寬字元時清除後照常。迴避主題的照抄判定：同一則回覆碰到 2 個以上主題，或任一段照抄 10 字以上；人設與界線中以「」『』框起來的台詞不算照抄。
+6. vars：`DREAM_NEURONS_MIN_PER_CALL=10`、`DREAM_NEURONS_MAX_PER_CALL=60`、`DREAM_PASS_TTL_S=7200`、`RL_DREAM_PASS_GLOBAL_PER_HOUR=50`（約 100 人同時入夢）。最壞每日寫入 98,507 列。

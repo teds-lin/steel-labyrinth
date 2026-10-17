@@ -29,7 +29,9 @@ describe('wrangler.toml', () => {
     expect(raw).not.toMatch(/localhost/);
     const dev = devVarOverrides();
     expect(dev.ALLOWED_ORIGINS.split(',')).toEqual(['https://teds-lin.github.io', 'http://localhost:8080', 'http://localhost:8091']);
-    expect(dev.TRANSFER_PEPPER).toBeTruthy();
+    // 修訂 1 E：worker:dev 改用本機設定 wrangler.e2e.toml（pepper 寫在那裡）；連真 AI 的 worker:dev:real-ai 用 --var 帶 pepper
+    expect(dev.TRANSFER_PEPPER ?? unstable_readConfig({ config: join(ROOT, 'worker', 'wrangler.e2e.toml') }, { hideWarnings: true }).vars.TRANSFER_PEPPER).toBeTruthy();
+    expect(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).scripts['worker:dev:real-ai']).toMatch(/--var TRANSFER_PEPPER:\S+/);
   });
 
   it('vars：修訂 2 的全域上限、容量、統計門檻、章節白名單', () => {
@@ -168,6 +170,12 @@ describe('M4 鐘塔之夢的設定', () => {
     expect(sql).toMatch(/CREATE TABLE dream_lexicon\b/);
     const files = readdirSync(join(ROOT, 'worker', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
     expect(files.slice(0, 3)).toEqual(['0001_init.sql', '0002_revision2.sql', '0003_dream.sql']);
+  });
+
+  it('migration 0004 建立 dream_blocklist（修訂 1 D）；0001～0003 不變', () => {
+    const files = readdirSync(join(ROOT, 'worker', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
+    expect(files.slice(0, 4)).toEqual(['0001_init.sql', '0002_revision2.sql', '0003_dream.sql', '0004_dream_blocklist.sql']);
+    expect(readFileSync(join(ROOT, 'worker', 'migrations', '0004_dream_blocklist.sql'), 'utf8')).toMatch(/CREATE TABLE dream_blocklist\b/);
   });
 
   it('公開 repo 不含人設或詞表：fixtures 之外沒有 dream/personas、lexicon.json；fixtures 的詞表是小型假詞表', () => {

@@ -86,20 +86,34 @@ const MAX_ROWS = {
   '401（錯誤權杖）': { read: 0, written: 0 },
   // M4 鐘塔之夢（Turnstile 不碰 D1；失敗時只有限流計數）
   'POST /api/player（Turnstile 失敗）': { read: 10, written: 2 },
-  'POST /api/dream/pass': { read: 10, written: 2 },
-  'POST /api/dream/pass（Turnstile 失敗）': { read: 11, written: 2 },
-  'POST /api/dream/chat（AI 成功）': { read: 15, written: 3 },
-  'POST /api/dream/chat（重試後成功）': { read: 21, written: 4 },
-  'POST /api/dream/chat（重試後仍過濾）': { read: 22, written: 5 },
-  'POST /api/dream/chat（AI 錯誤）': { read: 14, written: 3 },
-  'POST /api/dream/chat（額度用完）': { read: 8, written: 0 },
-  'POST /api/dream/chat（預算用完）': { read: 8, written: 0 },
+  'POST /api/dream/pass': { read: 30, written: 2 },
+  'POST /api/dream/pass（Turnstile 失敗）': { read: 30, written: 2 },
+  'POST /api/dream/pass（Turnstile 失敗、失敗上限已滿）': { read: 30, written: 0 },
+  'POST /api/dream/pass（玩家額度用完 429）': { read: 30, written: 0 },
+  'POST /api/dream/chat（AI 成功）': { read: 40, written: 5 },
+  'POST /api/dream/chat（重試後成功）': { read: 50, written: 7 },
+  'POST /api/dream/chat（重試後仍過濾）': { read: 50, written: 6 },
+  'POST /api/dream/chat（AI 錯誤）': { read: 40, written: 3 },
+  'POST /api/dream/chat（AI 錯誤、帶 usage）': { read: 40, written: 4 },
+  'POST /api/dream/chat（重試時預扣失敗）': { read: 50, written: 4 },
+  'POST /api/dream/chat（句數用完）': { read: 30, written: 0 },
+  'POST /api/dream/chat（AI 呼叫次數用完）': { read: 30, written: 0 },
+  'POST /api/dream/chat（預算用完）': { read: 30, written: 0 },
+  'POST /api/dream/chat（每分鐘上限 429）': { read: 30, written: 0 },
   'POST /api/dream/chat（通行證無效）': { read: 1, written: 0 },
 };
-/** 每種夢客對話實際呼叫 AI 的次數（算「每次 AI 呼叫最多寫幾列」用）。 */
+/**
+ * 每種夢客對話實際呼叫 AI 的次數（算「每次 AI 呼叫最多寫幾列」用）。
+ * 並行時「AI 回覆通過、但句數剛好被別的請求用完」的路徑寫入＝預扣 3＋neurons 修正 1＝4 列，少於「AI 成功」，不另列。
+ */
 const CHAT_CALLS = {
   'POST /api/dream/chat（AI 成功）': 1, 'POST /api/dream/chat（重試後成功）': 2, 'POST /api/dream/chat（重試後仍過濾）': 2, 'POST /api/dream/chat（AI 錯誤）': 1,
+  'POST /api/dream/chat（AI 錯誤、帶 usage）': 1, 'POST /api/dream/chat（重試時預扣失敗）': 1,
 };
+/** 改用預寫台詞或 429、一列都不寫的夢境請求（每日寫入算式依賴這一點）。 */
+const DREAM_ZERO_WRITE = ['POST /api/dream/pass（Turnstile 失敗、失敗上限已滿）', 'POST /api/dream/pass（玩家額度用完 429）',
+  'POST /api/dream/chat（句數用完）', 'POST /api/dream/chat（AI 呼叫次數用完）', 'POST /api/dream/chat（預算用完）',
+  'POST /api/dream/chat（每分鐘上限 429）', 'POST /api/dream/chat（通行證無效）'];
 const WRITE_KINDS = ['PUT（新建）', 'PUT（覆蓋）', 'PUT（409）', 'DELETE', 'PUT（刪除後重建）',
   'POST /api/clear（新紀錄）', 'POST /api/clear（改善成績）', 'POST /api/clear（沒有改善）', 'POST /api/transfer/rotate',
   'POST /api/transfer/rotate（碰撞 409，IPv6）'];
@@ -172,6 +186,15 @@ async function measureAll(w, lane) {
     await rec('POST /api/dream/pass', () => w.fetch('/api/dream/pass', json(passBody, auth(d.token))));
     d = await newPlayer(w);
     await rec('POST /api/dream/pass（Turnstile 失敗）', () => w.fetch('/api/dream/pass', json({ turnstile_token: 'fail' }, auth(d.token))));
+    const fill = (b, c, r) => w.db.prepare('INSERT OR REPLACE INTO rate_limits (bucket, count, reset_at) VALUES (?, ?, ?)').bind(b, c, r).run();
+    const nowS = Math.floor(Date.now() / 1000);
+    await fill('g:dpassfail', 1e6, nowS + 3600);
+    d = await newPlayer(w);
+    await rec('POST /api/dream/pass（Turnstile 失敗、失敗上限已滿）', () => w.fetch('/api/dream/pass', json({ turnstile_token: 'fail' }, auth(d.token))));
+    await w.db.prepare("DELETE FROM rate_limits WHERE bucket = 'g:dpassfail'").run();
+    d = await newPlayer(w);
+    await fill(`pl:dpass:${d.player_id}`, 1e6, nowS + 3600);
+    await rec('POST /api/dream/pass（玩家額度用完 429）', () => w.fetch('/api/dream/pass', json(passBody, auth(d.token))));
     const chatBody = async (pl) => ({ pass: await getPass(w, pl.token), guest: 'lamp', chapter: 'chapter1', history: [], input: '你好' });
     const chatCase = async (name, ai, prep) => {
       const pl = await newPlayer(w);
@@ -185,12 +208,20 @@ async function measureAll(w, lane) {
     await chatCase('POST /api/dream/chat（重試後成功）', (c, n) => aiReply(n === 1 ? '这是燈。' : '燈還亮著。', usage));
     await chatCase('POST /api/dream/chat（重試後仍過濾）', () => aiReply('这是燈。', usage));
     await chatCase('POST /api/dream/chat（AI 錯誤）', () => { throw new Error('boom'); });
+    await chatCase('POST /api/dream/chat（AI 錯誤、帶 usage）', () => aiReply('說到一半', { finish_reason: 'length', usage: { prompt_tokens: 1500, completion_tokens: 200 } }));
     const now = Math.floor(Date.now() / 1000);
     const midnight = (Math.floor(now / DAY) + 1) * DAY;
-    await chatCase('POST /api/dream/chat（額度用完）', () => aiReply('燈。'), (pl) => w.db.prepare('INSERT OR REPLACE INTO rate_limits (bucket, count, reset_at) VALUES (?, 20, ?)').bind(`pl:dchat:${pl.player_id}`, midnight).run());
     const neuronsBucket = `g:neurons:${new Date(now * 1000).toISOString().slice(0, 10)}`;
-    await chatCase('POST /api/dream/chat（預算用完）', () => aiReply('燈。'), () => w.db.prepare('INSERT OR REPLACE INTO rate_limits (bucket, count, reset_at) VALUES (?, 8000, ?)').bind(neuronsBucket, midnight).run());
+    const v = readWranglerConfig().vars;
+    // 第一次預扣成功、AI 回覆被過濾、重試時預算不夠預扣（審查 log-F 的情況）
+    await chatCase('POST /api/dream/chat（重試時預扣失敗）', () => aiReply('这是燈。', usage),
+      () => fill(neuronsBucket, Number(v.DREAM_NEURONS_PER_DAY) - Number(v.DREAM_NEURONS_PER_CALL) - 1, midnight));
     await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(neuronsBucket).run();
+    await chatCase('POST /api/dream/chat（句數用完）', () => aiReply('燈。'), (pl) => fill(`pl:dchat:${pl.player_id}`, Number(v.DREAM_CHATS_PER_DAY), midnight));
+    await chatCase('POST /api/dream/chat（AI 呼叫次數用完）', () => aiReply('燈。'), (pl) => fill(`pl:dcall:${pl.player_id}`, Number(v.DREAM_CALLS_PER_DAY), midnight));
+    await chatCase('POST /api/dream/chat（預算用完）', () => aiReply('燈。'), () => fill(neuronsBucket, Number(v.DREAM_NEURONS_PER_DAY), midnight));
+    await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(neuronsBucket).run();
+    await chatCase('POST /api/dream/chat（每分鐘上限 429）', () => aiReply('燈。'), (pl) => fill(`pl:dmin:${pl.player_id}`, Number(v.DREAM_CHATS_PER_MINUTE), now + 60));
     out['POST /api/dream/chat（通行證無效）'] = await (async () => {
       const pl = await newPlayer(w);
       const res = await dreamChat(w, pl.token, { pass: 'x.y', guest: 'lamp', chapter: 'chapter1', input: '你好' });
@@ -261,8 +292,11 @@ describe('每種請求的 D1 讀寫列數（x-d1-rows 實測；上限是回歸�
       expect(m['POST /api/dream/pass（Turnstile 失敗）'].status).toBe(403);
       expect(m['POST /api/dream/chat（通行證無效）'].status).toBe(401);
       for (const k of Object.keys(CHAT_CALLS)) expect(m[k].status, k).toBe(200);
-      // 改用預寫台詞（額度、預算）與無效通行證：一列都不寫
-      for (const k of ['POST /api/dream/chat（額度用完）', 'POST /api/dream/chat（預算用完）', 'POST /api/dream/chat（通行證無效）']) expect(m[k].written, k).toBe(0);
+      expect(m['POST /api/dream/pass（Turnstile 失敗、失敗上限已滿）'].status).toBe(403);
+      expect(m['POST /api/dream/pass（玩家額度用完 429）'].status).toBe(429);
+      expect(m['POST /api/dream/chat（每分鐘上限 429）'].status).toBe(429);
+      // 改用預寫台詞（句數、呼叫次數、預算）、429 與無效通行證：一列都不寫
+      for (const k of DREAM_ZERO_WRITE) expect(m[k].written, k).toBe(0);
     } finally {
       await w.close();
     }
@@ -287,7 +321,7 @@ describe('每種請求的 D1 讀寫列數（x-d1-rows 實測；上限是回歸�
   });
 });
 
-const PLAYER_KEYS = ['write', 'clear', 'rotate', 'rsv', 'transfer', 'dpass', 'dchat'];
+const PLAYER_KEYS = ['write', 'clear', 'rotate', 'rsv', 'transfer', 'dpass', 'dchat', 'dcall', 'dmin'];
 
 /**
  * 實測 Cron 刪除一個「3 格存檔＋每章一筆通關紀錄＋5 種玩家限流 bucket」的玩家要寫幾列（含索引與 trigger）。
@@ -447,21 +481,25 @@ describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；�
     expect(raceWaste).toBe(0);
     // M4：Turnstile 失敗的建立玩家只寫限流計數，算在「建立玩家」那一項（不多於成功建立）
     expect(wr('POST /api/player（Turnstile 失敗）')).toBeLessThanOrEqual(wr('POST /api/player（新建，IPv4）'));
-    // M4：夢境通行證＝全站每小時上限 × 25 窗 × 每次最多寫入列數（Turnstile 失敗也計入限流）
+    // M4／修訂 1 B：夢境通行證。成功（Turnstile 通過）＝全站 g:dpass 每小時上限 × 25 窗 × 成功的寫入列數；
+    // 失敗＝全站 g:dpassfail 每小時上限 × 25 窗 × 失敗的寫入列數；失敗上限已滿與玩家額度 429 寫 0 列（上一個測試實測）。
     const passReq = n('RL_DREAM_PASS_GLOBAL_PER_HOUR') * windows;
-    const passes = passReq * Math.max(wr('POST /api/dream/pass'), wr('POST /api/dream/pass（Turnstile 失敗）'));
-    // M4：夢客對話。每次寫入都要先在全站每日 neurons 預算預扣成功，而每次 AI 呼叫最少計 DREAM_NEURONS_MIN_PER_CALL，
-    // 所以每日 AI 呼叫次數 ≤ DREAM_NEURONS_PER_DAY ÷ DREAM_NEURONS_MIN_PER_CALL；改用預寫台詞（額度、預算）寫 0 列。
+    const passFailReq = n('RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR') * windows;
+    const passes = passReq * wr('POST /api/dream/pass') + passFailReq * wr('POST /api/dream/pass（Turnstile 失敗）');
+    for (const k of DREAM_ZERO_WRITE) expect(wr(k), k).toBe(0);
+    // M4／修訂 1 A：夢客對話。每次 AI 呼叫都要先在全站每日 neurons 預算預扣成功，而每次呼叫最少計 DREAM_NEURONS_MIN_PER_CALL，
+    // 所以每日 AI 呼叫次數 ≤ DREAM_NEURONS_PER_DAY ÷ DREAM_NEURONS_MIN_PER_CALL（與玩家人數無關；pl:dcall 只會讓它更少）；
+    // 改用預寫台詞（句數、呼叫次數、預算）與每分鐘 429 寫 0 列。每次呼叫的寫入列數取各路徑（含重試時預扣失敗）的最大值。
     const aiCalls = Math.floor(n('DREAM_NEURONS_PER_DAY') / n('DREAM_NEURONS_MIN_PER_CALL'));
     const rowsPerCall = Math.max(...Object.entries(CHAT_CALLS).map(([k, c]) => Math.ceil(wr(k) / c)));
     const chats = aiCalls * rowsPerCall;
-    // 全域 bucket 多兩列：g:dpass、g:neurons:<日期>（每天由 Cron 刪除時各再寫 1 列）
-    const dreamRlPurge = 2;
+    // 全域 bucket 多三列：g:dpass、g:dpassfail、g:neurons:<日期>（每天由 Cron 刪除時各再寫 1 列）
+    const dreamRlPurge = 3;
     const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge + raceWaste + passes + chats + dreamRlPurge;
     const line = `惡意流量每日寫入上限：建立玩家 ${players}＋轉移 ${transfers}＋已登入每小時通道 ${hourly}（${hourlyReq} 次 × ${lane('每小時', plainKinds)} 列）`
       + `＋保留通道 ${reserved}（${reservedReq} 次 × ${lane('保留', plainKinds)} 列）＋last_seen ${lastSeen}＋Cron ${cron}（${n('PURGE_BATCH')} 人 × ${perPerson} 列）`
       + `＋限流紀錄清理 ${rlPurge}＋並行失敗路徑 ${raceWaste}`
-      + `＋夢境通行證 ${passes}（${passReq} 次 × ${passes / passReq} 列）＋夢客對話 ${chats}（${aiCalls} 次 AI 呼叫 × ${rowsPerCall} 列）＋夢境限流紀錄清理 ${dreamRlPurge}＝${total} 列`;
+      + `＋夢境通行證 ${passes}（成功 ${passReq} 次 × ${wr('POST /api/dream/pass')} 列＋失敗 ${passFailReq} 次 × ${wr('POST /api/dream/pass（Turnstile 失敗）')} 列）＋夢客對話 ${chats}（${aiCalls} 次 AI 呼叫 × ${rowsPerCall} 列）＋夢境限流紀錄清理 ${dreamRlPurge}＝${total} 列`;
     mkdirSync(join(ROOT, 'test-results'), { recursive: true });
     writeFileSync(join(ROOT, 'test-results', 'cron-cost-total.txt'), `${line}\n`);
     console.log(line);

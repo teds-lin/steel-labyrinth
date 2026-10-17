@@ -3,9 +3,11 @@
 // POST／PUT 必須是 application/json（否則 415）。
 // 同一個 mock 可以掛在多個 browser context 上（模擬兩台裝置共用同一個伺服器）。
 // 位址用 127.0.0.1（跨來源）：順便驗證 CORS 標頭（ETag、Retry-After 要 expose 才讀得到）。
+// 鐘塔之夢 修訂 1：通行證回應帶 ttl_s（2 小時）；夢客回覆帶 sig（HMAC），history 裡 guest 項目的 sig 不對就丟掉該則
+// （丟掉的記在 log 的 entry.droppedHistory，給測試斷言）。
 
 export const MOCK_API = 'http://127.0.0.1:9/mock-api';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { FAKE_TS_TOKEN } from './fake-turnstile.js';
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -25,6 +27,9 @@ const normCode = (c) => {
 };
 export const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const DREAM_SECRET = 'mock-dream-pass-secret';
+/** 修訂 1 C／1a 4：base64url(HMAC-SHA256(secret, player_id + "\n" + guest + "\n" + reply))。history 的 text 必須與 reply 完全相同。 */
+export const signReply = (playerId, guest, reply) => createHmac('sha256', DREAM_SECRET).update(`${playerId}\n${guest}\n${reply}`, 'utf8').digest('base64url');
 
 /** 從存檔字串算 summary（伺服器端的行為）。 */
 export function summaryOf(data) {
@@ -59,7 +64,8 @@ export function createMockCloud() {
 
   // M4：夢境（通行證、對話額度）。passes：通行證字串 → { player, exp, revoked }
   const passes = new Map();
-  const dream = { quota: 20, used: 0, replies: [] };
+  // ttl：通行證有效秒數（修訂 1 B 預設 7200）；rejectChats：之後每個 chat 都回 401 pass_invalid（伺服器一直不認通行證）
+  const dream = { quota: 20, used: 0, replies: [], ttl: 7200, rejectChats: false };
 
   const mock = {
     log,
@@ -68,7 +74,7 @@ export function createMockCloud() {
     dream,
     /** 讓目前所有通行證失效（之後的 chat 回 401 pass_invalid）。 */
     revokePasses() { for (const v of passes.values()) v.revoked = true; },
-    /** 指定接下來 chat 的回覆（依序取用）：{ reply, source, reason }。 */
+    /** 指定接下來 chat 的回覆（依序取用）：{ reply, source, reason, sig?（給了就用這個 sig，例如 null＝不帶） }。 */
     queueReply(r) { dream.replies.push(r); },
     /** 建一個玩家（測試準備用）；回傳 { player_id, token, transfer_code }。 */
     seedPlayer({ saves = {} } = {}) {
@@ -188,29 +194,34 @@ export function createMockCloud() {
     if (method === 'POST' && path === '/api/dream/pass') {
       if (body?.turnstile_token !== FAKE_TS_TOKEN) { await err(403, 'turnstile_failed', '人機驗證失敗，請再試一次'); return; }
       const pass = `pass-${p.id}-${passes.size + 1}`;
-      const exp = Math.floor(Date.now() / 1000) + 1800;
+      const exp = Math.floor(Date.now() / 1000) + dream.ttl;
       passes.set(pass, { player: p.id, exp, revoked: false });
-      await send(200, { pass, expires_at: exp, remaining_today: Math.max(0, dream.quota - dream.used) }); // API.md 鐘塔之夢補充
+      // API.md 鐘塔之夢補充（remaining_today）、修訂 1 B（ttl_s）
+      await send(200, { pass, expires_at: exp, ttl_s: dream.ttl, remaining_today: Math.max(0, dream.quota - dream.used) });
       return;
     }
     if (method === 'POST' && path === '/api/dream/chat') {
       const ps = passes.get(body?.pass);
-      if (!ps || ps.revoked || ps.player !== p.id || ps.exp <= Date.now() / 1000) { await err(401, 'pass_invalid', '夢境通行證無效'); return; }
+      if (dream.rejectChats || !ps || ps.revoked || ps.player !== p.id || ps.exp <= Date.now() / 1000) { await err(401, 'pass_invalid', '夢境通行證無效'); return; }
       const input = typeof body?.input === 'string' ? body.input.trim() : '';
       const okBody = /^[a-z0-9_]{1,32}$/.test(body?.guest ?? '') && /^[a-z0-9_]{1,32}$/.test(body?.chapter ?? '')
         && Array.isArray(body?.history) && body.history.length <= 6 && input.length >= 1 && [...input].length <= 120;
       if (!okBody) { await err(400, 'bad_request', '欄位格式錯誤'); return; }
+      // 修訂 1 C：guest 項目必須帶正確的 sig，否則丟掉該則（不報錯）
+      entry.acceptedHistory = body.history.filter((h) => h?.role !== 'guest' || (typeof h.sig === 'string' && h.sig === signReply(p.id, body.guest, h.text)));
+      entry.droppedHistory = body.history.filter((h) => !entry.acceptedHistory.includes(h));
+      const signed = (o, q) => ({ ...o, ...(q && Object.hasOwn(q, 'sig') ? (q.sig === null ? {} : { sig: q.sig }) : { sig: signReply(p.id, body.guest, o.reply) }) });
       if (dream.used >= dream.quota) {
-        await send(200, { reply: '夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'quota', remaining_today: 0 });
+        await send(200, signed({ reply: '夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'quota', remaining_today: 0 }));
         return;
       }
       const q = dream.replies.shift();
       if (q && q.source === 'scripted') {
-        await send(200, { reply: q.reply, source: 'scripted', reason: q.reason ?? 'ai_error', remaining_today: dream.quota - dream.used });
+        await send(200, signed({ reply: q.reply, source: 'scripted', reason: q.reason ?? 'ai_error', remaining_today: dream.quota - dream.used }, q));
         return;
       }
       dream.used += 1;
-      await send(200, { reply: q?.reply ?? `「${input}」……我聽見了。`, source: 'ai', reason: null, remaining_today: dream.quota - dream.used });
+      await send(200, signed({ reply: q?.reply ?? `「${input}」……我聽見了。`, source: 'ai', reason: null, remaining_today: dream.quota - dream.used }, q));
       return;
     }
     if (method === 'POST' && path === '/api/transfer/rotate') {

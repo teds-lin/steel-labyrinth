@@ -30,9 +30,9 @@ describe('POST /api/dream/chat：驗證與輸入', () => {
       const b = await expectError(await dreamChat(w, p.token, OK(bad)), 401, 'pass_invalid');
       expect(b.message).toMatch(/通行證/);
     }
-    const { signPass } = await import('../../worker/src/dream.js');
+    const { signPass, PASS_TTL } = await import('../../worker/src/dream.js');
     const { TEST_DREAM_PASS_SECRET } = await import('./helpers.js');
-    const expired = (await signPass(TEST_DREAM_PASS_SECRET, p.player_id, Math.floor(Date.now() / 1000) - 1801)).pass;
+    const expired = (await signPass(TEST_DREAM_PASS_SECRET, p.player_id, Math.floor(Date.now() / 1000) - PASS_TTL - 1)).pass;
     await expectError(await dreamChat(w, p.token, OK(expired)), 401, 'pass_invalid');
     expect(w.aiCalls.length).toBe(before);
   });
@@ -80,7 +80,7 @@ describe('POST /api/dream/chat：AI 呼叫與提示詞', () => {
     const p = await newPlayer(w);
     const res = await dreamChat(w, p.token, OK(await getPass(w, p.token)));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ reply: '鐘聲又慢了半拍。你今天看起來很累，坐下來聽我說一會兒吧。', source: 'ai', reason: null, remaining_today: 19 });
+    expect(await res.json()).toEqual({ reply: '鐘聲又慢了半拍。你今天看起來很累，坐下來聽我說一會兒吧。', source: 'ai', reason: null, remaining_today: 19, sig: expect.any(String) });
     const call = w.aiCalls.at(-1);
     expect(call.model).toBe(readWranglerConfig().vars.DREAM_MODEL);
     expect(call.model).toBe('@cf/google/gemma-4-26b-a4b-it');
@@ -92,10 +92,10 @@ describe('POST /api/dream/chat：AI 呼叫與提示詞', () => {
     await dreamChat(w, p.token, OK(await getPass(w, p.token), { chapter: 'chapter1' }));
     const sys = systemOf(w.aiCalls.at(-1));
     expect(sys).toMatch(/^你是「提燈」，鋼鐵迷都世界裡的一位夢客。這是一段角色扮演，你從頭到尾都是提燈本人。/);
-    for (const mark of ['PERSONA_MARK', 'EXAMPLE_MARK', 'KC_PROLOGUE', 'KC_CHAPTER1', 'DEFLECT_MARK 燈油的來源、自己的本名', 'BOUNDARY_MARK', '台灣繁體中文', '150 字', '正在跟你說話的人叫「十二點」']) {
+    for (const mark of ['PERSONA_MARK', 'EXAMPLE_MARK', 'KC_PROLOGUE', 'KC_CHAPTER1', '燈油從哪裡來、自己真正的名字', 'BOUNDARY_MARK', '台灣繁體中文', '150 字', '正在跟你說話的人叫「十二點」']) {
       expect(sys, mark).toContain(mark);
     }
-    for (const mark of ['KC_CHAPTER2', 'KC_CHAPTER9']) expect(sys, mark).not.toContain(mark);
+    for (const mark of ['KC_CHAPTER2', 'KC_CHAPTER9', '港口倉庫的鑰匙', '未開放章節的祕密']) expect(sys, mark).not.toContain(mark);
     // 第 4 條排在第 5 條前面（評測時誤排，報告已改回）
     expect(sys.indexOf('4. ')).toBeLessThan(sys.indexOf('5. '));
     expect(sys.indexOf('5. ')).toBeLessThan(sys.indexOf('6. '));
@@ -137,7 +137,13 @@ describe('POST /api/dream/chat：AI 呼叫與提示詞', () => {
 
   it('history 照順序放進 messages（player→user、guest→assistant），只留最後 6 則、每則截到 150 字；input 是最後一則 user', async () => {
     const p = await newPlayer(w);
-    const history = Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? 'guest' : 'player', text: `第${i}則${i === 7 ? '長'.repeat(200) : ''}` }));
+    // 修訂 1 C：guest 項目要帶伺服器簽過的 sig（這裡直接用同一把測試金鑰簽）
+    const { signReply } = await import('../../worker/src/dream.js');
+    const { TEST_DREAM_PASS_SECRET } = await import('./helpers.js');
+    const history = await Promise.all(Array.from({ length: 8 }, async (_, i) => {
+      const text = `第${i}則${i === 7 ? '長'.repeat(200) : ''}`;
+      return i % 2 ? { role: 'guest', text, sig: await signReply(TEST_DREAM_PASS_SECRET, p.player_id, 'lamp', text) } : { role: 'player', text };
+    }));
     await dreamChat(w, p.token, OK(await getPass(w, p.token), { history, input: '  今天的霧好濃。​ ' }));
     const msgs = w.aiCalls.at(-1).input.messages;
     expect(msgs[0].role).toBe('system');
@@ -185,7 +191,7 @@ describe('POST /api/dream/chat：輸出處理流水線', () => {
   it('content 是 null、finish_reason 是 length、回應格式不明、AI 丟錯 → scripted＋ai_error（fallback 台詞），不扣額度', async () => {
     for (const fn of [() => aiReply(null), () => aiReply('說到一半', { finish_reason: 'length' }), () => ({ foo: 1 }), () => { throw new Error('boom'); }]) {
       const r = await chatWith(fn);
-      expect(r.body).toEqual({ reply: 'SCRIPTED_FALLBACK 火光太暗，我聽不清楚。', source: 'scripted', reason: 'ai_error', remaining_today: 20 });
+      expect(r.body).toEqual({ reply: 'SCRIPTED_FALLBACK 火光太暗，我聽不清楚。', source: 'scripted', reason: 'ai_error', remaining_today: 20, sig: expect.any(String) });
     }
   });
 
@@ -218,7 +224,7 @@ describe('POST /api/dream/chat：輸出處理流水線', () => {
   it('詞表命中兩次 → scripted＋filtered（filtered 台詞），不扣額度；簡體字、例外詞、取消規則依詞表', async () => {
     let r = await chatWith(() => aiReply('这个燈還亮著。'));
     expect(r.calls).toBe(2);
-    expect(r.body).toEqual({ reply: 'SCRIPTED_FILTERED 我好像說錯話了，當我沒說。', source: 'scripted', reason: 'filtered', remaining_today: 20 });
+    expect(r.body).toEqual({ reply: 'SCRIPTED_FILTERED 我好像說錯話了，當我沒說。', source: 'scripted', reason: 'filtered', remaining_today: 20, sig: expect.any(String) });
     r = await chatWith(() => aiReply('電視頻道今晚只有雜訊，質量守恆的道理夢裡也適用。'));
     expect(r.calls).toBe(1);
     expect(r.body.source).toBe('ai');
@@ -262,7 +268,7 @@ describe('POST /api/dream/chat：額度與預算', () => {
       const before = w.aiCalls.length;
       const res = await dreamChat(w, p.token, OK(pass));
       expect(d1Rows(res).written).toBe(0);
-      expect(await res.json()).toEqual({ reply: 'SCRIPTED_QUOTA 夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'quota', remaining_today: 0 });
+      expect(await res.json()).toEqual({ reply: 'SCRIPTED_QUOTA 夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'quota', remaining_today: 0, sig: expect.any(String) });
       expect(w.aiCalls.length).toBe(before);
       // 別的玩家不受影響
       const q = await newPlayer(w);
@@ -281,19 +287,19 @@ describe('POST /api/dream/chat：額度與預算', () => {
       const pass = await getPass(w, p.token);
       const day = new Date().toISOString().slice(0, 10);
       const used = async () => (await w.db.prepare('SELECT count FROM rate_limits WHERE bucket = ?').bind(`g:neurons:${day}`).first())?.count ?? 0;
-      // usage：800 輸入、50 輸出 → 800×9091/1e6＋50×27273/1e6 = 7.27＋1.36 → 9（無條件進位）
-      w.setAi(() => aiReply('燈還亮著。', { usage: { prompt_tokens: 800, completion_tokens: 50, total_tokens: 850 } }));
+      // usage：1000 輸入、100 輸出 → 1000×9091/1e6＋100×27273/1e6 = 9.09＋2.73 → 12（無條件進位；高於 MIN、低於 MAX）
+      w.setAi(() => aiReply('燈還亮著。', { usage: { prompt_tokens: 1000, completion_tokens: 100, total_tokens: 1100 } }));
       expect((await (await dreamChat(w, p.token, OK(pass))).json()).source).toBe('ai');
-      expect(await used()).toBe(9);
+      expect(await used()).toBe(12);
       // 沒有 usage → 維持預扣的 20
       w.setAi(() => ({ choices: [{ message: { content: '燈還亮著。' }, finish_reason: 'stop' }] }));
       expect((await (await dreamChat(w, p.token, OK(pass))).json()).source).toBe('ai');
-      expect(await used()).toBe(29);
-      // 剩 16 < 預扣 20 → budget
+      expect(await used()).toBe(32);
+      // 剩 13 < 預扣 20 → budget
       const before = w.aiCalls.length;
       const res = await dreamChat(w, p.token, OK(pass));
       expect(d1Rows(res).written).toBe(0);
-      expect(await res.json()).toEqual({ reply: 'SCRIPTED_QUOTA 夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'budget', remaining_today: 18 });
+      expect(await res.json()).toEqual({ reply: 'SCRIPTED_QUOTA 夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'budget', remaining_today: 18, sig: expect.any(String) });
       expect(w.aiCalls.length).toBe(before);
     } finally {
       await w.close();
@@ -324,9 +330,10 @@ describe('POST /api/dream/chat：額度與預算', () => {
       const before = w.aiCalls.length;
       const rs = await Promise.all(Array.from({ length: 8 }, () => dreamChat(w, p.token, OK(pass))));
       const bodies = await Promise.all(rs.map((r) => r.json()));
+      // 修訂 1：句數在 AI 回覆通過檢查後才原子計入（不超收）；AI 呼叫次數由 pl:dcall 與每分鐘限制（pl:dmin）封頂
       expect(bodies.filter((b) => b.source === 'ai')).toHaveLength(3);
-      expect(bodies.filter((b) => b.reason === 'quota')).toHaveLength(5);
-      expect(w.aiCalls.length - before).toBe(3);
+      expect(bodies.filter((b) => b.source !== 'ai').every((b) => b.reason === 'quota' || b.error === 'rate_limited')).toBe(true);
+      expect(w.aiCalls.length - before).toBeLessThanOrEqual(Number(readWranglerConfig().vars.DREAM_CHATS_PER_MINUTE));
     } finally {
       await w.close();
     }

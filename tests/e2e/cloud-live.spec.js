@@ -466,12 +466,25 @@ test.describe('M3 雲端存檔（整合，真的本機 Worker）', () => {
     for (let i = 0; i < 4 && (await g.scene()) !== 'Map'; i++) await g.key('Escape');
     await g.waitScene('Map');
 
+    // 修訂 1：記下通行證回應（ttl_s）與 chat 請求（history 帶 sig）
+    const passBodies = [];
+    const chatReqs = [];
+    page.on('response', async (res) => {
+      if (/\/api\/dream\/pass$/.test(res.url()) && res.request().method() === 'POST' && res.status() === 200) passBodies.push(await res.json().catch(() => null));
+    });
+    page.on('request', (req) => {
+      if (/\/api\/dream\/chat$/.test(req.url()) && req.method() === 'POST') chatReqs.push(JSON.parse(req.postData() ?? 'null'));
+    });
     await g.act('investigate');
     await g.waitDialogue();
     await g.finishDialogue([0]);
     await u.waitChat();
     await page.waitForFunction(() => window.__SL.chat()?.inputEnabled === true || window.__SL.chat()?.verify.error, null, { timeout: 15_000 });
     expect((await u.chat()).verify.error).toBeNull();
+    // 修訂 1 B：200 回應帶 ttl_s（剩餘秒數，2 小時）
+    expect(passBodies.length).toBe(1);
+    expect(passBodies[0].ttl_s).toBeGreaterThan(7000);
+    expect(passBodies[0].ttl_s).toBeLessThanOrEqual(7200);
     // 通行證回應帶 remaining_today：還沒說話就顯示今日剩餘句數（不是「—」）
     expect((await u.chat()).remaining).toMatch(/^今日剩餘 \d+ 句$/);
 
@@ -486,6 +499,13 @@ test.describe('M3 雲端存檔（整合，真的本機 Worker）', () => {
     expect(last.source).toBe('scripted');
     expect(last.text).toMatch(/^SCRIPTED_FILTERED/);
     expect((await u.chat()).shown.at(-1).cls).toContain('sl-msg-scripted');
+    // 修訂 1 C：夢客回覆（ai 與伺服器的 scripted）帶 sig，之後的 history 原樣送回；開場白不送
+    const lastReq = chatReqs.at(-1);
+    const guests = lastReq.history.filter((h) => h.role === 'guest');
+    expect(guests.length).toBeGreaterThanOrEqual(2);
+    for (const h of guests) expect(h.sig).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(guests.some((h) => /^SCRIPTED_FALLBACK/.test(h.text))).toBe(true);
+    expect(chatReqs.flatMap((r) => r.history).every((h) => h.role === 'player' || typeof h.sig === 'string')).toBe(true);
     await u.tapButton('leave');
     await g.waitScene('Map');
   });

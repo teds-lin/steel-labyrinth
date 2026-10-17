@@ -118,6 +118,35 @@ describe('enterDream／wakeUp', () => {
       expect(r.relocated).toBe(true);
     }
   });
+  it('DATA-FORMAT 補充（2026-10-18）2：醒來位置不合法時退回「該章起點」（前一章 end_screen.continue），不是序章的 manifest.start', () => {
+    const d2 = {
+      ...data,
+      manifest: { chapters: ['prologue', 'chapter1', 'chapter2'], start: { map: 'room', spawn: 'default' } },
+      maps: [...data.maps, { id: 'office', name: '辦公室', tiles: ['....', '....'], legend: { '.': 'floor' }, spawns: [{ id: 'first', x: 0, y: 1 }, { id: 'door', x: 3, y: 1, dir: 'left' }] }],
+      story: [
+        { id: 'prologue', guests: [guest], end_screen: { title: 'a', subtitle: 'b', continue: { map: 'office', spawn: 'door' } } },
+        { id: 'chapter1', end_screen: { title: 'a', subtitle: 'b', continue: { map: 'office', spawn: 'nope' } } },
+        { id: 'chapter2', end_screen: { title: 'a', subtitle: 'b' } },
+      ],
+    };
+    const inDream = (chapter, ret) => st({ chapter, location: { map: 'hall', x: 1, y: 1, dir: 'up' }, dream_return: ret });
+    for (const ret of [null, { map: 'hall', x: 1, y: 1, dir: 'up' }, { map: 'gone', x: 0, y: 0, dir: 'up' }, 'room', [1, 2], { map: 'room', x: '1', y: 0.5, dir: 'up' }]) {
+      const r = wakeUp(inDream('chapter1', ret), d2);
+      expect(r.state.location).toEqual({ map: 'office', x: 3, y: 1, dir: 'left' }); // 序章 end_screen.continue
+      expect(r.state.dream_return).toBe(null);
+      expect(r.relocated).toBe(true);
+    }
+    // spawn 找不到 → 該地圖第一個 spawn（與讀檔校正相同）
+    expect(wakeUp(inDream('chapter2', null), d2).state.location).toEqual({ map: 'office', x: 0, y: 1, dir: 'down' });
+    // 序章、不認得的章節 → manifest.start
+    expect(wakeUp(inDream('prologue', null), d2).state.location).toEqual({ map: 'room', x: 0, y: 0, dir: 'down' });
+    expect(wakeUp(inDream('nope', null), d2).state.location).toEqual({ map: 'room', x: 0, y: 0, dir: 'down' });
+    // 前一章的 continue 指向不存在或夢境地圖 → manifest.start
+    const d3 = { ...d2, story: [{ ...d2.story[0], end_screen: { title: 'a', subtitle: 'b', continue: { map: 'hall', spawn: 'center' } } }, ...d2.story.slice(1)] };
+    expect(wakeUp(inDream('chapter1', null), d3).state.location).toEqual({ map: 'room', x: 0, y: 0, dir: 'down' });
+    // 連起點都找不到 → 丟錯
+    expect(() => wakeUp(inDream('chapter1', null), { ...d3, manifest: { ...d3.manifest, start: { map: 'zzz', spawn: 'x' } } })).toThrow();
+  });
   it('isDreamMap', () => {
     expect(isDreamMap(data.maps[1])).toBe(true);
     expect(isDreamMap(data.maps[0])).toBe(false);

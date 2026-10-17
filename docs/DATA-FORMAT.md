@@ -356,3 +356,7 @@ web/data/
    - 必須是非空字串（只有空白也不行），否則 validate 報錯；文字可以用 `{name}`（和對話一樣代入）。
    - 選項順序固定：第一個是 `yes`（入夢），第二個是 `no`。
    - 這些文字屬於玩家看得到的字串，`tools/export-strings.mjs` 會匯出（`unique_id`：`maps/<地圖>.json#<物件>.dream.<欄位>`）。
+
+## 補充（2026-10-18，依 M4 第一輪對抗審查）
+1. 讀檔時：`dream_return` 指向夢境地圖 → 視為不合法，改成該章起點並警告；人在夢境地圖但 `dream_return` 是 null → 同上；人在現實地圖卻帶著 `dream_return` → 清成 null。
+2. `wakeUp` 找不到有效的 `dream_return` 時，退路是**該章起點**（前一章 `end_screen.continue`；序章用 `manifest.start`），不是 `manifest.start`。

@@ -54,15 +54,20 @@ CHAPTERS = "prologue,chapter1,chapter2,chapter3"
 TURNSTILE_HOSTNAMES = "teds-lin.github.io"
 # 夢境通行證：同一玩家每小時 6 次；全站每小時上限（計入每日寫入上限，見 tests/worker/cron-cost.test.js）
 RL_DREAM_PASS_PER_HOUR = "6"
-RL_DREAM_PASS_GLOBAL_PER_HOUR = "30"   # 一張通行證 30 分鐘；全站每小時 30 張約可支撐 15 位同時入夢的玩家
+RL_DREAM_PASS_GLOBAL_PER_HOUR = "50"        # （修訂 1 B）只計 Turnstile 通過的；通行證 2 小時 → 全站最多約 50 × 2 = 100 人同時入夢
+RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR = "10"   # （修訂 1 B）Turnstile 失敗的全站計數上限；滿了之後失敗不再寫入（照樣 403），不影響成功的玩家
+DREAM_PASS_TTL_S = "7200"                   # （修訂 1 B）通行證有效秒數（2 小時）；回應帶 ttl_s
 # 夢客模型（評測完成後只改這裡）。參數固定：temperature 0.7、chat_template_kwargs.enable_thinking=false
 DREAM_MODEL = "@cf/google/gemma-4-26b-a4b-it"
 DREAM_MAX_TOKENS = "200"          # 實測輸出最多約 100 tokens
 # 額度：每位玩家每 UTC 日幾句（scripted 不扣）；全站每日 neurons 預算
 DREAM_CHATS_PER_DAY = "20"
+DREAM_CALLS_PER_DAY = "40"        # （修訂 1 A）每位玩家每 UTC 日 AI 呼叫次數（＝句數 × 2）；filtered、ai_error、重試都計入，不退還
+DREAM_CHATS_PER_MINUTE = "6"      # （修訂 1 A）每位玩家每分鐘 chat 請求（實際呼叫 AI 的才計；超過 429）
 DREAM_NEURONS_PER_DAY = "8000"
 DREAM_NEURONS_PER_CALL = "20"     # 每次 AI 呼叫預扣（實測每句約 9.4，帶滿 6 則紀錄約 17.5），呼叫後依 usage 修正
-DREAM_NEURONS_MIN_PER_CALL = "8"  # 每次呼叫至少計這麼多（每日最多 8000 ÷ 8 = 1000 次呼叫 → 寫入列數有上限）
+DREAM_NEURONS_MIN_PER_CALL = "10" # 每次呼叫至少計這麼多（每日最多 8000 ÷ 10 = 800 次呼叫 → 寫入列數有上限；修訂 1 由 8 調高，實測每句約 9.4、進位後本來就是 10）
+DREAM_NEURONS_MAX_PER_CALL = "60" # （修訂 1 A）每次呼叫最多計這麼多（估計值的 3 倍；不完全信任 usage）
 # 換算 usage → neurons（1000 neurons = 0.011 美元；gemma-4-26b-a4b-it：輸入 0.10、輸出 0.30 美元／百萬 tokens）。換模型時一起改。
 DREAM_NEURONS_PER_M_INPUT = "9091"
 DREAM_NEURONS_PER_M_OUTPUT = "27273"

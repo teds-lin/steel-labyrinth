@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // 把夢客人設、詞表與預寫台詞轉成 D1 的 SQL（docs/API.md「鐘塔之夢」的「私有資料上傳」）。
 //
-//   node tools/upload-dream.mjs --out /tmp/dream.sql [--personas <dir>] [--lexicon <file>] [--story <dir>] [--config <wrangler.toml>] [--apply-local | --apply-remote]
+//   node tools/upload-dream.mjs --out /tmp/dream.sql [--personas <dir>] [--lexicon <file>] [--blocklist <file>] [--story <dir>] [--config <wrangler.toml>] [--apply-local | --apply-remote]
 //
 // - 人設：私有 repo 的 dream/personas/*.json（**只讀 .json**；同一個資料夾的 README-internal.md 等內部筆記寫著劇情真相，絕不讀入）。
 // - 詞表：私有 repo 的 dream/lexicon.json（tools/gen-dream-lexicon.mjs 產生，禁止手改）。
+// - 拒絕清單：私有 repo 的 dream/blocklist.json（不雅、仇恨、自我傷害、政治與統戰用語；docs/API.md「鐘塔之夢 修訂 1」D）。
+//   沒有指定 --blocklist 時取人設資料夾的上一層的 blocklist.json（私有 repo：dream/blocklist.json；測試 fixtures：fixtures/dream/blocklist.json）。
 // - 預寫台詞：公開的 web/data/story/*.json 的 guests[].scripted，依夢客 id 合併進人設（伺服器改用預寫台詞時需要）。
 // - 輸出的 SQL 含人設與詞表，**不可以寫進公開 repo**（本工具會拒絕）。
 // - --apply-local：用 `wrangler d1 execute --local` 寫進本機 D1（wrangler dev 用）。
@@ -16,6 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertOutsideRepo, REPO_ROOT } from './gen-dream-lexicon.mjs';
 import { DEFAULT_NAME } from '../web/src/core/name.js';
+import { compileBlocklist } from '../worker/src/dreamcheck.js';
 
 const DESIGN = resolve(REPO_ROOT, '..', 'steel-labyrinth-design');
 export const DEFAULTS = {
@@ -47,7 +50,16 @@ export function validatePersona(p, file) {
   }
   for (const f of ['name', 'persona', 'boundaries']) if (Object.hasOwn(p, f) && !nonEmptyStr(p[f])) problems.push(`${f} 必須是非空字串`);
   for (const f of ['speech_examples', 'leak_markers']) if (Object.hasOwn(p, f) && !strArray(p[f])) problems.push(`${f} 必須是至少一項的字串陣列`);
-  if (Object.hasOwn(p, 'deflect_topics') && !strArray(p.deflect_topics, { min: 0 })) problems.push('deflect_topics 必須是字串陣列');
+  if (Object.hasOwn(p, 'deflect_topics')) {
+    // 修訂 1 E：依章節分層 { "chapter3": ["……"] }（伺服器只取到判定的章節為止）
+    if (!isObj(p.deflect_topics)) problems.push('deflect_topics 必須是物件（章節 → 字串陣列），依章節分層');
+    else {
+      for (const [ch, list] of Object.entries(p.deflect_topics)) {
+        if (!ID_RE.test(ch)) problems.push(`deflect_topics 的章節鍵「${ch}」格式錯誤`);
+        if (!strArray(list, { min: 0 })) problems.push(`deflect_topics.${ch} 必須是字串陣列`);
+      }
+    }
+  }
   if (Object.hasOwn(p, 'knowledge')) {
     if (!isObj(p.knowledge)) problems.push('knowledge 必須是物件（章節 → 字串陣列）');
     else {
@@ -105,12 +117,31 @@ export function readLexicon(path) {
   return lex;
 }
 
+/** 拒絕清單檔：能編譯（{ categories: { 分類: [詞…] }, exceptions? }）而且至少一個詞。 */
+export function readBlocklist(path) {
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(path, 'utf8'));
+  } catch (e) {
+    throw new Error(`${path}：拒絕清單讀不到或 JSON 無法解析（${e.message}）`);
+  }
+  let compiled;
+  try {
+    compiled = compileBlocklist(raw);
+  } catch (e) {
+    throw new Error(`${path}：${e.message}`);
+  }
+  if (compiled.terms.length === 0) throw new Error(`${path}：拒絕清單沒有任何詞`);
+  return raw;
+}
+
 const sqlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 /** 產生 SQL：先 upsert 全部夢客與詞表，再刪除這次沒有上傳的舊夢客（不會有空窗）。回傳 { sql, guests }。 */
-export function buildDreamSql({ personasDir = DEFAULTS.personasDir, lexiconPath = DEFAULTS.lexiconPath, storyDir = DEFAULTS.storyDir, now = Math.floor(Date.now() / 1000) } = {}) {
+export function buildDreamSql({ personasDir = DEFAULTS.personasDir, lexiconPath = DEFAULTS.lexiconPath, blocklistPath = null, storyDir = DEFAULTS.storyDir, now = Math.floor(Date.now() / 1000) } = {}) {
   const personas = readPersonas(personasDir);
   if (personas.length === 0) throw new Error(`${personasDir} 裡沒有任何人設（*.json）`);
+  const blocklist = readBlocklist(blocklistPath ?? join(dirname(resolve(personasDir)), 'blocklist.json'));
   const scripted = readScripted(storyDir);
   const lexicon = readLexicon(lexiconPath);
   const statements = [];
@@ -129,20 +160,24 @@ export function buildDreamSql({ personasDir = DEFAULTS.personasDir, lexiconPath 
   const lexSha = createHash('sha256').update(JSON.stringify(lexicon)).digest('hex');
   statements.push(`INSERT INTO dream_lexicon (id, data, source_sha256, updated_at) VALUES ('main', ${sqlStr(JSON.stringify(lexicon))}, ${sqlStr(lexicon.source_sha256)}, ${now})
   ON CONFLICT (id) DO UPDATE SET data = excluded.data, source_sha256 = excluded.source_sha256, updated_at = excluded.updated_at;`);
+  const blockText = JSON.stringify(blocklist);
+  statements.push(`INSERT INTO dream_blocklist (id, data, sha256, updated_at) VALUES ('main', ${sqlStr(blockText)}, ${sqlStr(createHash('sha256').update(blockText).digest('hex'))}, ${now})
+  ON CONFLICT (id) DO UPDATE SET data = excluded.data, sha256 = excluded.sha256, updated_at = excluded.updated_at;`);
   for (const st of statements) {
     const bytes = Buffer.byteLength(st, 'utf8');
     if (bytes > MAX_STATEMENT_BYTES) throw new Error(`有一條 SQL 敘述 ${bytes} bytes，超過 D1 的單一敘述上限 100 KB（人設或詞表太大）`);
   }
-  const header = `-- 由 tools/upload-dream.mjs 產生（${new Date(now * 1000).toISOString()}）。含私有的人設與詞表：不可放進公開 repo。\n-- 詞表內容 sha256 ${lexSha}；來源 lexicon.yaml sha256 ${lexicon.source_sha256}\n`;
+  const header = `-- 由 tools/upload-dream.mjs 產生（${new Date(now * 1000).toISOString()}）。含私有的人設、詞表與拒絕清單：不可放進公開 repo。\n-- 詞表內容 sha256 ${lexSha}；來源 lexicon.yaml sha256 ${lexicon.source_sha256}\n`;
   return { sql: `${header}${statements.join('\n')}\n`, guests: personas.map(({ persona }) => persona.id) };
 }
 
 function parseArgs(argv) {
-  const a = { personasDir: DEFAULTS.personasDir, lexiconPath: DEFAULTS.lexiconPath, storyDir: DEFAULTS.storyDir, out: null, local: false, remote: false, config: 'worker/wrangler.toml' };
+  const a = { personasDir: DEFAULTS.personasDir, lexiconPath: DEFAULTS.lexiconPath, blocklistPath: null, storyDir: DEFAULTS.storyDir, out: null, local: false, remote: false, config: 'worker/wrangler.toml' };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--personas') a.personasDir = argv[++i];
     else if (k === '--lexicon') a.lexiconPath = argv[++i];
+    else if (k === '--blocklist') a.blocklistPath = argv[++i];
     else if (k === '--story') a.storyDir = argv[++i];
     else if (k === '--out') a.out = argv[++i];
     else if (k === '--apply-local') a.local = true;
@@ -157,7 +192,7 @@ function parseArgs(argv) {
 function main() {
   try {
     const a = parseArgs(process.argv.slice(2));
-    assertOutsideRepo(a.out, 'SQL（含人設與詞表）');
+    assertOutsideRepo(a.out, 'SQL（含人設、詞表與拒絕清單）');
     const { sql, guests } = buildDreamSql(a);
     mkdirSync(dirname(resolve(a.out)), { recursive: true });
     writeFileSync(a.out, sql);

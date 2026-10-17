@@ -27,6 +27,8 @@ const MAX_RETRY_AFTER = 86400;
 const tooMany = (resetAt, now) => new HttpError(429, 'rate_limited', {
   headers: { 'Retry-After': String(Math.max(1, Math.min(MAX_RETRY_AFTER, resetAt - now))) },
 });
+/** 429 rate_limited（Retry-After＝resetAt − now，1 秒～1 天）。 */
+export const rateLimited = (resetAt, now) => tooMany(resetAt, now);
 export const isRateLimited = (e) => e instanceof HttpError && e.status === 429;
 
 /** 計一次；已達 limit 就丟 429（附 Retry-After 秒數），而且不寫入。resetAt：新時間窗的結束時間。 */
@@ -152,4 +154,13 @@ export async function currentCount(db, bucket, now) {
 /** UTC 日的時間窗：{ day: 'YYYY-MM-DD', resetAt: 下一個 UTC 午夜 }。 */
 export function utcDay(now) {
   return { day: new Date(now * 1000).toISOString().slice(0, 10), resetAt: (Math.floor(now / 86400) + 1) * 86400 };
+}
+
+/** 只讀：一次讀多個 bucket。回傳 Map(bucket → { count, resetAt })；沒有或已過期 → { count: 0, resetAt: null }。 */
+export async function readCounts(db, buckets, now) {
+  const { results } = await db.prepare('SELECT bucket, count, reset_at FROM rate_limits WHERE bucket IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(buckets)).all();
+  const out = new Map(buckets.map((b) => [b, { count: 0, resetAt: null }]));
+  for (const r of results) if (r.reset_at > now) out.set(r.bucket, { count: r.count, resetAt: r.reset_at });
+  return out;
 }

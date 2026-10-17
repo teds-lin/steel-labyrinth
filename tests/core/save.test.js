@@ -593,3 +593,64 @@ describe('sanitizeLoadedState（v3：dream_return 與地圖不存在）', () => 
     expect(r.warnings).toEqual([]);
   });
 });
+
+// DATA-FORMAT「補充（2026-10-18，依 M4 第一輪對抗審查）」第 1 條：dream_return 的三種校正
+describe('sanitizeLoadedState：dream_return 與所在地圖不一致的校正（補充 2026-10-18 第 1 條）', () => {
+  const room = (id, spawns) => ({ id, tiles: ['#####', '#...#', '#####'], legend: { '#': 'wall', '.': 'floor' }, spawns });
+  const data = {
+    tiles: [{ id: 'wall', solid: true }, { id: 'floor', solid: false }],
+    manifest: { chapters: ['prologue', 'chapter1'], start: { map: 'attic', spawn: 'default' } },
+    story: [{ id: 'prologue', end_screen: { continue: { map: 'office', spawn: 'entry' } } }],
+    maps: [
+      room('attic', [{ id: 'default', x: 1, y: 1, dir: 'down' }]),
+      room('office', [{ id: 'entry', x: 2, y: 1, dir: 'up' }]),
+      { ...room('clocktower', [{ id: 'center', x: 2, y: 1, dir: 'up' }]), dream: true },
+      { ...room('dream2', [{ id: 'center', x: 3, y: 1, dir: 'up' }]), dream: true },
+    ],
+  };
+  const base = (over) => ({ ...game(), chapter: 'chapter1', ...over });
+  const inDream = { map: 'clocktower', x: 2, y: 1, dir: 'up' };
+  const chapterStart = { map: 'office', x: 2, y: 1, dir: 'up' };
+
+  it('dream_return 指向夢境地圖 → 視為不合法，改成該章起點並警告', () => {
+    for (const dr of [{ map: 'clocktower', x: 2, y: 1, dir: 'up' }, { map: 'dream2', x: 3, y: 1, dir: 'up' }]) {
+      const r = sanitizeLoadedState(base({ location: inDream, dream_return: dr }), data);
+      expect(r.ok, dr.map).toBe(true);
+      expect(r.state.location).toEqual(inDream);
+      expect(r.state.dream_return, dr.map).toEqual(chapterStart);
+      expect(r.warnings.map((w) => w.code)).toEqual(['dream_return_reset']);
+    }
+  });
+  it('序章：dream_return 指向夢境地圖 → 改成 manifest.start', () => {
+    const r = sanitizeLoadedState(base({ chapter: 'prologue', location: inDream, dream_return: { map: 'dream2', x: 3, y: 1, dir: 'up' } }), data);
+    expect(r.state.dream_return).toEqual({ map: 'attic', x: 1, y: 1, dir: 'down' });
+  });
+  it('人在夢境地圖但 dream_return 是 null → 改成該章起點並警告', () => {
+    const r = sanitizeLoadedState(base({ location: inDream, dream_return: null }), data);
+    expect(r.ok).toBe(true);
+    expect(r.state.location).toEqual(inDream);
+    expect(r.state.dream_return).toEqual(chapterStart);
+    expect(r.warnings.map((w) => w.code)).toEqual(['dream_return_reset']);
+  });
+  it('人在現實地圖卻帶著 dream_return → 清成 null（合法或不合法的 dream_return 都一樣）', () => {
+    for (const dr of [{ map: 'attic', x: 1, y: 1, dir: 'down' }, { map: 'ghost', x: 1, y: 1, dir: 'down' }, { map: 'clocktower', x: 2, y: 1, dir: 'up' }, { map: 'office', x: 0, y: 0, dir: 'up' }]) {
+      const r = sanitizeLoadedState(base({ location: { map: 'office', x: 2, y: 1, dir: 'up' }, dream_return: dr }), data);
+      expect(r.ok, JSON.stringify(dr)).toBe(true);
+      expect(r.state.dream_return, JSON.stringify(dr)).toBe(null);
+      expect(r.state.location).toEqual({ map: 'office', x: 2, y: 1, dir: 'up' });
+      expect(r.warnings.filter((w) => w.code.startsWith('dream_return')), JSON.stringify(dr)).toEqual([]);
+    }
+  });
+  it('所在地圖不存在、dream_return 指向夢境地圖 → 醒到該章起點（不會醒在夢裡）', () => {
+    const r = sanitizeLoadedState(base({ location: { map: 'old_dream', x: 1, y: 1, dir: 'up' }, dream_return: { map: 'dream2', x: 3, y: 1, dir: 'up' } }), data);
+    expect(r.ok).toBe(true);
+    expect(r.state.location).toEqual(chapterStart);
+    expect(r.state.dream_return).toBe(null);
+  });
+  it('校正後的存檔再讀一次：沒有警告（冪等）', () => {
+    for (const s of [base({ location: inDream, dream_return: null }), base({ location: inDream, dream_return: { map: 'dream2', x: 3, y: 1, dir: 'up' } })]) {
+      const once = sanitizeLoadedState(s, data);
+      expect(sanitizeLoadedState(once.state, data)).toEqual({ ok: true, state: once.state, warnings: [] });
+    }
+  });
+});

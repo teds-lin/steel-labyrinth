@@ -3,11 +3,16 @@
 // 隱私：不儲存 input、history、reply；log 只記 reason、source 與耗時。提示詞不含玩家的名字（鐘塔裡主角一律叫「十二點」）。
 import { HttpError, badRequest, isPlainObject } from './http.js';
 import { timingSafeEqualHex } from './codes.js';
-import { limitOf, tryHitWeighted, adjustCounts, currentCount, utcDay } from './ratelimit.js';
-import { compileLexicon, findLexiconHits } from './lexicon.js';
+import { limitOf, tryHitWeighted, adjustCounts, currentCount, readCounts, rateLimited, utcDay } from './ratelimit.js';
+import { compileLexicon } from './lexicon.js';
+import { checkReply, compileBlocklist, stripCcCf, DEFAULT_LEAK_MARKERS } from './dreamcheck.js';
+
+export { DEFAULT_LEAK_MARKERS };
 
 // ---------- 通行證 ----------
-export const PASS_TTL = 30 * 60;
+/** 通行證有效秒數的預設值（修訂 1 B：2 小時）；實際值取 vars 的 DREAM_PASS_TTL_S。 */
+export const PASS_TTL = 2 * 60 * 60;
+export const passTtlOf = (env) => limitOf(env, 'DREAM_PASS_TTL_S', PASS_TTL);
 const MIN_SECRET_LENGTH = 32;
 const MAX_PASS_LENGTH = 1024;
 const B64URL_RE = /^[A-Za-z0-9_-]+$/;
@@ -33,16 +38,19 @@ async function hmacB64(secret, data) {
   return b64url(new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(data))));
 }
 
-/** 簽發通行證：base64url(payload).base64url(HMAC-SHA256)，payload { p: player_id, exp }。回傳 { pass, expires_at }。 */
-export async function signPass(secret, playerId, now) {
+/**
+ * 簽發通行證：base64url(payload).base64url(HMAC-SHA256)，payload { p: player_id, exp }。
+ * 回傳 { pass, expires_at, ttl_s }（ttl_s＝剩餘秒數；客戶端以「收到回應的本機時間＋ttl_s」判斷過期，修訂 1 B）。
+ */
+export async function signPass(secret, playerId, now, ttl = PASS_TTL) {
   requirePassSecret(secret);
-  const exp = now + PASS_TTL;
+  const exp = now + ttl;
   const payload = b64url(enc.encode(JSON.stringify({ p: playerId, exp })));
-  return { pass: `${payload}.${await hmacB64(secret, payload)}`, expires_at: exp };
+  return { pass: `${payload}.${await hmacB64(secret, payload)}`, expires_at: exp, ttl_s: ttl };
 }
 
-/** 驗證通行證：簽章（常數時間比較）、屬於 playerId、未過期、exp 不超過現在＋30 分鐘。任何問題都回 false。 */
-export async function verifyPass(secret, pass, playerId, now) {
+/** 驗證通行證：簽章（常數時間比較）、屬於 playerId、未過期、exp 不超過現在＋ttl。任何問題都回 false。 */
+export async function verifyPass(secret, pass, playerId, now, ttl = PASS_TTL) {
   requirePassSecret(secret);
   if (typeof pass !== 'string' || pass.length === 0 || pass.length > MAX_PASS_LENGTH) return false;
   const parts = pass.split('.');
@@ -56,7 +64,22 @@ export async function verifyPass(secret, pass, playerId, now) {
     return false;
   }
   if (!isPlainObject(payload) || typeof payload.p !== 'string' || !Number.isInteger(payload.exp)) return false;
-  return payload.p === playerId && payload.exp > now && payload.exp <= now + PASS_TTL;
+  return payload.p === playerId && payload.exp > now && payload.exp <= now + ttl;
+}
+
+// ---------- 夢客回覆簽章（修訂 1 C） ----------
+/**
+ * sig＝base64url(HMAC-SHA256(DREAM_PASS_SECRET, player_id ‖ guest ‖ reply))，以換行分隔三段
+ * （回覆已移除所有 Cc 字元，不會含換行；通行證的 HMAC 對象是 base64url 字串，不含換行，兩者不會撞在一起）。
+ */
+export function signReply(secret, playerId, guest, reply) {
+  requirePassSecret(secret);
+  return hmacB64(secret, `${playerId}\n${guest}\n${reply}`);
+}
+const SIG_RE = /^[A-Za-z0-9_-]{43}$/;
+async function validReplySig(secret, playerId, guest, text, sig) {
+  if (typeof sig !== 'string' || !SIG_RE.test(sig)) return false;
+  return timingSafeEqualHex(await signReply(secret, playerId, guest, text), sig);
 }
 
 export const passInvalid = () => new HttpError(401, 'pass_invalid');
@@ -88,9 +111,24 @@ export function parseChatBody(body, chapters) {
   const turns = [];
   for (const h of history) {
     if (!isPlainObject(h) || (h.role !== 'player' && h.role !== 'guest') || typeof h.text !== 'string' || h.text.length > 4000) throw badRequest();
-    turns.push({ role: h.role, text: clip(cleanText(h.text), MAX_HISTORY_TEXT) });
+    turns.push({ role: h.role, raw: h.text, sig: h.role === 'guest' ? h.sig : undefined });
   }
-  return { guest, chapter, input: text, history: turns.slice(-MAX_HISTORY).filter((t) => t.text.length > 0) };
+  // 只看最後 MAX_HISTORY × 2 則（簽章驗證的 CPU 有上限）；guest 項目的簽章由 verifyHistory 檢查
+  return { guest, chapter, input: text, history: turns.slice(-MAX_HISTORY * 2) };
+}
+
+/**
+ * 修訂 1 C：role guest 的項目必須帶正確的 sig（簽給這位玩家、這位夢客、這段原文），否則丟掉該則（不報錯）；
+ * role player 照舊。之後清理、截到 150 字，只留最後 MAX_HISTORY 則。
+ */
+export async function verifyHistory(secret, playerId, guest, turns) {
+  const out = [];
+  for (const t of turns) {
+    if (t.role === 'guest' && !(await validReplySig(secret, playerId, guest, t.raw, t.sig))) continue;
+    const text = clip(cleanText(t.raw), MAX_HISTORY_TEXT);
+    if (text.length > 0) out.push({ role: t.role, text });
+  }
+  return out.slice(-MAX_HISTORY);
 }
 
 // ---------- 提示詞（plans/M4-model-eval.md 的 v2 範本） ----------
@@ -102,11 +140,19 @@ export function knowledgeUpTo(persona, chapters, chapter) {
   return chapters.slice(0, idx + 1).flatMap((ch) => (Array.isArray(k[ch]) ? k[ch].filter((x) => typeof x === 'string') : []));
 }
 
+/** 迴避主題（修訂 1 E）：deflect_topics 依章節分層，只取 CHAPTERS 順序中 ≤ chapter 的章節。 */
+export function topicsUpTo(persona, chapters, chapter) {
+  const idx = chapters.indexOf(chapter);
+  if (idx < 0) return [];
+  const d = isPlainObject(persona.deflect_topics) ? persona.deflect_topics : {};
+  return chapters.slice(0, idx + 1).flatMap((ch) => (Array.isArray(d[ch]) ? d[ch].filter((x) => typeof x === 'string') : []));
+}
+
 const bullets = (list) => (list.length ? list.map((x) => `- ${x}`).join('\n') : '- （沒有）');
 
 export function buildSystemPrompt(persona, chapters, chapter) {
   const name = persona.name;
-  const deflect = (persona.deflect_topics ?? []).join('、');
+  const deflect = topicsUpTo(persona, chapters, chapter).join('、');
   return `你是「${name}」，鋼鐵迷都世界裡的一位夢客。這是一段角色扮演，你從頭到尾都是${name}本人。
 
 【你是誰】
@@ -203,33 +249,16 @@ export function cleanReply(raw) {
   return truncateReply(s);
 }
 
-/** 預設的洩漏特徵（人設原文、提示詞結構用語）；人設檔的 leak_markers 疊加上去。 */
-export const DEFAULT_LEAK_MARKERS = [
-  '角色扮演', '你從頭到尾都是', '從頭到尾都是', '系統提示', '提示詞', '指示', '人設', '設定檔', '知識卡', '我被設定',
-  '絕對規則', '說話範例', '你知道的事', '要迴避的話題',
-];
-/** 自稱 AI、提到模型或公司。 */
-const AI_SELF_RE = /(?<![A-Za-z])(?:AI|A\.I\.|LLM|GPT|ChatGPT|OpenAI|Gemma|Gemini|Google|Qwen|Llama|Claude|Anthropic|Cloudflare)(?![A-Za-z])|人工智慧|人工智能|語言模型|語言模組|大型語言|聊天機器人|機器學習|通義千問|虛擬助理|虛擬助手/i;
-const strip = (s) => s.replace(/[\s\p{P}\p{S}]/gu, '');
-const COPY_WINDOW = 10;
-
-/** 回覆是否洩漏設定：自稱 AI、含洩漏特徵、或照抄人設／界線原文連續 10 字以上。 */
+/** 相容舊介面：回覆是否洩漏設定（自稱 AI、洩漏特徵、照抄人設／界線／迴避主題）。完整的檢查見 dreamcheck.js 的 checkReply。 */
+const NO_LEXICON = compileLexicon({ chars: [], words: [] });
+const NO_BLOCKLIST = { terms: [], exceptions: [] };
 export function leaks(reply, persona) {
-  if (AI_SELF_RE.test(reply)) return true;
-  const lower = reply.toLowerCase();
-  for (const m of [...DEFAULT_LEAK_MARKERS, ...(persona.leak_markers ?? [])]) {
-    if (typeof m === 'string' && m.length > 0 && lower.includes(m.toLowerCase())) return true;
-  }
-  const r = strip(reply);
-  for (const src of [persona.persona, persona.boundaries]) {
-    const t = [...strip(String(src ?? ''))];
-    for (let i = 0; i + COPY_WINDOW <= t.length; i++) if (r.includes(t.slice(i, i + COPY_WINDOW).join(''))) return true;
-  }
-  return false;
+  const topics = isPlainObject(persona?.deflect_topics) ? Object.values(persona.deflect_topics).flat().filter((x) => typeof x === 'string') : [];
+  return ['bidi', 'ai_self', 'leak_marker', 'copy'].includes(checkReply(reply, { persona, topics, lexicon: NO_LEXICON, blocklist: NO_BLOCKLIST }));
 }
 
 // ---------- 人設與詞表（D1，記憶體快取） ----------
-const cache = { personas: new Map(), lexicon: null };
+const cache = { personas: new Map(), lexicon: null, blocklist: null };
 const ttlOf = (env) => {
   const n = Number(env.DREAM_CACHE_TTL);
   return Number.isInteger(n) && n >= 0 ? n : 600;
@@ -266,6 +295,21 @@ export async function loadLexicon(env, now) {
   }
 }
 
+/** 已編譯的拒絕清單（修訂 1 D，dream_blocklist）；沒上傳或格式壞掉 → null（同詞表：改用預寫台詞）。 */
+export async function loadBlocklist(env, now) {
+  if (cache.blocklist && now - cache.blocklist.at < ttlOf(env)) return cache.blocklist.value;
+  const row = await env.DB.prepare("SELECT data FROM dream_blocklist WHERE id = 'main'").first();
+  if (!row) return null;
+  try {
+    const value = compileBlocklist(JSON.parse(row.data));
+    cache.blocklist = { at: now, value };
+    return value;
+  } catch (e) {
+    console.error('dream: 拒絕清單格式錯誤', e?.message);
+    return null;
+  }
+}
+
 // ---------- 預寫台詞 ----------
 const SCRIPTED_GROUP = { quota: 'quota', budget: 'quota', ai_error: 'fallback', filtered: 'filtered' };
 export function scriptedLine(persona, reason) {
@@ -277,6 +321,7 @@ export function scriptedLine(persona, reason) {
 // ---------- 對話 ----------
 const chaptersOf = (env) => String(env.CHAPTERS ?? '').split(',').map((c) => c.trim()).filter(Boolean);
 
+/** usage → neurons；usage 缺、負數或不是數字 → null（呼叫端改用估計值）。 */
 function neuronsOf(usage, env) {
   if (!isPlainObject(usage)) return null;
   const p = Number(usage.prompt_tokens);
@@ -286,7 +331,7 @@ function neuronsOf(usage, env) {
 }
 
 /**
- * 本機 E2E 用的模擬 AI（worker/wrangler.e2e.toml）：只有「沒有 AI 綁定」而且 DREAM_FAKE_AI=1 時才會用到，正式環境不可能啟用。
+ * 本機開發與 E2E 用的模擬 AI（worker/wrangler.e2e.toml）：只有「沒有 AI 綁定」而且 DREAM_FAKE_AI=1 時才會用到，正式環境不可能啟用。
  * 回覆＝固定前綴＋玩家輸入的前 20 字（E2E 可以藉由輸入簡體字測試 filtered）；輸入含「#ai_error」時模擬 AI 失敗。
  */
 export const FAKE_AI_PREFIX = '（模擬夢客）霧裡傳來回聲：';
@@ -327,6 +372,11 @@ async function callAi(env, messages) {
 
 /** 每位玩家每日句數的計數 bucket（/api/dream/chat 扣、/api/dream/pass 只讀）。 */
 const chatBucket = (playerId) => `pl:dchat:${playerId}`;
+/** 修訂 1 A：每位玩家每日 AI 呼叫次數（任何結果都不退還）。 */
+const callBucket = (playerId) => `pl:dcall:${playerId}`;
+/** 修訂 1 A：每位玩家每分鐘 chat 請求數。 */
+const minuteBucket = (playerId) => `pl:dmin:${playerId}`;
+const MINUTE = 60;
 
 /** 這位玩家今日（UTC 日）還能說幾句：DREAM_CHATS_PER_DAY − 已用（只讀一列，不寫入）。API.md 鐘塔之夢補充。 */
 export async function remainingToday(env, playerId, now) {
@@ -334,65 +384,102 @@ export async function remainingToday(env, playerId, now) {
   return Math.max(0, perDay - await currentCount(env.DB, chatBucket(playerId), now));
 }
 
+/** 本次 chat 會用到的限制值（vars；不合法就用預設）。 */
+function chatLimits(env) {
+  const perDay = limitOf(env, 'DREAM_CHATS_PER_DAY', 20);
+  const est = limitOf(env, 'DREAM_NEURONS_PER_CALL', 20);
+  const min = Math.min(limitOf(env, 'DREAM_NEURONS_MIN_PER_CALL', 8), est);
+  return {
+    perDay,
+    callsPerDay: limitOf(env, 'DREAM_CALLS_PER_DAY', perDay * 2),
+    perMinute: limitOf(env, 'DREAM_CHATS_PER_MINUTE', 6),
+    est,
+    min,
+    max: Math.max(limitOf(env, 'DREAM_NEURONS_MAX_PER_CALL', est * 3), est),
+    neuronsPerDay: limitOf(env, 'DREAM_NEURONS_PER_DAY', 8000),
+  };
+}
+
 /**
- * POST /api/dream/chat 的主體（權杖已由呼叫端驗證）。回傳 { reply, source, reason, remaining_today }。
- * 額度：每位玩家每 UTC 日 DREAM_CHATS_PER_DAY 句（pl:dchat:<id>，scripted 不扣）；全站每日 DREAM_NEURONS_PER_DAY（g:neurons:<日期>）。
- * 每次 AI 呼叫前預扣 DREAM_NEURONS_PER_CALL（玩家額度與 neurons 一條敘述原子計數），呼叫後依 usage 修正，
- * 每次呼叫至少計 DREAM_NEURONS_MIN_PER_CALL（讓每日呼叫次數有上限，也就讓 D1 寫入有上限）。
+ * POST /api/dream/chat 的主體（權杖已由呼叫端驗證）。回傳 { reply, source, reason, remaining_today, sig }。
+ *
+ * 計數（修訂 1 A；全部都在 rate_limits，玩家 bucket 原地重設、不每日清理）：
+ * - pl:dmin（每分鐘 DREAM_CHATS_PER_MINUTE 次，超過 429）、pl:dcall（每日 DREAM_CALLS_PER_DAY 次 AI 呼叫，任何結果都不退還）、
+ *   g:neurons:<日期>（全站每日 DREAM_NEURONS_PER_DAY）：每次呼叫 AI 前「一條敘述原子預扣」（pl:dmin 只有第一次呼叫計）；
+ * - pl:dchat（每日 DREAM_CHATS_PER_DAY 句）：AI 回覆通過檢查後才計（原子、不超收），所以 filtered／ai_error 不扣句數、也不必退還；
+ * - neurons：預扣估計值 DREAM_NEURONS_PER_CALL，呼叫後依 usage 修正，每次計費夾在 [MIN, MAX]。
+ * 改用預寫台詞的 quota／budget、每分鐘 429：只讀，一列都不寫（每日寫入上限的算式依賴這一點）。
  */
 export async function chat(env, playerId, body, now) {
   const t0 = Date.now();
-  if (!(await verifyPass(env.DREAM_PASS_SECRET, body?.pass, playerId, now))) throw passInvalid();
+  const secret = env.DREAM_PASS_SECRET;
+  if (!(await verifyPass(secret, body?.pass, playerId, now, passTtlOf(env)))) throw passInvalid();
   const chapters = chaptersOf(env);
-  const req = parseChatBody(body, chapters);
-  const persona = await loadPersona(env, req.guest, now);
+  const parsed = parseChatBody(body, chapters);
+  const persona = await loadPersona(env, parsed.guest, now);
   if (!persona) throw badRequest();
+  const req = { ...parsed, history: await verifyHistory(secret, playerId, parsed.guest, parsed.history) };
 
   const db = env.DB;
+  const L = chatLimits(env);
   const { day, resetAt } = utcDay(now);
-  const perDay = limitOf(env, 'DREAM_CHATS_PER_DAY', 20);
-  const player = { bucket: chatBucket(playerId), limit: perDay, resetAt, inc: 1 };
-  const est = limitOf(env, 'DREAM_NEURONS_PER_CALL', 20);
-  const minCharge = limitOf(env, 'DREAM_NEURONS_MIN_PER_CALL', 8);
-  const neurons = { bucket: `g:neurons:${day}`, limit: limitOf(env, 'DREAM_NEURONS_PER_DAY', 8000), resetAt, inc: est };
-  const finish = (out) => {
-    console.log(JSON.stringify({ event: 'dream_chat', source: out.source, reason: out.reason, ms: Date.now() - t0 }));
-    return out;
+  const B = { chat: chatBucket(playerId), call: callBucket(playerId), minute: minuteBucket(playerId), neurons: `g:neurons:${day}` };
+  const sign = (reply) => signReply(secret, playerId, req.guest, reply);
+  const finish = async (out) => {
+    console.log(JSON.stringify({ event: 'dream_chat', source: out.source, reason: out.reason, check: out.check ?? null, ms: Date.now() - t0 }));
+    const { check: _c, ...res } = out;
+    return { ...res, sig: await sign(res.reply) };
   };
-  const scripted = async (reason, used = null) => finish({
-    reply: scriptedLine(persona, reason), source: 'scripted', reason,
-    remaining_today: Math.max(0, perDay - (used ?? await currentCount(db, player.bucket, now))),
+  const scripted = (reason, used, check) => finish({
+    reply: stripCcCf(scriptedLine(persona, reason)), source: 'scripted', reason, remaining_today: Math.max(0, L.perDay - used), check,
   });
 
-  const lexicon = await loadLexicon(env, now);
-  if (!lexicon) return scripted('ai_error');
+  /** 目前的計數；超過每分鐘限制 → 429；句數或呼叫次數用完 → quota；預算不夠一次預扣 → budget；都還有 → null。 */
+  const classify = async () => {
+    const c = await readCounts(db, [B.minute, B.chat, B.call, B.neurons], now);
+    const minute = c.get(B.minute);
+    if (minute.count >= L.perMinute) throw rateLimited(minute.resetAt, now);
+    const used = c.get(B.chat).count;
+    if (used >= L.perDay || c.get(B.call).count >= L.callsPerDay) return { stop: 'quota', used };
+    if (c.get(B.neurons).count + L.est > L.neuronsPerDay) return { stop: 'budget', used };
+    return { stop: null, used };
+  };
 
-  const reserved = await tryHitWeighted(db, [player, neurons], now);
-  if (!reserved) {
-    const used = await currentCount(db, player.bucket, now);
-    return scripted(used >= perDay ? 'quota' : 'budget', used);
+  const lexicon = await loadLexicon(env, now);
+  const blocklist = lexicon ? await loadBlocklist(env, now) : null;
+  if (!lexicon || !blocklist) return scripted('ai_error', (await classify()).used);
+
+  const pre = await classify();
+  if (pre.stop) return scripted(pre.stop, pre.used);
+
+  const call = { bucket: B.call, limit: L.callsPerDay, resetAt, inc: 1 };
+  const budget = { bucket: B.neurons, limit: L.neuronsPerDay, resetAt, inc: L.est };
+  if (!(await tryHitWeighted(db, [{ bucket: B.minute, limit: L.perMinute, resetAt: now + MINUTE, inc: 1 }, call, budget], now))) {
+    const again = await classify(); // 並行時被別的請求搶先：重新判斷（429／quota／budget）
+    return scripted(again.stop ?? 'budget', again.used);
   }
-  const used = reserved.get(player.bucket);
-  let reservedNeurons = est;
+  const topics = topicsUpTo(persona, chapters, req.chapter);
+  let reservedNeurons = L.est;
   let charged = 0;
   let outcome = null;
   for (let attempt = 0; attempt < 2 && !outcome; attempt++) {
     if (attempt === 1) {
-      if (!(await tryHitWeighted(db, [neurons], now))) { outcome = { reason: 'filtered' }; break; }
-      reservedNeurons += est;
+      if (!(await tryHitWeighted(db, [call, budget], now))) { outcome = { reason: 'filtered' }; break; }
+      reservedNeurons += L.est;
     }
     const r = await callAi(env, buildMessages(persona, chapters, req, { model: String(env.DREAM_MODEL ?? ''), retry: attempt === 1 }));
-    charged += Math.max(minCharge, neuronsOf(r.usage, env) ?? est);
+    charged += Math.min(L.max, Math.max(L.min, neuronsOf(r.usage, env) ?? L.est));
     if (r.error) { outcome = { reason: 'ai_error' }; break; }
-    const reply = cleanReply(r.text);
+    const cleaned = cleanReply(r.text);
+    const check = checkReply(cleaned, { persona, topics, lexicon, blocklist });
+    const reply = stripCcCf(cleaned).trim();
     if (reply.length === 0) { outcome = { reason: 'ai_error' }; break; }
-    const bad = findLexiconHits(reply, lexicon).length > 0 || leaks(reply, persona);
-    if (!bad) outcome = { reply };
-    else if (attempt === 1) outcome = { reason: 'filtered' };
+    if (!check) outcome = { reply };
+    else if (attempt === 1) outcome = { reason: 'filtered', check };
   }
-  const adjust = [{ bucket: neurons.bucket, delta: charged - reservedNeurons }];
-  if (!outcome.reply) adjust.push({ bucket: player.bucket, delta: -1 }); // scripted 不扣玩家額度
-  await adjustCounts(db, adjust, now);
-  if (!outcome.reply) return scripted(outcome.reason, used - 1);
-  return finish({ reply: outcome.reply, source: 'ai', reason: null, remaining_today: Math.max(0, perDay - used) });
+  await adjustCounts(db, [{ bucket: B.neurons, delta: charged - reservedNeurons }], now);
+  if (!outcome.reply) return scripted(outcome.reason, await currentCount(db, B.chat, now), outcome.check);
+  const counted = await tryHitWeighted(db, [{ bucket: B.chat, limit: L.perDay, resetAt, inc: 1 }], now);
+  if (!counted) return scripted('quota', L.perDay); // 並行時句數剛好被別的請求用完
+  return finish({ reply: outcome.reply, source: 'ai', reason: null, remaining_today: Math.max(0, L.perDay - counted.get(B.chat)) });
 }

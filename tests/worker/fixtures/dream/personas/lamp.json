@@ -9,7 +9,12 @@
     "chapter2": ["KC_CHAPTER2 碼頭的霧比平常濃。"],
     "chapter9": ["KC_CHAPTER9_SPOILER 這是未開放章節的劇透，絕不能出現在提示詞。"]
   },
-  "deflect_topics": ["DEFLECT_MARK 燈油的來源", "自己的本名"],
+  "deflect_topics": {
+    "prologue": ["燈油從哪裡來"],
+    "chapter1": ["自己真正的名字"],
+    "chapter2": ["港口倉庫的鑰匙"],
+    "chapter9": ["未開放章節的祕密"]
+  },
   "leak_markers": ["系統提示", "人設", "知識卡", "我被設定"],
-  "boundaries": "BOUNDARY_MARK 只談夢裡的事；不知道現實世界的科技與品牌。"
+  "boundaries": "BOUNDARY_MARK 只談夢裡的事；不知道現實世界的科技與品牌。對方說出真名時，就提醒「名字留在燈芯的另一頭，這裡用不到」。"
 }

@@ -2,6 +2,12 @@
 // 上方：夢客名字與頭像、今日剩餘句數、「離開」；中間：對話紀錄（DOM，可捲動）；下方：輸入框（最多 120 字）＋「送出」。
 // 第一次交談前沒有有效通行證 → 顯示 Turnstile（action dream_pass）→ POST /api/dream/pass → 通行證存在記憶體。
 // 名字與回覆只經 Phaser Text 或 DOM textContent 顯示，絕不使用 innerHTML。
+// 修訂 1（M4 第一輪對抗審查）：
+// - 每次開啟是一個新的 session（sid）；請求回來時先把結果寫進該夢客的紀錄，畫面只在同一個 session 才更新。
+//   離開後立刻重進、上一次的請求還在路上 → 維持鎖定與等待泡泡，回覆到了才解鎖（不會亂序、不會兩句同時在等）。
+// - 一次送出最多重新驗證通行證 1 次，之後顯示錯誤並停止（防止裝置時鐘不準等情況下無限重新驗證）。
+// - 今日剩餘句數是 0（通行證回應或上一次 chat）→ 開啟時就鎖住並顯示額度用完。
+// - 夢客回覆的 sig 原樣存進紀錄，送 history 時帶上（buildHistory 只送有 sig 的夢客回覆）。
 import { WIDTH, HEIGHT, TEST_MODE } from '../config.js';
 import { session } from '../session.js';
 import { addText, Button, fitText } from '../ui/widgets.js';
@@ -11,17 +17,29 @@ import { cloud, dream } from '../cloud-client.js';
 import { mountTurnstile } from '../ui/turnstile-panel.js';
 import { TURNSTILE_ACTIONS } from '../cloud/turnstile-config.js';
 import {
-  MAX_INPUT_CHARS, cleanChatInput, charCount, clampInput, buildHistory, scriptedKindFor, DREAM_MSG,
+  MAX_INPUT_CHARS, cleanChatInput, charCount, clampInput, buildHistory, scriptedKindFor, cleanReply, DREAM_MSG,
 } from '../cloud/dream.js';
+import { waitText } from '../cloud/sync.js';
 
 const CHAR_MS = 32;
 const LOG = { x: 8, y: 76, w: WIDTH - 16, h: 410 };
 const INPUT_Y = 556;
 /** 對話紀錄只在記憶體（重新整理就沒了）：夢客 id → 訊息陣列。 */
 const chatLogs = new Map();
+/** 還在路上的 chat 請求：夢客 id → Promise（結果寫進紀錄後 resolve）。跨 session（離開再重進）共用。 */
+const inflight = new Map();
+/** 開啟聊天的次數：每次開啟一個新的 session 編號。 */
+let sessionSeq = 0;
 
 const QUOTA_NOTE = '今天的交談次數已經用完了，明天再來吧。';
 const VERIFY_NOTE = '第一次交談前，請先完成人機驗證（防止濫用）。';
+/** 429（每分鐘超過上限，不扣句數）時狀態列的提示。 */
+const rateLimitedNote = (sec) => {
+  const w = waitText(sec);
+  return w ? `說得太快了，請等${w.startsWith('約') ? '' : ' '}${w}後再試。` : '說得太快了，請稍後再試。';
+};
+/** 畫面上顯示的文字：夢客回覆移除 Cc／Cf（紀錄裡的 text 保持原文，送 history 時簽章才對得上；修訂 1a 4）。 */
+const shownText = (m) => (m.role === 'guest' ? cleanReply(m.text) : m.text);
 
 export class DreamChatScene extends Phaser.Scene {
   constructor() { super('DreamChat'); }
@@ -34,6 +52,8 @@ export class DreamChatScene extends Phaser.Scene {
   create() {
     session.scene = 'DreamChat';
     this.scene.bringToTop();
+    this.sid = ++sessionSeq;
+    const sid = this.sid;
     this.closed = false;
     this.busy = false;
     this.verifying = false;
@@ -41,13 +61,14 @@ export class DreamChatScene extends Phaser.Scene {
     this.locked = false; // 額度用完或雲端失效：不能再送
     this.pendingText = null; // 等通行證時暫存的那一句
     this.typing = null;
+    this.typingDone = null;
     this.guest = guestById(session.data, this.guestId) ?? { id: this.guestId, name: this.guestId ?? '？', scripted: {} };
     if (!chatLogs.has(this.guest.id)) chatLogs.set(this.guest.id, []);
     this.log = chatLogs.get(this.guest.id);
 
     this.input.keyboard.disableGlobalCapture(); // 輸入框要能打空白、WASD
     this.events.once('shutdown', () => {
-      this.typing?.remove();
+      this.stopTyping();
       this.input.keyboard.enableGlobalCapture();
       this.closed = true;
     });
@@ -67,9 +88,33 @@ export class DreamChatScene extends Phaser.Scene {
       if (hello) this.log.push({ role: 'guest', text: hello, source: 'greeting' });
     }
     this.renderLog();
+    // 上一次開啟時送出的請求還在路上：維持鎖定與等待泡泡，結果寫進紀錄後再更新畫面
+    const pending = inflight.get(this.guest.id);
+    if (pending) {
+      this.busy = true;
+      this.showWaiting(true);
+      pending.then(() => this.afterInflight(sid));
+    }
     this.refresh();
+    if (this.quotaUsedUp) this.setStatus(QUOTA_NOTE);
     if (!dream.hasPass()) this.startVerify();
   }
+
+  /** 開啟時還在路上的請求完成了（結果已經在紀錄裡）：重畫紀錄、解除等待。 */
+  afterInflight(sid) {
+    if (!this.isLive(sid)) return;
+    this.busy = false;
+    this.showWaiting(false);
+    this.renderLog();
+    if (this.quotaUsedUp) this.setStatus(QUOTA_NOTE);
+    this.refresh();
+  }
+
+  /** 是否還是同一次開啟（離開後重進就是新的 session）。 */
+  isLive(sid) { return !this.closed && this.sid === sid; }
+
+  /** 今日不能再說：剩餘句數已知是 0（通行證回應或上一次 chat），或伺服器回過 reason quota（可能還有句數、但 AI 呼叫次數用完；修訂 1a 3）。 */
+  get quotaUsedUp() { return dream.remaining() === 0 || dream.quotaHit(); }
 
   // ---------- 版面 ----------
   drawBackdrop() {
@@ -166,7 +211,7 @@ export class DreamChatScene extends Phaser.Scene {
 
   // ---------- 狀態 ----------
   get canSend() {
-    return !this.busy && !this.verifying && !this.locked && !this.closed && this.verifyError === null;
+    return !this.busy && !this.verifying && !this.locked && !this.quotaUsedUp && !this.closed && this.verifyError === null;
   }
 
   refresh() {
@@ -197,7 +242,7 @@ export class DreamChatScene extends Phaser.Scene {
     }
     const body = document.createElement('div');
     body.className = 'sl-msg-text';
-    body.textContent = m.text;
+    body.textContent = shownText(m);
     el.appendChild(body);
     return { el, body };
   }
@@ -209,28 +254,43 @@ export class DreamChatScene extends Phaser.Scene {
 
   scrollLog() { this.logEl.scrollTop = this.logEl.scrollHeight; }
 
-  /** 加一則訊息；guest 的回覆逐字顯示（測試模式瞬間顯示）。回傳 Promise（顯示完畢）。 */
+  /** 加一則訊息到紀錄並顯示。 */
   addMessage(m) {
     this.log.push(m);
+    return this.showMessage(m);
+  }
+
+  /** 顯示一則（已經在紀錄裡的）訊息；guest 的回覆逐字顯示（測試模式瞬間顯示）。回傳 Promise（顯示完畢）。 */
+  showMessage(m) {
     const { el, body } = this.messageEl(m);
     this.logEl.appendChild(el);
     this.scrollLog();
     if (m.role !== 'guest' || TEST_MODE) return Promise.resolve();
-    const chars = Array.from(m.text);
+    const chars = Array.from(shownText(m));
     body.textContent = '';
     let n = 0;
     return new Promise((res) => {
-      this.typing?.remove();
+      this.stopTyping();
+      this.typingDone = res;
       this.typing = this.time.addEvent({
         delay: CHAR_MS, loop: true,
         callback: () => {
           n += 1;
           body.textContent = chars.slice(0, n).join('');
           this.scrollLog();
-          if (n >= chars.length) { this.typing.remove(); this.typing = null; res(); }
+          if (n >= chars.length) this.stopTyping();
         },
       });
     });
+  }
+
+  /** 停止逐字顯示（顯示完、或離開畫面），讓等它的 Promise 結束。 */
+  stopTyping() {
+    this.typing?.remove();
+    this.typing = null;
+    const done = this.typingDone;
+    this.typingDone = null;
+    done?.();
   }
 
   showWaiting(v) {
@@ -249,6 +309,7 @@ export class DreamChatScene extends Phaser.Scene {
   // ---------- 人機驗證與通行證 ----------
   startVerify(note = null) {
     if (this.closed) return;
+    const sid = this.sid;
     this.turnstileHandle?.cancel();
     this.verifying = true;
     this.verifyError = null;
@@ -259,17 +320,17 @@ export class DreamChatScene extends Phaser.Scene {
     this.refresh();
     this.turnstileHandle = mountTurnstile(this, WIDTH / 2, 330, {
       action: TURNSTILE_ACTIONS.dreamPass,
-      onResult: (r) => this.onTurnstile(r),
+      onResult: (r) => this.onTurnstile(r, sid),
     });
   }
 
-  async onTurnstile(r) {
+  async onTurnstile(r, sid) {
+    if (!this.isLive(sid)) return;
     this.turnstileHandle = null;
-    if (this.closed) return;
     if (!r.ok) { this.verifyFailed(r.message); return; }
     this.verifyText.setText('驗證中…');
     const p = await dream.obtainPass(r.token);
-    if (this.closed) return;
+    if (!this.isLive(sid)) return;
     if (!p.ok) {
       if (p.kind === 'unauthorized') {
         cloud.invalidate();
@@ -281,12 +342,13 @@ export class DreamChatScene extends Phaser.Scene {
     }
     this.verifying = false;
     this.showVerifyPanel(false);
-    this.setStatus('');
+    this.setStatus(this.quotaUsedUp ? QUOTA_NOTE : '');
     this.refresh();
     const queued = this.pendingText;
     this.pendingText = null;
-    if (queued) this.ask(queued);
-    else if (!this.sys.game.device.input.touch) this.inputEl.focus();
+    // 等通行證的那一句：這次送出已經重新驗證過 1 次了
+    if (queued) this.ask(queued, { reverified: true });
+    else if (this.canSend && !this.sys.game.device.input.touch) this.inputEl.focus();
   }
 
   verifyFailed(message, { retry = true } = {}) {
@@ -309,48 +371,83 @@ export class DreamChatScene extends Phaser.Scene {
     this.ask(text);
   }
 
-  /** 送出一句（玩家的訊息已經在紀錄裡）。 */
-  async ask(text) {
-    if (!dream.hasPass()) {
-      this.pendingText = text;
-      this.startVerify('夢境通行證過期了，請重新完成人機驗證。');
+  /**
+   * 需要（新的）通行證才能送這一句：這次送出還沒重新驗證過 → 重新驗證後自動重送；
+   * 已經重新驗證過 1 次 → 顯示錯誤並停止（修訂 1 B）。
+   */
+  needPass(text, reverified) {
+    if (reverified) {
+      this.busy = false;
+      this.pendingText = null;
+      this.setStatus(DREAM_MSG.passRejected);
+      this.refresh();
       return;
     }
+    this.pendingText = text;
+    this.startVerify('夢境通行證過期了，請重新完成人機驗證。');
+  }
+
+  /**
+   * 送出一句（玩家的訊息已經在紀錄裡）。reverified：這次送出是否已經重新驗證過通行證。
+   * 結果一律先寫進該夢客的紀錄（即使玩家已經離開畫面），畫面只在同一個 session 才更新。
+   */
+  async ask(text, { reverified = false } = {}) {
+    const sid = this.sid;
+    if (!dream.hasPass()) { this.needPass(text, reverified); return; }
+    const guest = this.guest;
+    const guestId = guest.id;
+    const log = this.log;
     this.busy = true;
     this.setStatus('');
     this.refresh();
     this.showWaiting(true);
-    const idx = this.log.findLastIndex((m) => m.role === 'player' && m.text === text);
-    const history = buildHistory(this.log.slice(0, Math.max(0, idx))); // 這一句之前的紀錄
+    const idx = log.findLastIndex((m) => m.role === 'player' && m.text === text);
+    const history = buildHistory(log.slice(0, Math.max(0, idx))); // 這一句之前的紀錄
     const chapter = typeof session.state?.chapter === 'string' ? session.state.chapter : (session.data?.manifest?.chapters?.[0] ?? 'prologue');
-    const r = await dream.chat({ guest: this.guest.id, chapter, history, input: text });
-    if (this.closed) return;
+
+    let finish;
+    const finished = new Promise((res) => { finish = res; });
+    inflight.set(guestId, finished);
+    let r;
+    let msg = null;
+    try {
+      r = await dream.chat({ guest: guestId, chapter, history, input: text });
+      // 先寫紀錄（不管畫面還在不在）
+      if (r.type === 'reply') {
+        msg = { role: 'guest', text: r.text, source: r.source }; // text＝reply 原文（不 trim、不清字元）
+        if (r.sig) msg.sig = r.sig;
+      } else if (r.type !== 'pass_invalid' && r.type !== 'rate_limited') {
+        // 網路錯誤、逾時、429、5xx、雲端失效：播預寫台詞（沒有 sig，不會送進之後的 history）
+        msg = { role: 'guest', text: pickScripted(guest, scriptedKindFor(null)) ?? '……', source: 'scripted' };
+      }
+      if (msg) log.push(msg);
+      if (r.type === 'unauthorized') cloud.invalidate();
+    } finally {
+      if (inflight.get(guestId) === finished) inflight.delete(guestId);
+      finish();
+    }
+
+    if (!this.isLive(sid)) return;
     this.showWaiting(false);
     if (r.type === 'pass_invalid') {
       this.busy = false;
-      this.pendingText = text;
-      this.startVerify('夢境通行證過期了，請重新完成人機驗證。');
+      this.needPass(text, reverified);
       return;
     }
-    if (r.type === 'reply') {
-      await this.addMessage({ role: 'guest', text: r.text, source: r.source });
-      if (r.reason === 'quota' || r.reason === 'budget' || r.remaining === 0) {
-        this.locked = true;
-        this.setStatus(QUOTA_NOTE);
-      }
-    } else {
-      // 網路錯誤、逾時、429、5xx、雲端失效：播預寫台詞，不中斷遊戲
-      await this.addMessage({ role: 'guest', text: pickScripted(this.guest, scriptedKindFor(null)) ?? '……', source: 'scripted' });
-      if (r.type === 'unauthorized') {
-        cloud.invalidate();
-        this.locked = true;
-        this.setStatus(DREAM_MSG.relink);
-      }
+    if (msg) await this.showMessage(msg);
+    if (!this.isLive(sid)) return;
+    if (r.type === 'reply' && (r.reason === 'quota' || r.reason === 'budget' || r.remaining === 0)) {
+      this.locked = true;
+      this.setStatus(QUOTA_NOTE);
     }
-    if (this.closed) return;
+    if (r.type === 'unauthorized') {
+      this.locked = true;
+      this.setStatus(DREAM_MSG.relink);
+    }
+    if (r.type === 'rate_limited') this.setStatus(rateLimitedNote(r.retryAfter));
     this.busy = false;
     this.refresh();
-    if (!this.locked && !this.sys.game.device.input.touch) this.inputEl.focus();
+    if (this.canSend && !this.sys.game.device.input.touch) this.inputEl.focus();
   }
 
   leave() {
@@ -375,7 +472,7 @@ export class DreamChatScene extends Phaser.Scene {
       waiting: this.waitingEl !== null && this.waitingEl !== undefined,
       typing: this.typing !== null && this.typing !== undefined,
       busy: this.busy,
-      locked: this.locked,
+      locked: this.locked || this.quotaUsedUp,
       inputEnabled: !this.inputEl.disabled,
       count: this.countText.text,
       status: this.statusText.text,

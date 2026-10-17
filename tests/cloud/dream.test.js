@@ -4,7 +4,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createCloudApi, DREAM_CHAT_TIMEOUT_MS } from '../../web/src/cloud/api.js';
 import {
   MAX_INPUT_CHARS, MAX_HISTORY, MAX_HISTORY_CHARS, cleanChatInput, charCount, clampInput, buildHistory,
-  scriptedKindFor, interpretChat, createDreamClient, DREAM_MSG,
+  scriptedKindFor, interpretChat, createDreamClient, DREAM_MSG, PASS_DEFAULT_TTL_S,
 } from '../../web/src/cloud/dream.js';
 import {
   TURNSTILE_TEST_SITEKEY, TURNSTILE_SCRIPT_URL, resolveSitekey,
@@ -91,19 +91,35 @@ describe('自由交談：輸入、歷史、預寫台詞種類', () => {
     expect(clampInput('𠮷'.repeat(121))).toBe('𠮷'.repeat(120));
     expect(clampInput('短')).toBe('短');
   });
-  it('buildHistory：只送玩家與 AI 回覆、最近 6 則、每則 ≤ 150 字', () => {
+  it('buildHistory：只送玩家的話與帶 sig 的夢客回覆（修訂 1 C）、最近 6 則、每則 ≤ 150 字', () => {
     expect(MAX_HISTORY).toBe(6);
     expect(MAX_HISTORY_CHARS).toBe(150);
     const log = [
       { role: 'guest', text: '開場白', source: 'greeting' },
-      ...Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? 'guest' : 'player', text: `第${i}句`, source: i % 2 ? 'ai' : undefined })),
-      { role: 'guest', text: '霧太濃了。', source: 'scripted' },
+      ...Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? 'guest' : 'player', text: `第${i}句`, source: i % 2 ? 'ai' : undefined, ...(i % 2 ? { sig: `S${i}` } : {}) })),
+      { role: 'guest', text: '霧太濃了。', source: 'scripted' }, // 離線的預寫台詞：沒有 sig
       { role: 'system', text: '說明' },
     ];
     const h = buildHistory(log);
-    expect(h).toEqual(['第2句', '第3句', '第4句', '第5句', '第6句', '第7句'].map((t, i) => ({ role: i % 2 ? 'guest' : 'player', text: t })));
+    expect(h).toEqual(['第2句', '第3句', '第4句', '第5句', '第6句', '第7句'].map((t, i) => (i % 2 ? { role: 'guest', text: t, sig: `S${i + 2}` } : { role: 'player', text: t })));
     expect(buildHistory([{ role: 'player', text: '長'.repeat(200) }])[0].text.length).toBe(150);
     expect(buildHistory(null)).toEqual([]);
+  });
+  it('buildHistory：伺服器的預寫台詞（scripted）帶 sig 時也送；沒有 sig 或 sig 不是字串的夢客回覆不送；簽過的文字不截斷（超過 150 字就整則不送）', () => {
+    const log = [
+      { role: 'guest', text: '開場白', source: 'greeting' },
+      { role: 'player', text: '你好' },
+      { role: 'guest', text: '當我沒說。', source: 'scripted', sig: 'SIGF' },
+      { role: 'guest', text: '沒簽的 AI 回覆', source: 'ai' },
+      { role: 'guest', text: '壞簽章', source: 'ai', sig: 3 },
+      { role: 'guest', text: '空簽章', source: 'ai', sig: '' },
+      { role: 'guest', text: '長'.repeat(151), source: 'ai', sig: 'SIGL' },
+    ];
+    expect(buildHistory(log)).toEqual([{ role: 'player', text: '你好' }, { role: 'guest', text: '當我沒說。', sig: 'SIGF' }]);
+  });
+  it('buildHistory：夢客回覆的 text 原樣送回（修訂 1a 4：必須與收到的 reply 完全相同，不 trim、不清字元）', () => {
+    const log = [{ role: 'guest', text: ' 你\u200b好 ', source: 'ai', sig: 'S' }];
+    expect(buildHistory(log)).toEqual([{ role: 'guest', text: ' 你\u200b好 ', sig: 'S' }]);
   });
   it('scriptedKindFor：quota／budget → quota、filtered → filtered、其他 → fallback', () => {
     expect(scriptedKindFor('quota')).toBe('quota');
@@ -115,11 +131,24 @@ describe('自由交談：輸入、歷史、預寫台詞種類', () => {
 });
 
 describe('interpretChat：伺服器結果 → 畫面要做的事', () => {
-  it('200 ai／scripted → reply（含剩餘句數）', () => {
-    expect(interpretChat(ok(200, { reply: '嗯。', source: 'ai', reason: null, remaining_today: 17 })))
-      .toEqual({ type: 'reply', text: '嗯。', source: 'ai', reason: null, remaining: 17 });
+  it('200 ai／scripted → reply（含剩餘句數、回覆簽章 sig）', () => {
+    expect(interpretChat(ok(200, { reply: '嗯。', source: 'ai', reason: null, remaining_today: 17, sig: 'abc_-1' })))
+      .toEqual({ type: 'reply', text: '嗯。', display: '嗯。', sig: 'abc_-1', source: 'ai', reason: null, remaining: 17 });
     expect(interpretChat(ok(200, { reply: '先到這裡。', source: 'scripted', reason: 'quota', remaining_today: 0 })))
-      .toEqual({ type: 'reply', text: '先到這裡。', source: 'scripted', reason: 'quota', remaining: 0 });
+      .toEqual({ type: 'reply', text: '先到這裡。', display: '先到這裡。', sig: null, source: 'scripted', reason: 'quota', remaining: 0 });
+    // sig 不是非空字串 → 當作沒有（之後不送進 history）
+    for (const sig of [3, '', null, {}]) expect(interpretChat(ok(200, { reply: '嗯。', source: 'ai', sig })).sig).toBe(null);
+  });
+  it('夢客回覆：畫面上的副本（display）移除 Cc／Cf（零寬、方向控制、控制字元；雙保險），text 保持原樣（簽章用）；移除後是空的 → fallback', () => {
+    const r = interpretChat(ok(200, { reply: '你\u200b好\u202e嗎\u0007？\ufeff', source: 'ai', sig: 'S' }));
+    expect(r).toMatchObject({ type: 'reply', display: '你好嗎？', text: '你\u200b好\u202e嗎\u0007？\ufeff', sig: 'S' });
+    expect(interpretChat(ok(200, { reply: '\u200b\u200d\u0000', source: 'ai' }))).toMatchObject({ type: 'fallback' });
+    // 換行（Cc）也移除；中間空白保留
+    expect(interpretChat(ok(200, { reply: '第一行\n第二 行', source: 'ai' })).display).toBe('第一行第二 行');
+  });
+  it('429 rate_limited（每分鐘超過 6 次，不扣句數）→ rate_limited＋等待秒數（修訂 1 A）', () => {
+    expect(interpretChat(httpErr(429, 'rate_limited', { retryAfter: 42 }))).toEqual({ type: 'rate_limited', retryAfter: 42 });
+    expect(interpretChat(httpErr(429, 'rate_limited'))).toEqual({ type: 'rate_limited', retryAfter: null });
   });
   it('200 但格式不對 → fallback', () => {
     for (const body of [null, {}, { reply: '', source: 'ai' }, { reply: 'x', source: 'other' }, { reply: 3, source: 'ai' }]) {
@@ -132,7 +161,7 @@ describe('interpretChat：伺服器結果 → 畫面要做的事', () => {
     expect(interpretChat(httpErr(401, 'unauthorized'))).toEqual({ type: 'unauthorized' });
   });
   it('網路錯誤、逾時、429、5xx、400 → fallback 預寫台詞', () => {
-    for (const r of [NET, TIMEOUT, httpErr(429, 'rate_limited'), httpErr(500, 'internal'), httpErr(503, 'x'), httpErr(400, 'bad_request')]) {
+    for (const r of [NET, TIMEOUT, httpErr(500, 'internal'), httpErr(503, 'x'), httpErr(400, 'bad_request')]) {
       expect(interpretChat(r)).toMatchObject({ type: 'fallback', kind: 'fallback' });
     }
   });
@@ -158,14 +187,68 @@ describe('createDreamClient：通行證只在記憶體', () => {
 
   it('沒有通行證 → hasPass false；取得後 true；快過期（剩不到 60 秒）視為沒有', async () => {
     let now = NOW;
-    const api = fakeApi({ dreamPass: ok(200, { pass: 'P1', expires_at: NOW / 1000 + 1800 }) });
+    const api = fakeApi({ dreamPass: ok(200, { pass: 'P1', expires_at: NOW / 1000 + 7200, ttl_s: 7200 }) });
     const c = createDreamClient({ api, now: () => now });
     expect(c.hasPass()).toBe(false);
     expect(await c.obtainPass('ts')).toEqual({ ok: true });
     expect(api.calls[0]).toEqual({ name: 'dreamPass', arg: 'ts' });
     expect(c.hasPass()).toBe(true);
-    now = NOW + (1800 - 59) * 1000;
+    now = NOW + (7200 - 61) * 1000;
+    expect(c.hasPass()).toBe(true);
+    now = NOW + (7200 - 59) * 1000;
     expect(c.hasPass()).toBe(false);
+  });
+  it('修訂 1 B：以「收到回應的本機時間＋ttl_s」判斷過期，不拿 expires_at 和裝置時鐘比（裝置時鐘快或慢 45 分鐘都一樣）', async () => {
+    const serverNow = NOW / 1000;
+    for (const skew of [45 * 60 * 1000, -45 * 60 * 1000, 3 * 86400 * 1000]) {
+      let now = NOW + skew; // 裝置時鐘不準
+      const c = createDreamClient({ api: fakeApi({ dreamPass: async () => { now += 2000; return ok(200, { pass: 'P1', expires_at: serverNow + 1800, ttl_s: 1800 }); } }), now: () => now });
+      await c.obtainPass('ts');
+      expect(c.hasPass()).toBe(true); // 時鐘快 45 分鐘：舊版會立刻判定過期 → 無限重新驗證
+      now += (1800 - 61) * 1000; // 從「收到回應」起算（請求花的 2 秒不算進去）
+      expect(c.hasPass()).toBe(true);
+      now += 2000;
+      expect(c.hasPass()).toBe(false); // 時鐘慢 45 分鐘：舊版會多用 45 分鐘過期的通行證
+    }
+  });
+  it('ttl_s 很短（≤ 120 秒）時提早量改成一半，不會一拿到就判定過期；ttl_s 不合法時通行證無效、缺少時（舊版伺服器）用保守的預設值', async () => {
+    let now = NOW;
+    let c = createDreamClient({ api: fakeApi({ dreamPass: ok(200, { pass: 'P1', expires_at: 1, ttl_s: 40 }) }), now: () => now });
+    await c.obtainPass('ts');
+    expect(c.hasPass()).toBe(true);
+    now = NOW + 19_000;
+    expect(c.hasPass()).toBe(true);
+    now = NOW + 21_000;
+    expect(c.hasPass()).toBe(false);
+    for (const ttl of [0, -5, 'x', Number.NaN, 1.5e12]) {
+      now = NOW;
+      c = createDreamClient({ api: fakeApi({ dreamPass: ok(200, { pass: 'P1', expires_at: NOW / 1000 + 1800, ttl_s: ttl }) }), now: () => now });
+      if (ttl === 1.5e12) {
+        expect(await c.obtainPass('ts')).toEqual({ ok: true }); // 過大：夾到 1 天
+        now = NOW + 86400 * 1000;
+        expect(c.hasPass()).toBe(false);
+      } else {
+        expect(await c.obtainPass('ts')).toMatchObject({ ok: false, kind: 'unavailable' });
+        expect(c.hasPass()).toBe(false);
+      }
+    }
+    now = NOW;
+    c = createDreamClient({ api: fakeApi({ dreamPass: ok(200, { pass: 'P1', expires_at: NOW / 1000 - 99999 }) }), now: () => now });
+    expect(await c.obtainPass('ts')).toEqual({ ok: true }); // 沒有 ttl_s：不看 expires_at（可能和裝置時鐘差很多），用預設
+    expect(c.hasPass()).toBe(true);
+    now = NOW + (PASS_DEFAULT_TTL_S - 59) * 1000;
+    expect(c.hasPass()).toBe(false);
+  });
+  it('預設時鐘是單調時鐘（performance.now）：取得通行證後裝置時間被調快 45 分鐘，通行證照樣有效', async () => {
+    const real = Date.now;
+    const c = createDreamClient({ api: fakeApi({ dreamPass: ok(200, { pass: 'P1', expires_at: 1, ttl_s: 1800 }) }) });
+    try {
+      await c.obtainPass('ts');
+      Date.now = () => real() + 45 * 60 * 1000;
+      expect(c.hasPass()).toBe(true);
+    } finally {
+      Date.now = real;
+    }
   });
   it('通行證格式不對 → 失敗；403 turnstile_failed → 人機驗證失敗；429 → 等待時間；401 → unauthorized', async () => {
     let c = createDreamClient({ api: fakeApi({ dreamPass: ok(200, { pass: '', expires_at: 1 }) }), now: () => NOW });
@@ -220,6 +303,22 @@ describe('createDreamClient：通行證只在記憶體', () => {
     expect(c.remaining()).toBe(5);
     await c.obtainPass('ts');
     expect(c.remaining()).toBe(4);
+  });
+  it('修訂 1a 3：reason quota 但 remaining_today > 0（當日 AI 呼叫次數用完）→ quotaHit()；重新取得通行證後清除', async () => {
+    const api = fakeApi({
+      dreamPass: ok(200, { pass: 'P1', ttl_s: 7200, remaining_today: 9 }),
+      dreamChat: [ok(200, { reply: '先到這裡。', source: 'scripted', reason: 'quota', remaining_today: 9 }), ok(200, { reply: '嗯。', source: 'ai', reason: null, remaining_today: 8 })],
+    });
+    const c = createDreamClient({ api, now: () => NOW });
+    await c.obtainPass('ts');
+    expect(c.quotaHit()).toBe(false);
+    await c.chat({ guest: 'g', chapter: 'c', history: [], input: 'x' });
+    expect(c.remaining()).toBe(9);
+    expect(c.quotaHit()).toBe(true);
+    await c.obtainPass('ts');
+    expect(c.quotaHit()).toBe(false);
+    await c.chat({ guest: 'g', chapter: 'c', history: [], input: 'x' });
+    expect(c.quotaHit()).toBe(false);
   });
   it('沒有通行證就 chat → pass_invalid（不送請求）', async () => {
     const api = fakeApi({});

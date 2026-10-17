@@ -17,7 +17,7 @@ import {
 import { buildSummary, DATA_LIMIT } from './summary.js';
 import { MeteredDb } from './db.js';
 import { verifyTurnstile } from './turnstile.js';
-import { signPass, remainingToday, chat as dreamChat } from './dream.js';
+import { signPass, passTtlOf, remainingToday, chat as dreamChat } from './dream.js';
 
 const SLOT_COUNT = 3;
 const LAST_SEEN_GRANULARITY = 86400; // last_seen 一天最多更新一次，省 D1 寫入額度
@@ -95,7 +95,7 @@ async function hitWrite(env, playerId, { kind, name, fallback }, now) {
 }
 
 /** 玩家的限流 bucket 前綴（pl:<kind>:<player_id>）；Cron 刪除玩家時一起刪（purgeExpired 不刪它們）。 */
-const PLAYER_BUCKET_PREFIXES = JSON.stringify(['write', 'clear', 'rotate', 'rsv', 'transfer', 'dpass', 'dchat'].map((k) => `pl:${k}:`));
+const PLAYER_BUCKET_PREFIXES = JSON.stringify(['write', 'clear', 'rotate', 'rsv', 'transfer', 'dpass', 'dchat', 'dcall', 'dmin'].map((k) => `pl:${k}:`));
 
 const WRITE_LIMITS = {
   write: { kind: 'write', name: 'RL_WRITE_PER_HOUR', fallback: 20 },
@@ -458,22 +458,30 @@ export async function purge(db, now, { batch = 500 } = {}) {
 // ---------- 鐘塔之夢（M4） ----------
 
 /**
- * POST /api/dream/pass：權杖＋Turnstile（action dream_pass）→ 30 分鐘的通行證＋今日剩餘句數 remaining_today。
- * 限流：同一玩家每小時 6 次＋全站每小時上限。
+ * POST /api/dream/pass：權杖＋Turnstile（action dream_pass）→ 通行證（DREAM_PASS_TTL_S，預設 2 小時）＋ttl_s＋今日剩餘句數。
+ * 修訂 1 B：權杖驗證 → 玩家 bucket（同一玩家每小時 RL_DREAM_PASS_PER_HOUR 次，滿了 429、不呼叫 siteverify）→ Turnstile →
+ * 通過後才計入全站 g:dpass（RL_DREAM_PASS_GLOBAL_PER_HOUR）。Turnstile 失敗不消耗全站額度。
+ * - 成功：玩家 bucket 與 g:dpass 一條敘述原子計數（全站滿了 → 429，玩家額度也不消耗）。
+ * - 失敗：玩家 bucket 與「失敗」的全站 bucket g:dpassfail（RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR）一起計；g:dpassfail 滿了就一列都不寫
+ *   （只是不再計數，照樣回 403）。這讓失敗的寫入有全站上限（每日寫入算式），又不會擋到成功的玩家。
  */
 async function dreamPass(request, env, now) {
   requireJsonContentType(request);
   const { player_id: playerId } = await authenticate(request, env, now);
   const secret = env.DREAM_PASS_SECRET;
   if (typeof secret !== 'string' || secret.length < 32) throw new Error('DREAM_PASS_SECRET 未設定或太短');
-  await hitAll(env.DB, [
-    { bucket: `pl:dpass:${playerId}`, limit: limitOf(env, 'RL_DREAM_PASS_PER_HOUR', 6) },
-    { bucket: 'g:dpass', limit: limitOf(env, 'RL_DREAM_PASS_GLOBAL_PER_HOUR', 60) },
-  ], now);
+  const mine = { bucket: `pl:dpass:${playerId}`, limit: limitOf(env, 'RL_DREAM_PASS_PER_HOUR', 6) };
+  await assertBelow(env.DB, mine.bucket, mine.limit, now);
   const body = await readJson(request);
   if (!isPlainObject(body)) throw badRequest();
-  await requireTurnstile(request, env, body.turnstile_token, 'dream_pass');
-  const pass = await signPass(secret, playerId, now);
+  const ts = await verifyTurnstile(env, body.turnstile_token, 'dream_pass', clientIp(request));
+  if (!ts.ok) {
+    await tryHitAll(env.DB, [mine, { bucket: 'g:dpassfail', limit: limitOf(env, 'RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR', 10) }], now);
+    console.log(JSON.stringify({ event: 'turnstile_failed', action: 'dream_pass', reason: ts.reason }));
+    throw new HttpError(403, 'turnstile_failed');
+  }
+  await hitAll(env.DB, [mine, { bucket: 'g:dpass', limit: limitOf(env, 'RL_DREAM_PASS_GLOBAL_PER_HOUR', 50) }], now);
+  const pass = await signPass(secret, playerId, now, passTtlOf(env));
   return jsonResponse({ ...pass, remaining_today: await remainingToday(env, playerId, now) });
 }
 

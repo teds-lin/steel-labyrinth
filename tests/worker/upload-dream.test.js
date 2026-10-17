@@ -5,14 +5,15 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { buildDreamSql, readPersonas, validatePersona, readScripted, readLexicon } from '../../tools/upload-dream.mjs';
+import { buildDreamSql, readPersonas, validatePersona, readScripted, readLexicon, readBlocklist } from '../../tools/upload-dream.mjs';
 import { startWorker, loadDreamFixtures, DREAM_FIXTURES, ROOT } from './helpers.js';
 
 const PERSONAS = join(DREAM_FIXTURES, 'personas');
 const STORY = join(DREAM_FIXTURES, 'story');
 const LEXICON = join(DREAM_FIXTURES, 'lexicon.json');
+const BLOCKLIST = join(DREAM_FIXTURES, 'blocklist.json');
 const persona = () => JSON.parse(readFileSync(join(PERSONAS, 'lamp.json'), 'utf8'));
-const build = (over = {}) => buildDreamSql({ personasDir: PERSONAS, lexiconPath: LEXICON, storyDir: STORY, now: 1_760_000_000, ...over });
+const build = (over = {}) => buildDreamSql({ personasDir: PERSONAS, lexiconPath: LEXICON, blocklistPath: BLOCKLIST, storyDir: STORY, now: 1_760_000_000, ...over });
 
 /** 每次測試用同一個固定的暫存資料夾（覆寫，不累積檔案）。 */
 function scratchDir(name) {
@@ -188,3 +189,43 @@ describe('CLI', () => {
   });
 });
 
+
+// 鐘塔之夢 修訂 1：拒絕清單（dream_blocklist）與依章節分層的 deflect_topics
+describe('修訂 1：拒絕清單與分層的 deflect_topics', () => {
+  it('SQL 寫入 dream_blocklist（id main）；讀回的內容等於清單檔', async () => {
+    const { sql } = build();
+    expect(sql).toMatch(/INSERT INTO dream_blocklist \(id, data, sha256, updated_at\) VALUES \('main'/);
+    const w = await startWorker();
+    try {
+      await loadDreamFixtures(w);
+      const row = await w.db.prepare("SELECT data, sha256 FROM dream_blocklist WHERE id = 'main'").first();
+      expect(JSON.parse(row.data)).toEqual(JSON.parse(readFileSync(BLOCKLIST, 'utf8')));
+      expect(row.sha256).toMatch(/^[0-9a-f]{64}$/);
+    } finally {
+      await w.close();
+    }
+  });
+  it('沒有指定 --blocklist 時取人設資料夾上一層的 blocklist.json（私有 repo 的 dream/blocklist.json）', () => {
+    const { sql } = buildDreamSql({ personasDir: PERSONAS, lexiconPath: LEXICON, storyDir: STORY, now: 1 });
+    expect(sql).toContain('假髒話甲');
+  });
+  it('readBlocklist：檔案不存在、JSON 壞掉、沒有 categories、分類不是字串陣列、空詞、沒有任何詞 → 錯誤', () => {
+    const d = scratchDir('block');
+    expect(() => readBlocklist(join(d, 'nope.json'))).toThrow(/拒絕清單/);
+    for (const bad of ['{', '{}', '{"categories":{}}', '{"categories":{"a":"x"}}', '{"categories":{"a":[5]}}', '{"categories":{"a":["。"]}}', '{"categories":{"a":[]}}']) {
+      writeFileSync(join(d, 'b.json'), bad);
+      expect(() => readBlocklist(join(d, 'b.json')), bad).toThrow(/b\.json/);
+    }
+    expect(readBlocklist(BLOCKLIST).categories.profanity).toEqual(['假髒話甲']);
+  });
+  it('deflect_topics 必須依章節分層（{ 章節: [主題…] }）：陣列、章節鍵格式錯、值不是字串陣列 → 錯誤', () => {
+    for (const bad of [['燈油'], { Chapter1: ['x'] }, { chapter1: 'x' }, { chapter1: [5] }]) {
+      const p = persona();
+      p.deflect_topics = bad;
+      expect(() => validatePersona(p, 'lamp.json'), JSON.stringify(bad)).toThrow(/lamp\.json.*deflect_topics/);
+    }
+    const p = persona();
+    p.deflect_topics = { chapter3: [] };
+    expect(() => validatePersona(p, 'lamp.json')).not.toThrow();
+  });
+});

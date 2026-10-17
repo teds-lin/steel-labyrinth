@@ -1,4 +1,4 @@
-// M4：夢境通行證（POST /api/dream/pass；docs/API.md「鐘塔之夢」）。HMAC-SHA256（DREAM_PASS_SECRET），30 分鐘。
+// M4：夢境通行證（POST /api/dream/pass；docs/API.md「鐘塔之夢」）。HMAC-SHA256（DREAM_PASS_SECRET），2 小時（修訂 1 B）。
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { signPass, verifyPass, PASS_TTL } from '../../worker/src/dream.js';
 import { startWorker, newPlayer, json, auth, expectError, d1Rows, tsToken, loadDreamFixtures, dreamChat } from './helpers.js';
@@ -7,22 +7,23 @@ const SECRET = 'unit-test-secret-0123456789abcdef0123456789';
 const b64urlDecode = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
 describe('signPass／verifyPass（單元）', () => {
-  it('格式 base64url(payload).base64url(HMAC)；payload { p, exp }；有效 30 分鐘', async () => {
-    expect(PASS_TTL).toBe(1800);
-    const { pass, expires_at } = await signPass(SECRET, 'player-1', 1000);
-    expect(expires_at).toBe(2800);
+  it('格式 base64url(payload).base64url(HMAC)；payload { p, exp }；有效 2 小時（修訂 1 B）', async () => {
+    expect(PASS_TTL).toBe(7200);
+    const { pass, expires_at, ttl_s } = await signPass(SECRET, 'player-1', 1000);
+    expect(expires_at).toBe(8200);
+    expect(ttl_s).toBe(7200);
     expect(pass).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/);
-    expect(b64urlDecode(pass.split('.')[0])).toEqual({ p: 'player-1', exp: 2800 });
+    expect(b64urlDecode(pass.split('.')[0])).toEqual({ p: 'player-1', exp: 8200 });
     expect(await verifyPass(SECRET, pass, 'player-1', 1000)).toBe(true);
-    expect(await verifyPass(SECRET, pass, 'player-1', 2799)).toBe(true);
+    expect(await verifyPass(SECRET, pass, 'player-1', 8199)).toBe(true);
   });
   it('過期、別的玩家、別的金鑰、竄改 payload 或簽章、格式錯誤 → false', async () => {
     const { pass } = await signPass(SECRET, 'player-1', 1000);
     const [p, sig] = pass.split('.');
-    expect(await verifyPass(SECRET, pass, 'player-1', 2800)).toBe(false);
+    expect(await verifyPass(SECRET, pass, 'player-1', 8200)).toBe(false);
     expect(await verifyPass(SECRET, pass, 'player-2', 1000)).toBe(false);
     expect(await verifyPass(`${SECRET}x`, pass, 'player-1', 1000)).toBe(false);
-    const forged = Buffer.from(JSON.stringify({ p: 'player-2', exp: 2800 })).toString('base64url');
+    const forged = Buffer.from(JSON.stringify({ p: 'player-2', exp: 8200 })).toString('base64url');
     expect(await verifyPass(SECRET, `${forged}.${sig}`, 'player-2', 1000)).toBe(false);
     const longer = Buffer.from(JSON.stringify({ p: 'player-1', exp: 999999 })).toString('base64url');
     expect(await verifyPass(SECRET, `${longer}.${sig}`, 'player-1', 1000)).toBe(false);
@@ -32,8 +33,8 @@ describe('signPass／verifyPass（單元）', () => {
       expect(await verifyPass(SECRET, bad, 'player-1', 1000), String(bad)).toBe(false);
     }
   });
-  it('簽章正確但 exp 超過現在＋30 分鐘（金鑰外洩以外不可能）、payload 不是物件 → false', async () => {
-    const { pass } = await signPass(SECRET, 'player-1', 5000);
+  it('簽章正確但 exp 超過現在＋TTL（金鑰外洩以外不可能）、payload 不是物件 → false', async () => {
+    const { pass } = await signPass(SECRET, 'player-1', 9000);
     expect(await verifyPass(SECRET, pass, 'player-1', 1000)).toBe(false); // 簽發時間在未來 → exp > now+TTL
   });
   it('金鑰沒設定或太短（< 32 字元）→ 丟錯（設定錯誤，不可默默簽出可偽造的票）', async () => {
@@ -49,16 +50,17 @@ describe('POST /api/dream/pass', () => {
   afterAll(async () => { await w?.close(); });
   const req = (token, body = { turnstile_token: tsToken('dream_pass') }, headers = {}) => w.fetch('/api/dream/pass', json(body, auth(token, headers)));
 
-  it('權杖正確＋Turnstile（action dream_pass）→ 200 { pass, expires_at }，通行證屬於這位玩家', async () => {
+  it('權杖正確＋Turnstile（action dream_pass）→ 200 { pass, expires_at, ttl_s, remaining_today }，通行證屬於這位玩家', async () => {
     const p = await newPlayer(w);
     const now = Math.floor(Date.now() / 1000);
     const res = await req(p.token, undefined, { 'cf-connecting-ip': '198.51.100.7' });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(Object.keys(body).sort()).toEqual(['expires_at', 'pass', 'remaining_today']);
+    expect(Object.keys(body).sort()).toEqual(['expires_at', 'pass', 'remaining_today', 'ttl_s']);
+    expect(body.ttl_s).toBe(7200);
     expect(body.remaining_today).toBe(20); // 新玩家：DREAM_CHATS_PER_DAY 整份
-    expect(body.expires_at).toBeGreaterThanOrEqual(now + 1800);
-    expect(body.expires_at).toBeLessThanOrEqual(now + 1802);
+    expect(body.expires_at).toBeGreaterThanOrEqual(now + 7200);
+    expect(body.expires_at).toBeLessThanOrEqual(now + 7202);
     expect(b64urlDecode(body.pass.split('.')[0])).toEqual({ p: p.player_id, exp: body.expires_at });
     expect(w.siteverifyCalls.at(-1)).toMatchObject({ response: tsToken('dream_pass'), remoteip: '198.51.100.7' });
   });

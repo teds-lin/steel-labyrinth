@@ -456,7 +456,7 @@ export class MapScene extends Phaser.Scene {
     session.setState(r.state);
     this.buildMap();
     await this.ui.dreamVeil(false);
-    if (r.relocated) this.ui.toast('醒來的位置異常，已回到起點', 2400);
+    if (r.relocated) this.ui.toast('醒來的位置異常，已回到這一章的起點', 2400);
     if (typeof p.dialogue === 'string' && !this.ended) await this.runDialogue(p.dialogue);
   }
 

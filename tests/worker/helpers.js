@@ -278,12 +278,13 @@ export async function expectError(res, status, code) {
 // ---------- M4：夢客 ----------
 export const DREAM_FIXTURES = join(ROOT, 'tests', 'worker', 'fixtures', 'dream');
 
-/** 用上傳工具（tools/upload-dream.mjs）把測試用的假人設、假詞表、假預寫台詞寫進 D1。 */
+/** 用上傳工具（tools/upload-dream.mjs）把測試用的假人設、假詞表、假拒絕清單、假預寫台詞寫進 D1。 */
 export async function loadDreamFixtures(w, opts = {}) {
   const { buildDreamSql } = await import('../../tools/upload-dream.mjs');
   const { sql } = buildDreamSql({
     personasDir: join(DREAM_FIXTURES, 'personas'),
     lexiconPath: join(DREAM_FIXTURES, 'lexicon.json'),
+    blocklistPath: join(DREAM_FIXTURES, 'blocklist.json'),
     storyDir: join(DREAM_FIXTURES, 'story'),
     ...opts,
   });

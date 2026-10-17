@@ -271,10 +271,30 @@ export function sanitizeLoadedState(state, data) {
     next = { ...next, party: fixedParty, pending: null };
 
     // v3：dream_return（入夢前的現實位置）。地圖不存在 → 改成該章的預設起點；位置不合法 → 該地圖第一個 spawn。
+    // 補充（2026-10-18）第 1 條：dream_return 指向夢境地圖 → 不合法，改成該章起點；人在夢境地圖但 dream_return 是 null → 同上；
+    // 人在現實地圖卻帶著 dream_return → 清成 null（所在地圖不存在時無法判斷是不是夢境，照舊檢查 dream_return）。
+    const locMap = findById(data?.maps, state.location.map);
+    const resetToStart = (why) => {
+      const start = chapterStart(state.chapter, data);
+      if (!start) return reject('no_spawn', `${why}，也找不到這一章的預設起點`);
+      warnings.push(warning('dream_return_reset', `${why}，已改成這一章的起點（${start.map}）`));
+      next = { ...next, dream_return: start };
+      return null;
+    };
     const dr = state.dream_return;
-    if (dr !== null) {
+    if (locMap && locMap.dream !== true) {
+      if (dr !== null) next = { ...next, dream_return: null };
+    } else if (dr === null) {
+      if (locMap) {
+        const bad = resetToStart('存檔在夢境中卻沒有醒來位置');
+        if (bad) return bad;
+      }
+    } else {
       const drMap = findById(data?.maps, dr.map);
-      if (!drMap) {
+      if (drMap?.dream === true) {
+        const bad = resetToStart(`存檔的醒來位置「${dr.map}」是夢境地圖`);
+        if (bad) return bad;
+      } else if (!drMap) {
         const start = chapterStart(state.chapter, data);
         if (!start) return reject('no_spawn', `存檔的醒來位置地圖「${dr.map}」不存在，也找不到這一章的預設起點`);
         warnings.push(warning('dream_return_reset', `存檔的醒來位置地圖「${dr.map}」不存在，已改成這一章的起點（${start.map}）`));

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { test as base } from '@playwright/test';
 import { expect, game, makeSave, seedSaves } from './helpers.js';
 import { dreamUi, makeSaveV3 } from './dream-ui.js';
-import { createMockCloud, MOCK_API } from './cloud-mock.js';
+import { createMockCloud, MOCK_API, signReply } from './cloud-mock.js';
 import { installFakeTurnstile, FAKE_TS_TOKEN } from './fake-turnstile.js';
 import { useDreamFixture, useDataDir, DREAM_FIXTURE_PREFIX, DATA_DIR_PREFIX } from './dream-fixture.js';
 
@@ -179,16 +179,32 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     c = await u.chat();
     expect(c.shown.at(-1).cls).toContain('sl-msg-scripted');
     expect(c.shown.at(-3).cls).not.toContain('sl-msg-scripted');
-    // history：只送玩家的話與 AI 回覆（預寫台詞、開場白不送）
+    // history：只送玩家的話與伺服器簽過章的夢客回覆（帶 sig 原樣送回；開場白沒有 sig、不送）——修訂 1 C
     req = mock.calls(/^\/api\/dream\/chat$/, 'POST').at(-1).body;
-    expect(req.history).toEqual([{ role: 'player', text: '你是誰？' }, { role: 'guest', text: '「你是誰？」……我聽見了。' }]);
+    expect(req.history).toEqual([
+      { role: 'player', text: '你是誰？' },
+      { role: 'guest', text: '「你是誰？」……我聽見了。', sig: signReply(player.player_id, 'lamp', '「你是誰？」……我聽見了。') },
+    ]);
 
     // 錯誤 → 該夢客的 fallback 預寫台詞，不中斷
-    for (const action of [{ status: 500, body: { error: 'internal' } }, { status: 429, body: { error: 'rate_limited' }, headers: { 'Retry-After': '30' } }, 'abort']) {
+    for (const action of [{ status: 500, body: { error: 'internal' } }, 'abort']) {
       mock.fail(isPost(/^\/api\/dream\/chat$/), action);
       last = await u.say('還在嗎？');
       expect(last).toEqual({ role: 'guest', text: '霧太濃了，我聽不清楚。', source: 'scripted' });
       expect((await u.chat()).inputEnabled).toBe(true);
+    }
+    // 429 rate_limited（每分鐘超過 6 次，不扣句數；修訂 1 A）→ 狀態列提示等待時間，夢客不回話，之後可以再送
+    mock.fail(isPost(/^\/api\/dream\/chat$/), { status: 429, body: { error: 'rate_limited', message: '太頻繁' }, headers: { 'Retry-After': '30' } });
+    {
+      const n = (await u.chat()).messages.length;
+      const box = page.locator('.sl-chat-input');
+      if (touch) { await box.tap(); await page.keyboard.type('說太快了'); await u.tapButton('send'); } else { await box.fill('說太快了'); await box.press('Enter'); }
+      await page.waitForFunction((k) => { const x = window.__SL.chat(); return x && !x.busy && x.messages.length === k + 1 && /說得太快了/.test(x.status); }, n, { timeout: 8_000 });
+      c = await u.chat();
+      expect(c.status).toBe('說得太快了，請等 30 秒後再試。');
+      expect(c.messages.at(-1)).toEqual({ role: 'player', text: '說太快了', source: null });
+      expect(c.inputEnabled).toBe(true);
+      expect(c.remaining).toBe('今日剩餘 2 句');
     }
 
     // 通行證失效（401 pass_invalid）→ 重新驗證後自動重送同一句
@@ -197,6 +213,14 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     expect(last).toEqual({ role: 'guest', text: '「通行證過期了嗎？」……我聽見了。', source: 'ai' });
     expect(mock.calls(/^\/api\/dream\/pass$/, 'POST').length).toBe(2);
     expect((await u.chat()).messages.filter((m) => m.text === '通行證過期了嗎？').length).toBe(1);
+    // 伺服器的 scripted（filtered）帶 sig → 之後的 history 會送；離線的預寫台詞（500／429／斷線時播的）沒有 sig → 不送；
+    // 伺服器從沒丟掉任何一則（sig 都對）
+    req = mock.calls(/^\/api\/dream\/chat$/, 'POST').at(-1);
+    expect(req.body.history.some((h) => h.role === 'guest' && h.text === '……我好像說錯話了，當我沒說。' && typeof h.sig === 'string')).toBe(true);
+    expect(req.body.history.some((h) => h.text === '霧太濃了，我聽不清楚。')).toBe(false);
+    expect(req.body.history.every((h) => h.role === 'player' || typeof h.sig === 'string')).toBe(true);
+    expect(mock.calls(/^\/api\/dream\/chat$/, 'POST').flatMap((x) => x.droppedHistory ?? [])).toEqual([]);
+    expect(mock.calls(/^\/api\/dream\/chat$/, 'POST').some((x) => (x.body.history ?? []).some((h) => h.text === '你來了。這裡是測試用的夢。'))).toBe(false);
 
     // 字數上限：最多 120 字
     if (!touch) {
@@ -272,6 +296,15 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     await g.finishDialogue([0]);
     await u.waitChat();
     await u.waitReady();
+    // 修訂 1 D：夢客回覆顯示前再移除 Cc／Cf（零寬、方向控制、控制字元）——伺服器也會移除，這是雙保險
+    mock.queueReply({ reply: '霧\u200b裡\u202e有\u0007聲\ufeff音' });
+    const cleaned = await u.say('你聽見什麼？');
+    expect(cleaned.text).toBe('霧\u200b裡\u202e有\u0007聲\ufeff音'); // 紀錄存原文（簽章用，修訂 1a 4）
+    expect((await u.chat()).shown.at(-1).text).toBe('霧裡有聲音'); // 畫面上的副本移除 Cc／Cf
+    await u.say('再說一次');
+    const req = mock.calls(/^\/api\/dream\/chat$/, 'POST').at(-1);
+    expect(req.body.history.find((h) => h.role === 'guest')?.text).toBe('霧\u200b裡\u202e有\u0007聲\ufeff音');
+    expect(req.droppedHistory).toEqual([]); // 伺服器接受（text 與 reply 完全相同）
     mock.queueReply({ reply: '<img src=x onerror="window.__pwned=1"><b>粗體</b>' });
     const last = await u.say('<script>window.__pwned=2</script>');
     expect(last.text).toBe('<img src=x onerror="window.__pwned=1"><b>粗體</b>');
@@ -360,6 +393,214 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     expect(await page.evaluate(() => window.__FAKE_TS_LOG.map((x) => x.action))).toEqual(['create_player', 'create_player']);
     expect(mock.calls(/^\/api\/player$/, 'POST').map((x) => x.body.turnstile_token)).toEqual([FAKE_TS_TOKEN]);
   });
+
+  // ---------- M4 第一輪對抗審查後的修正（API.md 鐘塔之夢 修訂 1、DATA-FORMAT 補充（2026-10-18）） ----------
+  /** 準備：模擬 API＋夢境 fixture＋站在測試夢客面前的存檔，讀檔後回傳 { mock, player, g, u }。 */
+  async function openTower(page, testInfo, { save = {}, before = null } = {}) {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const player = mock.seedPlayer();
+    await seedCloud(page, player);
+    await useDreamFixture(page);
+    await seedSaves(page, { 1: makeSaveV3({ location: TOWER_SPOT, dream_return: ATTIC_SPOT, flags: { 'enter:attic': true, 'enter:fx_tower': true }, ...save }) });
+    if (before) await before(mock);
+    await page.goto(URL_CLOUD);
+    const g = game(page, { touch, data: DREAM_FIXTURE_PREFIX });
+    const u = dreamUi(page, g, touch);
+    await u.loadFromTitle(1);
+    return { mock, player, g, u, touch };
+  }
+  async function openGuestChat(g, u) {
+    await g.act('investigate');
+    await g.waitDialogue();
+    await g.finishDialogue([0]);
+    await u.waitChat();
+  }
+  /** 只送出、不等回覆。 */
+  async function sendOnly(page, u, touch, text) {
+    const box = page.locator('.sl-chat-input');
+    if (touch) {
+      await box.tap();
+      await page.keyboard.type(text);
+      await u.tapButton('send');
+    } else {
+      await box.fill(text);
+      await box.press('Enter');
+    }
+  }
+  const passCalls = (mock) => mock.calls(/^\/api\/dream\/pass$/, 'POST').length;
+  const chatCalls = (mock) => mock.calls(/^\/api\/dream\/chat$/, 'POST').length;
+
+  for (const [label, minutes] of [['快', 45], ['慢', -45]]) {
+    test(`修訂 1 B：裝置時鐘${label} 45 分鐘 → 以 ttl_s 判斷過期，不會一直重新驗證，聊天可以送出`, async ({ page }, testInfo) => {
+      // 通行證 30 分鐘（審查當時的 TTL）：裝置時鐘快 45 分鐘時，舊版拿 expires_at 和裝置時鐘比 → 一拿到就「過期」→ 無限重新驗證
+      const { mock, g, u } = await openTower(page, testInfo, { before: (m) => { m.dream.ttl = 1800; } });
+      // 同審查重現腳本 tG2：讀檔後把 Date.now 調快／調慢
+      await page.evaluate((ms) => { const o = Date.now; Date.now = () => o() + ms; }, minutes * 60_000);
+      await openGuestChat(g, u);
+      await u.waitReady();
+      await g.sleep(1500);
+      expect(passCalls(mock)).toBe(1);
+      const last = await u.say('快鐘測試');
+      expect(last).toMatchObject({ role: 'guest', source: 'ai', text: '「快鐘測試」……我聽見了。' });
+      await g.sleep(1000);
+      expect(passCalls(mock)).toBeLessThanOrEqual(2);
+      expect(chatCalls(mock)).toBe(1);
+      const c = await u.chat();
+      expect(c.verify.visible).toBe(false);
+      expect(c.inputEnabled).toBe(true);
+    });
+  }
+
+  test('修訂 1 B：伺服器一直不認通行證 → 一次送出最多重新驗證 1 次，之後顯示錯誤並停止；下一次送出可以再試', async ({ page }, testInfo) => {
+    const { mock, g, u, touch } = await openTower(page, testInfo);
+    await openGuestChat(g, u);
+    await u.waitReady();
+    expect(passCalls(mock)).toBe(1);
+    mock.dream.rejectChats = true;
+    await sendOnly(page, u, touch, '有人在嗎？');
+    await page.waitForFunction(() => {
+      const c = window.__SL.chat();
+      return c && !c.busy && !c.verify.verifying && c.status === '夢境通行證無法使用，請稍後再試。';
+    }, null, { timeout: 10_000 });
+    await g.sleep(2000); // 不會再自己重試
+    expect(passCalls(mock)).toBe(2); // 開啟時 1 次＋這次送出重新驗證 1 次
+    expect(chatCalls(mock)).toBe(2);
+    let c = await u.chat();
+    expect(c.verify.visible).toBe(false);
+    expect(c.inputEnabled).toBe(true);
+    expect(c.messages.filter((m) => m.text === '有人在嗎？').length).toBe(1);
+    if (touch) await shot(page, testInfo, 'dream-pass-rejected');
+    // 伺服器恢復：下一次送出重新驗證後成功
+    mock.dream.rejectChats = false;
+    const last = await u.say('現在呢？');
+    expect(last).toMatchObject({ source: 'ai', text: '「現在呢？」……我聽見了。' });
+    expect(passCalls(mock)).toBe(3);
+    c = await u.chat();
+    expect(c.status).toBe('');
+  });
+
+  test('離開後立刻重進：進行中的請求維持鎖定與等待泡泡，回覆照順序出現在紀錄裡（審查 tE）', async ({ page }, testInfo) => {
+    const { mock, g, u, touch } = await openTower(page, testInfo);
+    await openGuestChat(g, u);
+    await u.waitReady();
+    mock.fail(isPost(/^\/api\/dream\/chat$/), { delay: 3000 });
+    await sendOnly(page, u, touch, '第一句');
+    await page.waitForFunction(() => window.__SL.chat()?.waiting === true);
+    await u.tapButton('leave');
+    await g.waitScene('Map');
+    await openGuestChat(g, u);
+    await g.sleep(300);
+    let c = await u.chat();
+    expect(c.waiting).toBe(true);
+    expect(c.busy).toBe(true);
+    expect(c.inputEnabled).toBe(false);
+    expect(c.buttons.send.enabled).toBe(false);
+    expect(await page.evaluate(() => document.querySelectorAll('.sl-msg-waiting').length)).toBe(1);
+    // 回覆到了：出現在重新開啟的畫面上、解除鎖定
+    await page.waitForFunction(() => { const x = window.__SL.chat(); return x && !x.waiting && !x.busy && x.inputEnabled; }, null, { timeout: 8_000 });
+    const greeting = '你來了。這裡是測試用的夢。';
+    c = await u.chat();
+    expect(c.messages.map((m) => m.text)).toEqual([greeting, '第一句', '「第一句」……我聽見了。']);
+    expect(c.shown.map((m) => m.text)).toEqual(c.messages.map((m) => m.text));
+    const last = await u.say('第二句');
+    expect(last.text).toBe('「第二句」……我聽見了。');
+    c = await u.chat();
+    expect(c.messages.map((m) => m.text)).toEqual([greeting, '第一句', '「第一句」……我聽見了。', '第二句', '「第二句」……我聽見了。']);
+    expect(c.shown.map((m) => m.text)).toEqual(c.messages.map((m) => m.text));
+    expect(await page.evaluate(() => document.querySelectorAll('.sl-msg-waiting').length)).toBe(0);
+    // 第二句的 history 包含第一句與它的回覆（照順序）
+    const h = mock.calls(/^\/api\/dream\/chat$/, 'POST').at(-1).body.history;
+    expect(h.map((x) => x.text)).toEqual(['第一句', '「第一句」……我聽見了。']);
+  });
+
+  test('額度 0 時重進：輸入框鎖住並顯示「今天的交談次數已經用完了」，強行送出也不會發請求（審查 tH）', async ({ page }, testInfo) => {
+    const { mock, g, u } = await openTower(page, testInfo);
+    mock.dream.quota = 1;
+    await openGuestChat(g, u);
+    await u.waitReady();
+    await u.say('只能說一句');
+    let c = await u.chat();
+    expect(c.locked).toBe(true);
+    expect(c.status).toBe(QUOTA_NOTE);
+    await u.tapButton('leave');
+    await g.waitScene('Map');
+    await openGuestChat(g, u);
+    await g.sleep(300);
+    c = await u.chat();
+    expect(c.remaining).toBe('今日剩餘 0 句');
+    expect(c.locked).toBe(true);
+    expect(c.inputEnabled).toBe(false);
+    expect(c.buttons.send.enabled).toBe(false);
+    expect(c.status).toBe(QUOTA_NOTE);
+    const n = chatCalls(mock);
+    await page.locator('.sl-chat-input').evaluate((el) => {
+      el.disabled = false;
+      el.value = '強行送出';
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    await g.sleep(500);
+    expect(chatCalls(mock)).toBe(n);
+    expect((await u.chat()).messages.some((m) => m.text === '強行送出')).toBe(false);
+  });
+
+  test('修訂 1a 3：reason quota 但 remaining_today > 0（當日 AI 呼叫次數用完）→ 鎖住；重進也維持鎖定', async ({ page }, testInfo) => {
+    const { mock, g, u } = await openTower(page, testInfo);
+    await openGuestChat(g, u);
+    await u.waitReady();
+    mock.queueReply({ reply: '夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'quota' });
+    const last = await u.say('再聊聊');
+    expect(last.source).toBe('scripted');
+    let c = await u.chat();
+    expect(c.remaining).toBe('今日剩餘 20 句');
+    expect(c.locked).toBe(true);
+    expect(c.status).toBe(QUOTA_NOTE);
+    await u.tapButton('leave');
+    await g.waitScene('Map');
+    await openGuestChat(g, u);
+    await g.sleep(300);
+    c = await u.chat();
+    expect(c.locked).toBe(true);
+    expect(c.inputEnabled).toBe(false);
+    expect(c.status).toBe(QUOTA_NOTE);
+  });
+
+  test('通行證回應的 remaining_today 是 0：第一次開啟、驗證完就鎖住並顯示額度用完', async ({ page }, testInfo) => {
+    const { mock, g, u } = await openTower(page, testInfo, { before: (m) => { m.dream.quota = 2; m.dream.used = 2; } });
+    await openGuestChat(g, u);
+    await page.waitForFunction(() => { const c = window.__SL.chat(); return c && !c.verify.visible && c.status !== '等待人機驗證…'; }, null, { timeout: 8_000 });
+    const c = await u.chat();
+    expect(passCalls(mock)).toBe(1);
+    expect(c.remaining).toBe('今日剩餘 0 句');
+    expect(c.locked).toBe(true);
+    expect(c.inputEnabled).toBe(false);
+    expect(c.status).toBe(QUOTA_NOTE);
+  });
+
+  for (const [label, ret] of [['是 null', null], ['指向夢境地圖', { map: 'fx_tower', x: 4, y: 3, dir: 'up' }]]) {
+    test(`DATA-FORMAT 補充 2：醒來位置${label}（被竄改）→ 醒在該章起點（第三章：辦公室門口），不是序章閣樓（審查 tB）`, async ({ page }, testInfo) => {
+      const touch = isTouch(testInfo);
+      await useDreamFixture(page);
+      await seedSaves(page, { 1: makeSaveV3({
+        location: TOWER_SPOT, dream_return: ret, chapter: 'chapter3', chapter_done: ['prologue', 'chapter1', 'chapter2'],
+        flags: { 'enter:office_ch3': true, 'enter:fx_tower': true },
+      }) });
+      await page.goto(URL_LOCAL);
+      const g = game(page, { touch, data: DREAM_FIXTURE_PREFIX });
+      const u = dreamUi(page, g, touch);
+      await u.loadFromTitle(1);
+      await g.faceObject('obj_fx_door');
+      await g.act('investigate');
+      await g.waitDialogue();
+      await g.finishDialogue([0]);
+      await u.waitMap('office_ch3');
+      const s = await g.st();
+      expect(s.location).toEqual({ map: 'office_ch3', x: 6, y: 8, dir: 'up' }); // 第二章 end_screen.continue（door）
+      expect(s.dream_return).toBeNull();
+      expect((await page.evaluate(() => window.__SL.hud())).dream).toBeNull();
+    });
+  }
 
   // 真的 Turnstile（官方測試 sitekey，需要連外網）：SL_REAL_TURNSTILE=1 時才跑。
   test('真的 Turnstile 腳本＋官方測試 sitekey：取得 token 換通行證', async ({ page }, testInfo) => {

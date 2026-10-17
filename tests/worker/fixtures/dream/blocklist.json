@@ -1,0 +1,12 @@
+{
+  "description": "tests/worker/fixtures/dream/blocklist.json：測試用的假拒絕清單（真正的清單只放在私有 repo 的 dream/blocklist.json）",
+  "format": 1,
+  "categories": {
+    "profanity": ["假髒話甲"],
+    "sexual": ["假色情詞"],
+    "hate": ["假仇恨詞"],
+    "self_harm": ["假自傷詞"],
+    "political": ["假統戰詞乙"]
+  },
+  "exceptions": ["不是假髒話甲測試例外"]
+}
