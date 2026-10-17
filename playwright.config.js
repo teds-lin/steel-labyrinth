@@ -7,6 +7,7 @@ const BASE_URL = REMOTE || `http://localhost:${PORT}/`;
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  testIgnore: 'cloud-live.spec.js', // 需要真的 Worker：用 npm run e2e:cloud（playwright.cloud.config.js）
   timeout: 120_000,
   expect: { timeout: 8_000 },
   fullyParallel: false,

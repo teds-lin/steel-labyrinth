@@ -421,7 +421,7 @@ export function createCloudSync({ backend, saveStore, getData = () => null, api,
     async reportClear({ chapter, ending = null, play_seconds: sec = 0, collapse = 0 } = {}) {
       const off = requireEnabled('clear');
       if (off) return off;
-      if (typeof chapter !== 'string' || !CHAPTER_RE.test(chapter)) return local('clear', 'bad_chapter', '章節代碼不合法');
+      if (typeof chapter !== 'string' || !CHAPTER_RE.test(chapter)) return local('clear', 'bad_chapter', '章節編號不合法');
       const rec = {
         chapter,
         ending: typeof ending === 'string' && CHAPTER_RE.test(ending) ? ending : null,

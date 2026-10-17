@@ -98,3 +98,53 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/config.js` 決定�
 5. `/api/clear` 的 `ending` 可以省略（視為 null）；`play_seconds` 接受小數並四捨五入。
 6. 方法不對的已知路徑回 404（不使用 405）。轉移碼錯誤的 message 是「轉移碼不正確或已經失效。」。
 7. 檢查順序：驗證權杖 → slot 與前置條件 → 計入限流 → 讀 body。IP 限流的額度在 UTC 午夜重置（每日鹽更換）。
+
+---
+
+# 修訂 2（2026-10-17，依 M3 第一輪對抗審查定案；與前文衝突時以本節為準）
+
+## A. 秘密改由客戶端產生（修正：轉移逾時造成帳號永久鎖死）
+伺服器不再產生權杖與轉移碼，一律由**客戶端**用 `crypto.getRandomValues` 產生（權杖 32 bytes → base64url 43 字元；轉移碼 8 碼、同字元集、拒絕取樣），伺服器只驗證格式並存雜湊。這樣請求逾時也不會遺失秘密。
+
+| 端點 | 請求 body | 成功回應 | 冪等與重試 |
+|---|---|---|---|
+| `POST /api/player` | `{ "token", "transfer_code" }` | 201 `{ "player_id" }` | 若 `token` 的雜湊已存在 → 200 回同一個 `player_id`（持有權杖即擁有帳號）。轉移碼雜湊碰撞 → 409 `conflict`，客戶端換一組重送 |
+| `POST /api/transfer` | `{ "code", "new_token", "new_transfer_code" }` | 200 `{ "player_id" }` | 舊權杖與舊碼同時失效。逾時後客戶端用 `new_token` 呼叫 `GET /api/saves`：200 表示轉移已成功；401 表示沒成功，可以用原本的碼重試 |
+| `POST /api/transfer/rotate` | `{ "new_transfer_code" }` | 200 `{}` | 若目前轉移碼雜湊已等於新碼 → 200（重送安全）。逾時就用**同一個**新碼重送，直到成功；成功前畫面標示「新轉移碼尚未確認」 |
+
+- 格式不合法 → 400。`new_token` 與既有任何權杖雜湊相同 → 409（實際上不會發生）。
+
+## B. 存檔雜湊（修正：逾時後內容相同卻顯示衝突）
+- `GET /api/saves` 每格與 409 的 `current` 都多一個 `data_sha256`（存檔字串 UTF-8 的 SHA-256，小寫 hex）。
+- 客戶端：上傳回 409 時，若 `current.data_sha256` 等於本機要上傳內容的雜湊 → 視為已上傳成功，採用 `current.version`，不顯示衝突畫面。上傳逾時後，下一次上傳前先 `GET /api/saves` 更新版本。
+- 客戶端上傳前必須通過 `deserialize`＋`sanitizeLoadedState`，語意壞掉的本機存檔不可上傳（按鈕停用並說明原因）。
+
+## C. 請求驗證
+- `POST`／`PUT` 的 `Content-Type` 必須是 `application/json`（可帶 charset），否則 415 `unsupported_media_type`。這會迫使瀏覽器做 CORS 預檢，其他網站無法借訪客的瀏覽器送請求。
+- 請求帶有 `Origin` 但不在 `ALLOWED_ORIGINS` → 403 `forbidden_origin`（沒有 Origin 的非瀏覽器請求照常處理）。
+- 正式的 `ALLOWED_ORIGINS` 只有 `https://teds-lin.github.io`；本機開發與測試用 `--var` 覆寫。
+
+## D. 頻率限制與免費額度
+- **超過限制後不再寫入 D1**：計數用「`count < limit` 才加一」的條件式更新；超過時只讀。
+- **IPv6 以 /64 為單位**計算（IPv4 照舊以單一位址）。
+- **全域上限**（不分來源）：`RL_TRANSFER_GLOBAL_PER_HOUR=600`、`RL_PLAYER_GLOBAL_PER_HOUR=300`；超過回 429。
+- **容量上限**：`MAX_PLAYERS=20000`，達到後 `POST /api/player` 回 503 `capacity`（「雲端存檔目前額滿，請稍後再試」）。
+- **定期清理**（Cron Trigger，每天一次）：刪除 `last_seen` 超過 180 天的玩家及其存檔、通關紀錄；刪除過期的 `rate_limits`。不再在一般請求中順便清理。
+- 移除 `rate_limits` 的 `reset_at` 索引（清理改由 Cron 全表掃描），減少每次寫入的列數。
+
+## E. 統計
+- `GET /api/stats` 用 Cache API 快取 60 秒，同一個時間窗內最多查一次 D1。
+- `POST /api/clear` 的 `chapter`、`ending` 必須在 vars `CHAPTERS`（逗號分隔，例如 `prologue,chapter1,chapter2`）白名單內，否則 400。`CHAPTERS` 必須等於 `web/data/manifest.json` 的 chapters（由測試把關）。`ending` 目前一律 null。
+- 完成人數少於 `STATS_MIN_PLAYERS=3` 的章節不出現在統計中。
+
+## F. 存檔內容
+- `summary.map`、`summary.chapter` 必須符合 `[a-z0-9_]{1,32}`，否則為 null。
+- 版本較新的存檔仍接受，但必須是 JSON 物件且 `schema_version ≤ CURRENT_VERSION + 5`。
+- 共用 `deserialize` 加強：`flags` 的值只能是布林或整數；`items`／`resonance` 的鍵必須是 `[a-z0-9_]{1,32}`；整份存檔的 JSON 巢狀深度上限 8。
+
+## G. 客戶端其他
+- 預設 API 位址為空字串＝雲端功能停用（介面顯示「雲端存檔尚未開放」）；部署後才填入實際網址。
+- 本機雲端資訊驗證：權杖必須是 43 字元 base64url、版本必須是 1～2³¹ 的整數，不符合就當作未啟用或忘掉該格版本。
+- 選單「雲端存檔」在未啟用時也提供「用轉移碼接續」（不只在標題畫面）。
+- 429 的等待時間顯示成「約 N 分鐘」（不足 1 分鐘顯示秒數）。
+- 轉移碼正規化時移除零寬與格式字元（Unicode Cf）。

@@ -1,7 +1,7 @@
 // 雲端 API 包裝（docs/API.md）：每個端點一個方法，永遠不丟例外。
 // 回傳：{ ok:true, status, body, etag } 或 { ok:false, kind:'network'|'timeout'|'http', status, error, retryAfter, body }。
 // - kind 'network'：fetch 失敗（離線、DNS、CORS 被擋）；'timeout'：超過 timeoutMs（含讀取 body）；'http'：伺服器回非 2xx。
-// - error：伺服器 body 的 error 代碼；沒有時為 http_<status>／network／timeout；不合法的 slot 為 invalid_slot（不送請求）。
+// - error：伺服器 body 的 error 錯誤碼；沒有時為 http_<status>／network／timeout；不合法的 slot 為 invalid_slot（不送請求）。
 
 export const DEFAULT_TIMEOUT_MS = 5000;
 const SLOT_COUNT = 3;
