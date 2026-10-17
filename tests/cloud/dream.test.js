@@ -348,6 +348,8 @@ describe('Turnstile 設定與載入', () => {
     expect(resolveSitekey('127.0.0.1', '')).toBe(TURNSTILE_TEST_SITEKEY);
     expect(resolveSitekey('teds-lin.github.io', 'PROD')).toBe('PROD');
     expect(resolveSitekey('teds-lin.github.io', '')).toBe('');
+    // 正式 sitekey（2026-10-18 建立的 Turnstile 小工具，網域限定 teds-lin.github.io）
+    expect(resolveSitekey('teds-lin.github.io')).toBe('0x4AAAAAAFZn3lEsx_Jap35n');
   });
 
   /** 假的 window／document：appendChild 時依 mode 觸發 load 或 error。 */
