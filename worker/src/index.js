@@ -1,4 +1,4 @@
-// 《鋼鐵迷都》雲端存檔 Worker（Cloudflare Worker＋D1）。規格：docs/API.md（與前文衝突時以最後的修訂為準，目前是「修訂 4a」）。
+// 《鋼鐵迷都》雲端存檔 Worker（Cloudflare Worker＋D1）。規格：docs/API.md（與前文衝突時以最後的修訂為準，目前是「修訂 4b」）。
 // 安全重點：SQL 一律參數綁定；權杖與轉移碼由客戶端產生、伺服器只存雜湊、低熵秘密拒收；權杖用常數時間比較；
 // IP 只以「每日鹽＋IP（IPv6 取 /64，另加 /48 一層）」雜湊當限流 key；已登入寫入有每位玩家的保留通道；不在允許清單的 Origin 一律 403；POST／PUT 必須是 JSON（415）；
 // 超過限流不寫入 D1；錯誤回應不含內部細節；body 先看 content-length、讀取時再實際限制大小。
@@ -11,7 +11,7 @@ import {
   isAcceptableToken, isAcceptableTransferCode,
 } from './codes.js';
 import {
-  hit, hitAll, below, isRateLimited, dayWindow, limitOf, purgeExpired,
+  hitAll, tryHitAll, assertBelow, dayWindow, limitOf, purgeExpired,
 } from './ratelimit.js';
 import { buildSummary, DATA_LIMIT } from './summary.js';
 import { MeteredDb } from './db.js';
@@ -19,7 +19,7 @@ import { MeteredDb } from './db.js';
 const SLOT_COUNT = 3;
 const LAST_SEEN_GRANULARITY = 86400; // last_seen 一天最多更新一次，省 D1 寫入額度
 const INACTIVE_SEC = 180 * 86400; // Cron：超過 180 天未登入的玩家連同資料刪除
-const EMPTY_ACCOUNT_SEC = 7 * 86400; // Cron：建立超過 7 天、沒有存檔也沒有通關紀錄的玩家刪除（修訂 4 第 2 節）
+const EMPTY_ACCOUNT_SEC = 7 * 86400; // Cron：超過 7 天沒有使用（last_seen）、沒有存檔也沒有通關紀錄的玩家刪除（修訂 4 第 2 節、修訂 4b 第 3 節）
 const STATS_TTL = 60;
 
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -72,12 +72,14 @@ function parseIfMatch(value) {
 }
 
 /**
- * 已登入寫入（PUT、DELETE、clear、rotate）的限流（修訂 3、修訂 4 第 1 節）：
+ * 已登入寫入（PUT、DELETE、clear、rotate）的限流（修訂 3、修訂 4 第 1 節、修訂 4b 第 1 節）：
  * - 一律先受同一玩家的端點限制（RL_WRITE／RL_CLEAR／RL_ROTATE_PER_HOUR）。
  * - 保留通道：同一玩家每小時的前 RL_RESERVED_PER_HOUR 次寫入（四種合計）不受全域每小時上限，
  *   改計入全域每日預算 RL_WRITE_GLOBAL_PER_DAY——攻擊者灌滿全域每小時上限時，正常玩家仍能寫入。
- * - 保留通道用完（或全域每日預算用完）→ 受全域每小時上限 RL_WRITE_GLOBAL_PER_HOUR 限制。
- * 任何一個限制滿了都回 429 且不寫入（先只讀檢查再計數）。
+ *   端點限制、保留名額、每日預算三者用一條敘述原子計數：保留名額沒拿到就不碰每日預算，
+ *   所以單一帳號並行送再多請求，每日預算最多也只增加 RL_RESERVED_PER_HOUR（修訂 4b：修正並行放大）。
+ * - 保留通道用完（或全域每日預算用完）→ 受全域每小時上限 RL_WRITE_GLOBAL_PER_HOUR 限制，保留名額不被消耗。
+ * 任何一個限制滿了都回 429，而且一列都不寫（並行時也一樣）。
  */
 async function hitWrite(env, playerId, { kind, name, fallback }, now) {
   const db = env.DB;
@@ -85,19 +87,7 @@ async function hitWrite(env, playerId, { kind, name, fallback }, now) {
   const reserved = { bucket: `pl:rsv:${playerId}`, limit: limitOf(env, 'RL_RESERVED_PER_HOUR', 3) };
   const day = { ...dayWindow(now), limit: limitOf(env, 'RL_WRITE_GLOBAL_PER_DAY', 4000) };
   const hourly = { bucket: 'g:write', limit: limitOf(env, 'RL_WRITE_GLOBAL_PER_HOUR', 100) };
-  if (await below(db, reserved, now) && await below(db, day, now)) {
-    await hitAll(db, [local], now);
-    try {
-      await hit(db, day.bucket, day.limit, now, day.resetAt);
-      await hit(db, reserved.bucket, reserved.limit, now);
-      return;
-    } catch (e) {
-      if (!isRateLimited(e)) throw e;
-      // 並行請求剛好用完保留通道：這一次改計入全域每小時上限（端點限制已經計過）
-    }
-    await hitAll(db, [hourly], now);
-    return;
-  }
+  if (await tryHitAll(db, [local, reserved, day], now)) return;
   await hitAll(db, [local, hourly], now);
 }
 
@@ -132,11 +122,22 @@ const globalTransfer = (env) => ({ bucket: 'g:transfer', limit: limitOf(env, 'RL
  * 因轉移碼雜湊碰撞回 409 時（修訂 4 第 5 節：碰撞等於猜中別人的轉移碼，要和猜碼共用同一份額度）。
  * rotate 沒有 IP 資訊時改以玩家計入。
  */
-async function hitTransfer(request, env, now, playerId = null) {
+async function transferBuckets(request, env, now, playerId = null) {
   const local = playerId !== null && clientIp(request) === null
     ? [{ bucket: `pl:transfer:${playerId}`, limit: limitOf(env, 'RL_TRANSFER_PER_HOUR', 10) }]
     : await ipBuckets(request, env, 'transfer', now, TRANSFER_IP_LIMITS);
-  await hitAll(env.DB, [...local, globalTransfer(env)], now);
+  return [...local, globalTransfer(env)];
+}
+async function hitTransfer(request, env, now, playerId = null) {
+  await hitAll(env.DB, await transferBuckets(request, env, now, playerId), now);
+}
+
+/**
+ * 修訂 4b 第 2 節：寫入轉移碼（建立玩家、rotate）之前，先只讀檢查轉移額度；已滿 → 一律 429、不執行 INSERT／UPDATE。
+ * 否則額度用完後，攻擊者仍能從「新碼碰撞 → 429」與「沒碰撞 → 寫入成功」的差別分辨是否猜中別人的轉移碼。
+ */
+async function assertTransferBelow(request, env, now, playerId = null) {
+  for (const b of await transferBuckets(request, env, now, playerId)) await assertBelow(env.DB, b.bucket, b.limit, now);
 }
 
 /** 秘密碰撞 → 先計入轉移額度（額度用完則 429），再回 409。 */
@@ -165,6 +166,7 @@ async function createPlayer(request, env, now) {
   // 冪等：權杖已經建立過（例如上一次請求逾時）→ 回同一個玩家。持有權杖即擁有帳號。
   const had = await existing();
   if (had) return jsonResponse({ player_id: had.player_id }, 200);
+  await assertTransferBelow(request, env, now);
   const playerId = crypto.randomUUID();
   let row;
   try {
@@ -227,6 +229,7 @@ async function rotate(request, env, now) {
   const hash = await transferHash(pepper, code);
   if (timingSafeEqualHex(player.transfer_hash, hash)) return jsonResponse({});
   if (!isAcceptableTransferCode(code)) throw badRequest(); // 修訂 4 第 5 節
+  await assertTransferBelow(request, env, now, player.player_id); // 修訂 4b 第 2 節：先於任何寫入
   await hitWrite(env, player.player_id, WRITE_LIMITS.rotate, now);
   try {
     await env.DB.prepare('UPDATE players SET transfer_hash = ? WHERE player_id = ?').bind(hash, player.player_id).run();
@@ -402,15 +405,16 @@ async function stats(request, env, now, ctx) {
   return response;
 }
 
-// Cron 要刪的玩家：超過 180 天未登入（?1），或建立超過 7 天（?2）而且沒有任何存檔（已刪除的空槽不算）也沒有通關紀錄。
-const PURGE_WHERE = `(p.last_seen < ?1 OR (p.created_at < ?2
+// Cron 要刪的玩家：超過 180 天未登入（?1），或超過 7 天沒有使用（last_seen < ?2，修訂 4b 第 3 節）而且沒有任何存檔
+// （已刪除的空槽不算）也沒有通關紀錄。last_seen 一天最多更新一次，所以實際上是「至少 6 天沒有任何已登入請求」。
+const PURGE_WHERE = `(p.last_seen < ?1 OR (p.last_seen < ?2
   AND NOT EXISTS (SELECT 1 FROM saves s WHERE s.player_id = p.player_id AND s.data IS NOT NULL)
   AND NOT EXISTS (SELECT 1 FROM clears c WHERE c.player_id = p.player_id)))`;
 // 刪除時把條件再判斷一次：在「選出名單」與「刪除」之間剛上傳存檔的玩家不會被誤刪。
 const PURGE_TARGETS = `SELECT p.player_id FROM players p JOIN json_each(?3) j ON j.value = p.player_id WHERE ${PURGE_WHERE}`;
 
 /**
- * Cron（每天一次）：刪除超過 180 天未登入的玩家，以及建立超過 7 天的空帳號（修訂 4 第 2 節），連同其存檔、通關紀錄；
+ * Cron（每天一次）：刪除超過 180 天未登入的玩家，以及超過 7 天沒有使用的空帳號（修訂 4 第 2 節、修訂 4b 第 3 節），連同其存檔、通關紀錄；
  * 每次最多 batch（PURGE_BATCH）人，避免單次寫入暴增，剩下的下一次再刪。另外刪除過期的限流紀錄。
  * 回傳這次刪除的玩家數。
  */

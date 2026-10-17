@@ -64,13 +64,13 @@ export const cloudPages = {
 
   showRelink(done) {
     // 修訂 2 G：遊戲內也能直接用轉移碼重新接續（不必回標題）
-    this.setPage('cloud-relink', '雲端存檔', MSG.relink, [
+    this.setPage('cloud-relink', '雲端存檔', MSG.relinkPage, [
       { id: 'relink-transfer', label: '用轉移碼接續', onSelect: () => this.showTransferInput() },
       { id: 'relink-ok', label: '確定', onSelect: () => done(null) },
     ], { y: 260 });
     this.list.focus(1);
     this.backAction = () => done(null);
-    this.cloudView = { page: 'relink', message: MSG.relink };
+    this.cloudView = { page: 'relink', message: MSG.relinkPage };
   },
 
   /** 修訂 2 G：API 位址是空字串＝雲端存檔尚未開放。 */

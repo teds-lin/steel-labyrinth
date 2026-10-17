@@ -49,14 +49,45 @@ export async function assertBelow(db, bucket, limit, now) {
   if (cur && cur.reset_at > now && cur.count >= limit) throw tooMany(cur.reset_at, now);
 }
 
+// 多個 bucket 用一條敘述原子計數（修訂 4b 第 1 節）：gate 在敘述開始時算一次（MATERIALIZED），
+// 全部都還沒達到 limit 才一起加一；任何一個滿了就一列都不寫。D1 逐條依序執行敘述，
+// 所以並行請求之間不會有「檢查通過、計數前被別人用完」的空隙——超過限流的請求在並行時也一列都不寫。
+// ?1：[[bucket, limit, 新時間窗結束時間], …] 的 JSON；?2：現在。
+const ATOMIC_UPSERT = `
+WITH b AS (
+  SELECT json_extract(value, '$[0]') AS bucket, json_extract(value, '$[1]') AS lim, json_extract(value, '$[2]') AS reset_at FROM json_each(?1)
+), gate(ok) AS MATERIALIZED (
+  SELECT NOT EXISTS (SELECT 1 FROM rate_limits r JOIN b ON r.bucket = b.bucket WHERE r.reset_at > ?2 AND r.count >= b.lim)
+)
+INSERT INTO rate_limits (bucket, count, reset_at)
+SELECT b.bucket, 1, b.reset_at FROM b, gate WHERE gate.ok
+ON CONFLICT (bucket) DO UPDATE SET
+  count    = CASE WHEN rate_limits.reset_at <= ?2 THEN 1 ELSE rate_limits.count + 1 END,
+  reset_at = CASE WHEN rate_limits.reset_at <= ?2 THEN excluded.reset_at ELSE rate_limits.reset_at END
+RETURNING bucket`;
+
 /**
- * 多個限制一起計：先只讀檢查**全部**（任何一個滿了就整個不寫），再依序計數。
+ * 多個限制原子地一起計：全部未滿 → 全部加一並回 true；任何一個滿了 → 一列都不寫，回 false。
+ * buckets：[{ bucket, limit, resetAt? }]（同一次呼叫內 bucket 不可重複）。
+ */
+export async function tryHitAll(db, buckets, now) {
+  const spec = JSON.stringify(buckets.map((b) => [b.bucket, b.limit, b.resetAt ?? now + WINDOW_SEC]));
+  const { results } = await db.prepare(ATOMIC_UPSERT).bind(spec, now).all();
+  return results.length > 0;
+}
+
+/**
+ * 多個限制一起計：任何一個滿了就整個不寫並丟 429（Retry-After 取已滿的 bucket 中最晚重置的）。
  * 來源超額時不會消耗全域額度（單一來源無法把全域額度用光）；全域滿了之後，換再多來源也不會產生寫入。
- * buckets：[{ bucket, limit, resetAt? }]，計數順序就是陣列順序（全域放最後）。
  */
 export async function hitAll(db, buckets, now) {
-  for (const b of buckets) await assertBelow(db, b.bucket, b.limit, now);
-  for (const b of buckets) await hit(db, b.bucket, b.limit, now, b.resetAt);
+  if (await tryHitAll(db, buckets, now)) return;
+  let resetAt = null;
+  for (const b of buckets) {
+    const cur = await db.prepare(READ).bind(b.bucket).first();
+    if (cur && cur.reset_at > now && cur.count >= b.limit) resetAt = Math.max(resetAt ?? 0, cur.reset_at);
+  }
+  throw tooMany(resetAt ?? now + 1, now);
 }
 
 /** 來源限制＋全域上限（修訂 2 D）。 */

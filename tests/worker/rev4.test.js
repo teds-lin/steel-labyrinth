@@ -141,7 +141,8 @@ describe('第 2 節：Cron 刪除 7 天以上的空帳號，分批 PURGE_BATCH',
   let s;
   beforeAll(async () => { s = await startWorker({ varsOverride: { STATS_MIN_PLAYERS: '1' } }); });
   afterAll(async () => { await s?.close(); });
-  const setCreated = (pid, at) => s.db.prepare('UPDATE players SET created_at = ? WHERE player_id = ?').bind(at, pid).run();
+  // 修訂 4b 第 3 節：空帳號改看 last_seen（建立時間與最後使用時間一起往前調）
+  const setCreated = (pid, at) => s.db.prepare('UPDATE players SET created_at = ?, last_seen = ? WHERE player_id = ?').bind(at, at, pid).run();
   const exists = async (pid) => (await s.db.prepare('SELECT COUNT(*) AS n FROM players WHERE player_id = ?').bind(pid).first()).n === 1;
 
   it('空帳號 7 天後被刪；有存檔或通關紀錄的活躍玩家不刪；未滿 7 天不刪；只剩已刪除空槽也算空帳號', async () => {
@@ -178,7 +179,7 @@ describe('第 2 節：Cron 刪除 7 天以上的空帳號，分批 PURGE_BATCH',
     try {
       const old = nowSec() - 30 * DAY;
       await t.db.prepare(`INSERT INTO players (player_id, token_hash, transfer_hash, created_at, last_seen)
-        SELECT 'e' || value, 't' || value, 'x' || value, ?, ? FROM json_each(?)`).bind(old, nowSec(), JSON.stringify(Array.from({ length: 70 }, (_, i) => i))).run();
+        SELECT 'e' || value, 't' || value, 'x' || value, ?, ? FROM json_each(?)`).bind(old, old, JSON.stringify(Array.from({ length: 70 }, (_, i) => i))).run();
       const n = async () => (await t.db.prepare("SELECT COUNT(*) AS n FROM players WHERE player_id LIKE 'e%'").first()).n;
       await t.scheduled(Date.now());
       expect(await n()).toBe(20);

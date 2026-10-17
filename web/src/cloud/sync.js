@@ -20,10 +20,17 @@ export const CLOUD_KEY = 'steel-labyrinth:cloud';
 export const PENDING_KEY = 'steel-labyrinth:cloud-pending';
 /** 待確認的權杖確認為「沒生效」（401）時，超過這個秒數才丟掉（太新的可能還有請求在路上）。 */
 export const PENDING_MAX_AGE_S = 600;
+/**
+ * 修訂 4b 第 5 節：回報通關沒送到（429、逾時、網路、5xx）的待送紀錄：{ player_id|null, records:{ <章>:{ chapter, ending, play_seconds, collapse } } }。
+ * 各章只留最新一筆；下次啟動（recover）或下次通關回報成功後補送一次。
+ */
+export const CLEAR_QUEUE_KEY = 'steel-labyrinth:cloud-clear-queue';
 
 export const MSG = Object.freeze({
   unavailable: '雲端暫時無法使用，稍後再試',
   relink: '此裝置的雲端連結已失效，請重新用轉移碼接續',
+  // 修訂 4b 第 3 節：401 的重新連結頁面（帳號可能因長時間沒有使用、也沒有存檔而被清除）
+  relinkPage: '此裝置的雲端連結已失效，請重新用轉移碼接續。\n也可以重新啟用雲端存檔（本機存檔不受影響）。',
   badCode: '轉移碼不正確或已失效，請確認後再輸入',
   cloudEmpty: '雲端的這一格是空的',
   disabled: '尚未啟用雲端存檔',
@@ -251,6 +258,37 @@ const validSlot = (s) => Number.isInteger(s) && s >= 1 && s <= SLOT_COUNT;
  * - hash：字串 → SHA-256 hex（預設 crypto.subtle）。
  * - now：毫秒時間（測試用）。
  */
+// ---------- 回報通關的待送紀錄（修訂 4b 第 5 節） ----------
+function cleanClearRecord(r, chapter) {
+  if (!isObj(r) || r.chapter !== chapter || !CHAPTER_RE.test(chapter)) return null;
+  return {
+    chapter,
+    ending: typeof r.ending === 'string' && CHAPTER_RE.test(r.ending) ? r.ending : null,
+    play_seconds: clampInt(r.play_seconds, 0, MAX_PLAYER_SECONDS),
+    collapse: clampInt(r.collapse, 0, 100),
+  };
+}
+function readClearQueue(backend) {
+  try {
+    const raw = JSON.parse(backend?.getItem(CLEAR_QUEUE_KEY) ?? 'null');
+    if (!isObj(raw) || !isObj(raw.records)) return null;
+    const records = {};
+    for (const [k, v] of Object.entries(raw.records)) {
+      const r = cleanClearRecord(v, k);
+      if (r) records[k] = r;
+    }
+    return { player_id: isStr(raw.player_id) ? raw.player_id : null, records };
+  } catch {
+    return null;
+  }
+}
+function writeClearQueue(backend, q) {
+  try {
+    if (!q || Object.keys(q.records).length === 0) backend?.removeItem(CLEAR_QUEUE_KEY);
+    else backend?.setItem(CLEAR_QUEUE_KEY, JSON.stringify(q));
+  } catch { /* 忽略：存不下就只是少補送一次 */ }
+}
+
 export function createCloudSync({
   backend, saveStore, getData = () => null, api, now = () => Date.now(), configured = () => true,
   random = { token: () => randomToken(), code: () => randomTransferCode() }, hash = sha256Hex,
@@ -273,6 +311,7 @@ export function createCloudSync({
     lastError = { op, kind: r?.kind ?? 'network', status: r?.status ?? 0, error: r?.error ?? null, at: nowSec() };
     if (r?.status === 401) {
       clearCloudInfo(backend);
+      writeClearQueue(backend, null);
       return { ok: false, kind: 'unauthorized', relink: true, message: MSG.relink, status: 401 };
     }
     return { ok: false, kind: r?.kind ?? 'network', status: r?.status ?? 0, retryAfter: r?.retryAfter ?? null, message: cloudErrorMessage(r) };
@@ -478,6 +517,37 @@ export function createCloudSync({
     return { state: c.state, p, r: c.r };
   }
 
+  // ---------- 回報通關的待送紀錄（修訂 4b 第 5 節） ----------
+  const queueFor = () => {
+    const q = readClearQueue(backend);
+    const pid = info()?.player_id ?? null;
+    // 換了帳號（兩邊的 player_id 都知道而且不同）→ 舊帳號的紀錄作廢
+    if (q && q.player_id && pid && q.player_id !== pid) { writeClearQueue(backend, null); return null; }
+    return q;
+  };
+  function enqueueClear(rec) {
+    const q = queueFor() ?? { player_id: info()?.player_id ?? null, records: {} };
+    writeClearQueue(backend, { ...q, records: { ...q.records, [rec.chapter]: rec } });
+  }
+  function dequeueClear(chapter) {
+    const q = queueFor();
+    if (!q?.records[chapter]) return;
+    const { [chapter]: _drop, ...rest } = q.records;
+    writeClearQueue(backend, { ...q, records: rest });
+  }
+  /** 待送紀錄各補送一次：成功或伺服器明確拒絕（400）→ 刪除；429 → 這次停止、保留；401 → 全部清掉。 */
+  async function flushClears() {
+    if (!info()) return;
+    const q = queueFor();
+    if (!q) return;
+    for (const rec of Object.values(q.records)) {
+      const r = await api.reportClear(rec);
+      if (r?.ok || (definitelyRejected(r) && r.status !== 429 && r.status !== 401)) { dequeueClear(rec.chapter); continue; }
+      if (r?.status === 401) { failed('clear', r); return; }
+      if (r?.status === 429) return;
+    }
+  }
+
   return {
     configured: isOpen,
     enabled: () => info() !== null,
@@ -573,7 +643,11 @@ export function createCloudSync({
         }
         return succeeded('connect', { ok: true, transferCode: p.new_transfer_code });
       }
-      if (r.status === 429) return failed('connect', r); // 限流：伺服器沒處理，不用確認
+      if (r.status === 429) {
+        // 限流：伺服器確定沒處理（修訂 4b 第 4 節）→ 清除待確認區，不擋接下來的「啟用雲端存檔」
+        clearPending(backend);
+        return failed('connect', r);
+      }
       const c = await checkToken(p.new_token);
       if (c.state === 'ok') {
         if (!promote({ player_id: null, token: p.new_token, transfer_code: p.new_transfer_code })) return local('connect', 'storage', MSG.storageBlocked);
@@ -598,6 +672,7 @@ export function createCloudSync({
         const r = await rotate();
         if (r.ok) recovered = recovered ?? 'rotate';
       }
+      await flushClears(); // 修訂 4b 第 5 節：上次沒送到的通關紀錄補送一次
       return { recovered };
     },
 
@@ -606,6 +681,7 @@ export function createCloudSync({
     /** 停用此裝置的雲端：只清本機資訊。 */
     disable() {
       lastError = null;
+      writeClearQueue(backend, null);
       return clearCloudInfo(backend);
     },
 
@@ -756,14 +832,18 @@ export function createCloudSync({
       const off = requireEnabled('clear');
       if (off) return off;
       if (typeof chapter !== 'string' || !CHAPTER_RE.test(chapter)) return local('clear', 'bad_chapter', '章節編號不合法');
-      const rec = {
-        chapter,
-        ending: typeof ending === 'string' && CHAPTER_RE.test(ending) ? ending : null,
-        play_seconds: clampInt(sec, 0, MAX_PLAYER_SECONDS),
-        collapse: clampInt(collapse, 0, 100),
-      };
+      const rec = cleanClearRecord({ chapter, ending, play_seconds: sec, collapse }, chapter);
       const r = await api.reportClear(rec);
-      if (!r.ok) return failed('clear', r);
+      if (!r.ok) {
+        const out = failed('clear', r);
+        if (r.status === 401) return out;
+        if (definitelyRejected(r) && r.status !== 429) { dequeueClear(chapter); return out; }
+        // 修訂 4b 第 5 節：429、逾時、網路、5xx → 記在本機（各章只留最新一筆），之後補送
+        enqueueClear(rec);
+        return { ...out, queued: true };
+      }
+      dequeueClear(chapter);
+      await flushClears();
       return succeeded('clear', { ok: true, body: r.body });
     },
   };

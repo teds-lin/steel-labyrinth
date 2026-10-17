@@ -67,18 +67,18 @@ async function expectStatus(res, status) {
   await res.arrayBuffer();
 }
 
-// 實測上限（2026-10-17，修訂 4 之後）。改變寫入路徑時這張表會擋下來，連帶重算每日寫入上限。
+// 實測上限（2026-10-17，修訂 4b 之後：限流改成一條原子敘述，讀取列數變多、寫入列數不變）。改變寫入路徑時這張表會擋下來，連帶重算每日寫入上限。
 // 已登入寫入分兩種通道量測：［保留］＝每位玩家每小時前 3 次（計入全域每日預算）；［每小時］＝其餘（計入全域每小時上限）。
 const MAX_ROWS = {
-  'POST /api/player（新建，IPv4）': { read: 7, written: 7 },
-  'POST /api/player（新建，IPv6）': { read: 8, written: 8 },
-  'POST /api/player（冪等重送）': { read: 4, written: 2 },
-  'POST /api/player（轉移碼碰撞 409，IPv6）': { read: 8, written: 6 },
+  'POST /api/player（新建，IPv4）': { read: 15, written: 7 },
+  'POST /api/player（新建，IPv6）': { read: 19, written: 8 },
+  'POST /api/player（冪等重送）': { read: 11, written: 2 },
+  'POST /api/player（轉移碼碰撞 409，IPv6）': { read: 29, written: 6 },
   'GET /api/saves': { read: 1, written: 0 },
   'GET /api/saves（當天第一次，更新 last_seen）': { read: 2, written: 1 },
   'GET /api/save/1': { read: 2, written: 0 },
-  'POST /api/transfer（成功，IPv6）': { read: 6, written: 6 },
-  'POST /api/transfer（碼錯，IPv6）': { read: 5, written: 3 },
+  'POST /api/transfer（成功，IPv6）': { read: 16, written: 6 },
+  'POST /api/transfer（碼錯，IPv6）': { read: 15, written: 3 },
   'POST /api/transfer/rotate（重送已生效的碼）': { read: 1, written: 0 },
   'GET /api/stats（未快取）': { read: 1, written: 0 },
   'GET /api/stats（快取）': { read: 0, written: 0 },
@@ -89,16 +89,16 @@ const WRITE_KINDS = ['PUT（新建）', 'PUT（覆蓋）', 'PUT（409）', 'DELE
   'POST /api/transfer/rotate（碰撞 409，IPv6）'];
 const LANE_ROWS = {
   保留: {
-    'PUT（新建）': { read: 6, written: 5 }, 'PUT（覆蓋）': { read: 9, written: 4 }, 'PUT（409）': { read: 10, written: 3 },
-    DELETE: { read: 6, written: 4 }, 'PUT（刪除後重建）': { read: 9, written: 4 },
-    'POST /api/clear（新紀錄）': { read: 6, written: 6 }, 'POST /api/clear（改善成績）': { read: 10, written: 5 }, 'POST /api/clear（沒有改善）': { read: 9, written: 3 },
-    'POST /api/transfer/rotate': { read: 6, written: 5 }, 'POST /api/transfer/rotate（碰撞 409，IPv6）': { read: 9, written: 6 },
+    'PUT（新建）': { read: 16, written: 5 }, 'PUT（覆蓋）': { read: 19, written: 4 }, 'PUT（409）': { read: 20, written: 3 },
+    DELETE: { read: 16, written: 4 }, 'PUT（刪除後重建）': { read: 19, written: 4 },
+    'POST /api/clear（新紀錄）': { read: 16, written: 6 }, 'POST /api/clear（改善成績）': { read: 20, written: 5 }, 'POST /api/clear（沒有改善）': { read: 19, written: 3 },
+    'POST /api/transfer/rotate': { read: 17, written: 5 }, 'POST /api/transfer/rotate（碰撞 409，IPv6）': { read: 30, written: 6 },
   },
   每小時: {
-    'PUT（新建）': { read: 6, written: 4 }, 'PUT（覆蓋）': { read: 7, written: 3 }, 'PUT（409）': { read: 9, written: 2 },
-    DELETE: { read: 6, written: 3 }, 'PUT（刪除後重建）': { read: 8, written: 3 },
-    'POST /api/clear（新紀錄）': { read: 6, written: 5 }, 'POST /api/clear（改善成績）': { read: 9, written: 4 }, 'POST /api/clear（沒有改善）': { read: 8, written: 2 },
-    'POST /api/transfer/rotate': { read: 6, written: 4 }, 'POST /api/transfer/rotate（碰撞 409，IPv6）': { read: 9, written: 5 },
+    'PUT（新建）': { read: 17, written: 4 }, 'PUT（覆蓋）': { read: 18, written: 3 }, 'PUT（409）': { read: 21, written: 2 },
+    DELETE: { read: 17, written: 3 }, 'PUT（刪除後重建）': { read: 20, written: 3 },
+    'POST /api/clear（新紀錄）': { read: 17, written: 5 }, 'POST /api/clear（改善成績）': { read: 21, written: 4 }, 'POST /api/clear（沒有改善）': { read: 20, written: 2 },
+    'POST /api/transfer/rotate': { read: 18, written: 4 }, 'POST /api/transfer/rotate（碰撞 409，IPv6）': { read: 31, written: 5 },
   },
 };
 const OUT = join(ROOT, 'test-results', 'cron-cost.txt');
@@ -314,8 +314,42 @@ describe('Cron 單次寫入列數上限（修訂 4 第 2、6 節）', () => {
   });
 });
 
+/**
+ * 並行失敗路徑的實測：單一帳號並行 33 個寫入（20 PUT＋10 clear＋3 rotate），分別在「全域每小時上限已滿」與
+ * 「全域每日預算與每小時上限都已滿」時送出；回傳所有 429 回應的寫入列數總和（應為 0）。
+ */
+async function concurrentRejectedWrites() {
+  const w = await startWorker();
+  let wasted = 0;
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const fill = (b, c, r) => w.db.prepare('INSERT OR REPLACE INTO rate_limits (bucket, count, reset_at) VALUES (?, ?, ?)').bind(b, c, r).run();
+    const v = readWranglerConfig().vars;
+    await fill('g:write', Number(v.RL_WRITE_GLOBAL_PER_HOUR), now + 3600);
+    for (const dayFull of [false, true]) {
+      if (dayFull) await fill(`g:wday:${new Date(now * 1000).toISOString().slice(0, 10)}`, Number(v.RL_WRITE_GLOBAL_PER_DAY), (Math.floor(now / DAY) + 1) * DAY);
+      const p = await newPlayer(w);
+      const reqs = [];
+      for (let i = 0; i < 20; i++) reqs.push(putSave(w, p.token, (i % 3) + 1, sampleSave({ playtime_s: i })));
+      for (let i = 0; i < 10; i++) {
+        reqs.push(w.fetch('/api/clear', { method: 'POST', headers: auth(p.token, { 'content-type': 'application/json' }), body: JSON.stringify({ chapter: 'chapter1', play_seconds: 100 + i, collapse: 0 }) }));
+      }
+      for (let i = 0; i < 3; i++) reqs.push(doRotate(w, p.token));
+      let rejected = 0;
+      for (const r of await Promise.all(reqs)) {
+        if (r.status === 429) { wasted += d1Rows(r).written; rejected++; }
+        await r.arrayBuffer();
+      }
+      expect(rejected).toBe(dayFull ? 33 : 30);
+    }
+  } finally {
+    await w.close();
+  }
+  return wasted;
+}
+
 describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；用 wrangler.toml 的實際 vars 計算）', () => {
-  it('上限＝各全域額度 × 25 個時間窗 × 該類請求的最大寫入列數＋保留通道每日預算＋last_seen＋Cron＋限流紀錄清理', async () => {
+  it('上限＝各全域額度 × 25 個時間窗 × 該類請求的最大寫入列數＋保留通道每日預算＋last_seen＋Cron＋限流紀錄清理＋並行失敗路徑', async () => {
     const v = readWranglerConfig().vars;
     const n = (k) => { const x = Number(v[k]); expect(Number.isInteger(x) && x > 0, k).toBe(true); return x; };
     const windows = 25; // 固定時間窗從第一次命中起算 1 小時，一個 UTC 日最多跨到 25 個窗
@@ -349,10 +383,15 @@ describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；�
     // 建立玩家／轉移（IPv6 的 /64＋/48）≤ 2；全域 bucket（g:player、g:transfer、g:write、g:wday）每天至多 4 列。
     // 玩家的 bucket（pl:*）原地重設、不每天清，只在玩家被刪時一起刪（已含在 Cron 每人列數）。
     const rlPurge = playerReq * 2 + transferReq * 2 + 4;
-    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge;
+    // 並行失敗路徑（修訂 4b 第 1 節）：限流改成一條原子敘述，被擋下的請求（含並行搶輸保留名額、每日預算剛好用完而退到
+    // 每小時通道又被擋的請求）一列都不寫，所以這一項以「每個 429 的實測寫入列數 × 不設上限的次數」計＝必須是 0。
+    // 退到每小時通道而成功的請求，寫入列數與每小時通道相同（保留名額不被消耗），已含在 hourly。
+    const raceWaste = await concurrentRejectedWrites();
+    expect(raceWaste).toBe(0);
+    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge + raceWaste;
     const line = `惡意流量每日寫入上限：建立玩家 ${players}＋轉移 ${transfers}＋已登入每小時通道 ${hourly}（${hourlyReq} 次 × ${lane('每小時', plainKinds)} 列）`
       + `＋保留通道 ${reserved}（${reservedReq} 次 × ${lane('保留', plainKinds)} 列）＋last_seen ${lastSeen}＋Cron ${cron}（${n('PURGE_BATCH')} 人 × ${perPerson} 列）`
-      + `＋限流紀錄清理 ${rlPurge}＝${total} 列`;
+      + `＋限流紀錄清理 ${rlPurge}＋並行失敗路徑 ${raceWaste}＝${total} 列`;
     mkdirSync(join(ROOT, 'test-results'), { recursive: true });
     writeFileSync(join(ROOT, 'test-results', 'cron-cost-total.txt'), `${line}\n`);
     console.log(line);
