@@ -9,6 +9,9 @@ const WORKER_PORT = 8788;
 process.env.SL_WORKER_STATE ??= `test-results/cloud-worker-state/${Date.now()}`;
 const STATE = process.env.SL_WORKER_STATE;
 const WRANGLER = '--config worker/wrangler.toml';
+// 線上驗證：設定 E2E_BASE_URL（例如 GitHub Pages）與 E2E_API_URL（正式 Worker）時，不啟動本機伺服器與 Worker。
+// 正式環境有頻率限制，請用 --grep 只跑需要的情境。
+const REMOTE = process.env.E2E_BASE_URL;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -21,11 +24,11 @@ export default defineConfig({
   retries: 0,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report/cloud-live' }]],
   use: {
-    baseURL: `http://localhost:${PORT}/`,
+    baseURL: REMOTE || `http://localhost:${PORT}/`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: [
+  webServer: REMOTE ? undefined : [
     {
       command: 'node tools/serve.mjs',
       env: { PORT: String(PORT) },

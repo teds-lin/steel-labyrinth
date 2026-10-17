@@ -4,7 +4,7 @@
 import { test as base, expect } from '@playwright/test';
 import { game, makeSave, seedSaves } from './helpers.js';
 
-const API = 'http://localhost:8788';
+const API = process.env.E2E_API_URL || 'http://localhost:8788';
 const DEAD_API = 'http://localhost:8799'; // 沒人聽的埠
 const CLOUD_KEY = 'steel-labyrinth:cloud';
 const UNAVAILABLE = '雲端暫時無法使用，稍後再試';
@@ -15,7 +15,8 @@ const isTouch = (ti) => ti.project.name === 'mobile';
 
 /** 瀏覽器對 API 回非 2xx／連線失敗自動印的「Failed to load resource」不算遊戲錯誤；其他 error 一律要為空。 */
 const isNoise = (m) => /GL Driver Message/.test(m.text())
-  || (/^Failed to load resource/.test(m.text()) && /^http:\/\/localhost:(8788|8799)\//.test(m.location()?.url ?? ''));
+  || (/^Failed to load resource/.test(m.text())
+    && (/^http:\/\/localhost:(8788|8799)\//.test(m.location()?.url ?? '') || (m.location()?.url ?? '').startsWith(API)));
 
 const test = base.extend({
   page: async ({ page }, use) => {

@@ -859,6 +859,7 @@ test.describe('M3 雲端存檔：修訂 2（秘密由客戶端產生、雜湊判
   });
 
   test('G：沒有 API 位址＝雲端存檔尚未開放（選單與標題都顯示），不送任何雲端請求', async ({ page }, testInfo) => {
+    test.skip(!!process.env.E2E_BASE_URL, '只在本機頁面成立：正式網站預設連到已部署的 Worker');
     const touch = isTouch(testInfo);
     const external = [];
     page.on('request', (r) => { if (!/^https?:\/\/(localhost:8091|fonts\.(googleapis|gstatic)\.com)\//.test(r.url())) external.push(r.url()); });
