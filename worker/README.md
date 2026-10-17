@@ -65,7 +65,7 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
 ### 端點
 - `POST /api/player` 新建時需要 `turnstile_token`（action `create_player`）；同一個權杖的冪等重送不驗證（Turnstile token 只能用一次）。
 - `POST /api/dream/pass`：權杖＋`turnstile_token`（action `dream_pass`）→ `{ pass, expires_at, ttl_s, remaining_today }`，有效 `DREAM_PASS_TTL_S=7200`（2 小時）。客戶端以「收到回應的本機時間＋`ttl_s`」判斷過期。
-  限流（修訂 1 B）：同一玩家每小時 6 次（滿了 429，不呼叫 siteverify）；**Turnstile 通過後**才計入全站 `RL_DREAM_PASS_GLOBAL_PER_HOUR=50`（2 小時 × 50 ≈ 100 人同時入夢）。Turnstile 失敗照樣計入玩家的 6 次，另計一個失敗專用的全站 bucket `RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR=10`；它滿了之後失敗一列都不寫（仍回 403），不影響成功的玩家。
+  限流（修訂 1 B）：同一玩家每小時 6 次（滿了 429，不呼叫 siteverify）；**Turnstile 通過後**才計入全站 `RL_DREAM_PASS_GLOBAL_PER_HOUR=50`（2 小時 × 50 ≈ 100 人同時入夢）。Turnstile 失敗時，玩家 bucket 與失敗專用的全站 bucket `g:dpassfail`（`RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR=10`）一起計；`g:dpassfail` 滿了之後失敗一列都不寫（仍回 403、玩家 bucket 也不再增加），改在 Worker 記憶體裡計這位玩家的失敗次數（每個 isolate 各自計），到 6 次就直接 429、不再呼叫 siteverify。成功的玩家不受 `g:dpassfail` 影響。
 - `POST /api/dream/chat`：權杖＋通行證（屬於同一玩家、未過期，否則 401 `pass_invalid`）。200 的 `source` 為 `ai` 或 `scripted`（`reason`：`quota`、`budget`、`ai_error`、`filtered`），並帶 `sig`；每位玩家每分鐘超過 `DREAM_CHATS_PER_MINUTE=6` 次回 **429**。
   - 每位玩家每 UTC 日 `DREAM_CHATS_PER_DAY=20` 句（AI 回覆通過檢查才扣）＋ `DREAM_CALLS_PER_DAY=40` 次 AI 呼叫（`pl:dcall`；filtered、ai_error、重試都計入、不退還；用完 → `quota`）。
   - `sig`＝base64url(HMAC-SHA256(`DREAM_PASS_SECRET`, `player_id` 換行 `guest` 換行 `reply`))。客戶端把它原樣存在對話紀錄、送 `history` 時帶上；`role: "guest"` 沒有有效 `sig` 的項目會被伺服器丟掉（不報錯）。
@@ -105,8 +105,8 @@ Cloudflare 官方測試金鑰（不需要帳號、不需要網路）：
 
 ### 模型與成本
 - `DREAM_MODEL=@cf/google/gemma-4-26b-a4b-it`（`plans/M4-model-eval.md`）；`max_tokens` 200、`temperature` 0.7、`chat_template_kwargs.enable_thinking=false`。換模型只改 vars（qwen3 會自動在玩家訊息尾端加 ` /no_think`）；回應讀 `choices[0].message.content`（沒有就讀 `response`），`message.reasoning` 一律不採用。
-- 每次 AI 呼叫預扣 `DREAM_NEURONS_PER_CALL=20` neurons，呼叫後依 usage 修正（`DREAM_NEURONS_PER_M_INPUT／OUTPUT` 換算），每次計費夾在 `[DREAM_NEURONS_MIN_PER_CALL=10, DREAM_NEURONS_MAX_PER_CALL=60]`（不完全信任 usage）；全站每日 `DREAM_NEURONS_PER_DAY=8000`、每位玩家每日 `DREAM_CHATS_PER_DAY=20` 句、`DREAM_CALLS_PER_DAY=40` 次 AI 呼叫。單一帳號一天最多消耗 40 × 60 = 2,400 neurons，用不完全站預算。
-- 每日 AI 呼叫次數 ≤ 8000 ÷ 10 = 800 次，每次最多寫 5 列（`pl:dmin`、`pl:dcall`、`g:neurons` 預扣＋neurons 修正＋`pl:dchat`）→ 夢客對話每日最多 4,000 列；夢境通行證（成功 50 × 25 窗 × 2 列＋失敗 10 × 25 窗 × 2 列）= 3,000 列；句數／呼叫次數／預算用完、每分鐘 429、失敗上限已滿的通行證都是 0 列（`tests/worker/cron-cost.test.js` 實測並計入）。
+- 每次 AI 呼叫預扣 `DREAM_NEURONS_PER_CALL=20` neurons，呼叫後依 usage 修正（`DREAM_NEURONS_PER_M_INPUT／OUTPUT` 換算），每次計費夾在 `[DREAM_NEURONS_MIN_PER_CALL=10, DREAM_NEURONS_MAX_PER_CALL=60]`（不完全信任 usage）；全站每日 `DREAM_NEURONS_PER_DAY=7000`（修訂 1b 由 8000 降低，見下一條）、每位玩家每日 `DREAM_CHATS_PER_DAY=20` 句、`DREAM_CALLS_PER_DAY=40` 次 AI 呼叫、每個 IP（IPv4 單一位址、IPv6 /64）每日 `DREAM_CALLS_PER_IP_PER_DAY=60` 次 AI 呼叫（`ip:dcall`，與 `pl:dcall` 一起原子計數，滿了回 quota）。單一帳號一天最多消耗 40 × 60 = 2,400 neurons，用不完全站預算。
+- 每日 AI 呼叫次數 ≤ 7000 ÷ 10 = 700 次，每次最多寫 6 列（`pl:dmin`、`pl:dcall`、`ip:dcall`、`g:neurons` 預扣＋neurons 修正＋`pl:dchat`）→ 夢客對話每日最多 4,200 列，另加 `ip:dcall` 每日換鹽、由 Cron 刪除的 700 列（最壞每日寫入合計 99,407 列）；夢境通行證（成功 50 × 25 窗 × 2 列＋失敗 10 × 25 窗 × 2 列）= 3,000 列；句數／呼叫次數／預算用完、每分鐘 429、失敗上限已滿的通行證都是 0 列（`tests/worker/cron-cost.test.js` 實測並計入）。
 - 修訂 1 的取捨：`DREAM_NEURONS_MIN_PER_CALL` 由 8 調高到 10（每日呼叫上限 1,000 → 800 次），換回約 1,000 列的寫入餘裕；實測每句約 9.4 neurons、進位後本來就計 10，正常玩家的容量幾乎不變。
 - 隱私：對話內容（`input`、`history`、`reply`）不寫進 D1，log 只記 `source`、`reason` 與耗時。
 

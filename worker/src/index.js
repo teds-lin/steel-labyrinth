@@ -12,7 +12,7 @@ import {
   isAcceptableToken, isAcceptableTransferCode,
 } from './codes.js';
 import {
-  hitAll, tryHitAll, assertBelow, dayWindow, limitOf, purgeExpired,
+  hitAll, tryHitAll, assertBelow, below, dayWindow, limitOf, purgeExpired, rateLimited, WINDOW_SEC,
 } from './ratelimit.js';
 import { buildSummary, DATA_LIMIT } from './summary.js';
 import { MeteredDb } from './db.js';
@@ -463,8 +463,17 @@ export async function purge(db, now, { batch = 500 } = {}) {
  * 通過後才計入全站 g:dpass（RL_DREAM_PASS_GLOBAL_PER_HOUR）。Turnstile 失敗不消耗全站額度。
  * - 成功：玩家 bucket 與 g:dpass 一條敘述原子計數（全站滿了 → 429，玩家額度也不消耗）。
  * - 失敗：玩家 bucket 與「失敗」的全站 bucket g:dpassfail（RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR）一起計；g:dpassfail 滿了就一列都不寫
- *   （只是不再計數，照樣回 403）。這讓失敗的寫入有全站上限（每日寫入算式），又不會擋到成功的玩家。
+ *   （照樣回 403），改在記憶體裡計這位玩家的失敗次數，到 RL_DREAM_PASS_PER_HOUR 次就直接 429（不呼叫 siteverify）。
+ *   這讓失敗的寫入有全站上限（每日寫入算式），又不會擋到成功的玩家。
  */
+/**
+ * g:dpassfail 已滿時，各玩家的 Turnstile 失敗次數（最後一輪修正）：這時失敗不寫 D1，pl:dpass 也就不會增加，
+ * 改在記憶體裡計（每個 isolate 各自計，最多 PASS_FAIL_MEM_MAX 位玩家，滿了就整個清空）。
+ * 達到 RL_DREAM_PASS_PER_HOUR 次 → 直接 429（不呼叫 siteverify、不寫入）。成功的玩家不受影響。
+ */
+const passFailMem = new Map();
+const PASS_FAIL_MEM_MAX = 10000;
+
 async function dreamPass(request, env, now) {
   requireJsonContentType(request);
   const { player_id: playerId } = await authenticate(request, env, now);
@@ -472,11 +481,25 @@ async function dreamPass(request, env, now) {
   if (typeof secret !== 'string' || secret.length < 32) throw new Error('DREAM_PASS_SECRET 未設定或太短');
   const mine = { bucket: `pl:dpass:${playerId}`, limit: limitOf(env, 'RL_DREAM_PASS_PER_HOUR', 6) };
   await assertBelow(env.DB, mine.bucket, mine.limit, now);
+  const failGlobal = { bucket: 'g:dpassfail', limit: limitOf(env, 'RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR', 10) };
+  const failFull = !(await below(env.DB, failGlobal, now));
+  let mem = passFailMem.get(playerId);
+  if (mem && mem.resetAt <= now) { passFailMem.delete(playerId); mem = undefined; }
+  if (failFull && mem && mem.count >= mine.limit) throw rateLimited(mem.resetAt, now);
   const body = await readJson(request);
   if (!isPlainObject(body)) throw badRequest();
   const ts = await verifyTurnstile(env, body.turnstile_token, 'dream_pass', clientIp(request));
   if (!ts.ok) {
-    await tryHitAll(env.DB, [mine, { bucket: 'g:dpassfail', limit: limitOf(env, 'RL_DREAM_PASS_FAIL_GLOBAL_PER_HOUR', 10) }], now);
+    if (failFull) {
+      if (!mem) {
+        if (passFailMem.size >= PASS_FAIL_MEM_MAX) passFailMem.clear();
+        mem = { count: 0, resetAt: now + WINDOW_SEC };
+        passFailMem.set(playerId, mem);
+      }
+      mem.count++;
+    } else {
+      await tryHitAll(env.DB, [mine, failGlobal], now);
+    }
     console.log(JSON.stringify({ event: 'turnstile_failed', action: 'dream_pass', reason: ts.reason }));
     throw new HttpError(403, 'turnstile_failed');
   }
@@ -490,7 +513,11 @@ async function dreamChatRoute(request, env, now) {
   requireJsonContentType(request);
   const { player_id: playerId } = await authenticate(request, env, now);
   const body = await readJson(request);
-  return jsonResponse(await dreamChat(env, playerId, body, now));
+  // 最後一輪修正：每個 IP（IPv4 單一位址、IPv6 /64，每日換鹽）每日 AI 呼叫上限 ip:dcall。
+  // 沒有 cf-connecting-ip（只有本機開發／測試；正式環境的 Cloudflare 一定會帶）就不計。
+  const ip = clientIp(request);
+  const ipCallBucket = ip === null ? null : `ip:dcall:${await ipBucketKey(requirePepper(env), ip, now)}`;
+  return jsonResponse(await dreamChat(env, playerId, body, now, { ipCallBucket }));
 }
 
 // ---------- 路由 ----------

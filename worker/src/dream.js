@@ -187,14 +187,23 @@ export const RETRY_NOTE = '（提醒：上一次的回覆不符合絕對規則�
 /** qwen3 只能用訊息尾端的 /no_think 關閉思考（模型評測：放在系統提示詞會被玩家的 /think 打開）。 */
 const needsNoThink = (model) => /qwen3/i.test(model);
 
+/**
+ * 送給模型的訊息：system → 交替的 user／assistant → 以 user 結尾（最後一輪修正）。
+ * 429、離線台詞、簽章失效丟掉 guest 項目時，history 可能出現連續同角色或以夢客開頭；有些模型的 chat template
+ * 要求嚴格交替，所以這裡合併連續同角色（以換行接起來）、去掉開頭的 assistant，最後一則 player 與本次輸入合併。
+ */
 export function buildMessages(persona, chapters, req, { model = '', retry = false } = {}) {
   const suffix = needsNoThink(model) ? ' /no_think' : '';
   const system = buildSystemPrompt(persona, chapters, req.chapter) + (retry ? `\n\n${RETRY_NOTE}` : '');
-  return [
-    { role: 'system', content: system },
-    ...req.history.map((h) => (h.role === 'player' ? { role: 'user', content: h.text + suffix } : { role: 'assistant', content: h.text })),
-    { role: 'user', content: req.input + suffix },
-  ];
+  const turns = [];
+  for (const h of [...req.history, { role: 'player', text: req.input }]) {
+    const role = h.role === 'player' ? 'user' : 'assistant';
+    if (turns.length === 0 && role === 'assistant') continue;
+    const last = turns.at(-1);
+    if (last && last.role === role) last.content += `\n${h.text}`;
+    else turns.push({ role, content: h.text });
+  }
+  return [{ role: 'system', content: system }, ...turns.map((t) => (t.role === 'user' ? { role: 'user', content: t.content + suffix } : t))];
 }
 
 // ---------- 輸出處理 ----------
@@ -392,6 +401,7 @@ function chatLimits(env) {
   return {
     perDay,
     callsPerDay: limitOf(env, 'DREAM_CALLS_PER_DAY', perDay * 2),
+    callsPerIpPerDay: limitOf(env, 'DREAM_CALLS_PER_IP_PER_DAY', 60),
     perMinute: limitOf(env, 'DREAM_CHATS_PER_MINUTE', 6),
     est,
     min,
@@ -405,12 +415,13 @@ function chatLimits(env) {
  *
  * 計數（修訂 1 A；全部都在 rate_limits，玩家 bucket 原地重設、不每日清理）：
  * - pl:dmin（每分鐘 DREAM_CHATS_PER_MINUTE 次，超過 429）、pl:dcall（每日 DREAM_CALLS_PER_DAY 次 AI 呼叫，任何結果都不退還）、
+ *   ip:dcall（每個 IP〔IPv6 /64〕每日 DREAM_CALLS_PER_IP_PER_DAY 次 AI 呼叫，滿了回 quota；ipCallBucket 由呼叫端依 cf-connecting-ip 算）、
  *   g:neurons:<日期>（全站每日 DREAM_NEURONS_PER_DAY）：每次呼叫 AI 前「一條敘述原子預扣」（pl:dmin 只有第一次呼叫計）；
  * - pl:dchat（每日 DREAM_CHATS_PER_DAY 句）：AI 回覆通過檢查後才計（原子、不超收），所以 filtered／ai_error 不扣句數、也不必退還；
  * - neurons：預扣估計值 DREAM_NEURONS_PER_CALL，呼叫後依 usage 修正，每次計費夾在 [MIN, MAX]。
  * 改用預寫台詞的 quota／budget、每分鐘 429：只讀，一列都不寫（每日寫入上限的算式依賴這一點）。
  */
-export async function chat(env, playerId, body, now) {
+export async function chat(env, playerId, body, now, { ipCallBucket = null } = {}) {
   const t0 = Date.now();
   const secret = env.DREAM_PASS_SECRET;
   if (!(await verifyPass(secret, body?.pass, playerId, now, passTtlOf(env)))) throw passInvalid();
@@ -423,7 +434,7 @@ export async function chat(env, playerId, body, now) {
   const db = env.DB;
   const L = chatLimits(env);
   const { day, resetAt } = utcDay(now);
-  const B = { chat: chatBucket(playerId), call: callBucket(playerId), minute: minuteBucket(playerId), neurons: `g:neurons:${day}` };
+  const B = { chat: chatBucket(playerId), call: callBucket(playerId), minute: minuteBucket(playerId), neurons: `g:neurons:${day}`, ip: ipCallBucket };
   const sign = (reply) => signReply(secret, playerId, req.guest, reply);
   const finish = async (out) => {
     console.log(JSON.stringify({ event: 'dream_chat', source: out.source, reason: out.reason, check: out.check ?? null, ms: Date.now() - t0 }));
@@ -436,11 +447,11 @@ export async function chat(env, playerId, body, now) {
 
   /** 目前的計數；超過每分鐘限制 → 429；句數或呼叫次數用完 → quota；預算不夠一次預扣 → budget；都還有 → null。 */
   const classify = async () => {
-    const c = await readCounts(db, [B.minute, B.chat, B.call, B.neurons], now);
+    const c = await readCounts(db, [B.minute, B.chat, B.call, B.neurons, ...(B.ip ? [B.ip] : [])], now);
     const minute = c.get(B.minute);
     if (minute.count >= L.perMinute) throw rateLimited(minute.resetAt, now);
     const used = c.get(B.chat).count;
-    if (used >= L.perDay || c.get(B.call).count >= L.callsPerDay) return { stop: 'quota', used };
+    if (used >= L.perDay || c.get(B.call).count >= L.callsPerDay || (B.ip && c.get(B.ip).count >= L.callsPerIpPerDay)) return { stop: 'quota', used };
     if (c.get(B.neurons).count + L.est > L.neuronsPerDay) return { stop: 'budget', used };
     return { stop: null, used };
   };
@@ -454,7 +465,9 @@ export async function chat(env, playerId, body, now) {
 
   const call = { bucket: B.call, limit: L.callsPerDay, resetAt, inc: 1 };
   const budget = { bucket: B.neurons, limit: L.neuronsPerDay, resetAt, inc: L.est };
-  if (!(await tryHitWeighted(db, [{ bucket: B.minute, limit: L.perMinute, resetAt: now + MINUTE, inc: 1 }, call, budget], now))) {
+  // 每 IP 每日 AI 呼叫（ip:dcall）：和 pl:dcall 一起原子計數；時間窗到下一個 UTC 午夜（key 也每日換鹽），由 Cron 清除
+  const calls = B.ip ? [call, { bucket: B.ip, limit: L.callsPerIpPerDay, resetAt, inc: 1 }] : [call];
+  if (!(await tryHitWeighted(db, [{ bucket: B.minute, limit: L.perMinute, resetAt: now + MINUTE, inc: 1 }, ...calls, budget], now))) {
     const again = await classify(); // 並行時被別的請求搶先：重新判斷（429／quota／budget）
     return scripted(again.stop ?? 'budget', again.used);
   }
@@ -464,7 +477,7 @@ export async function chat(env, playerId, body, now) {
   let outcome = null;
   for (let attempt = 0; attempt < 2 && !outcome; attempt++) {
     if (attempt === 1) {
-      if (!(await tryHitWeighted(db, [call, budget], now))) { outcome = { reason: 'filtered' }; break; }
+      if (!(await tryHitWeighted(db, [...calls, budget], now))) { outcome = { reason: 'filtered' }; break; }
       reservedNeurons += L.est;
     }
     const r = await callAi(env, buildMessages(persona, chapters, req, { model: String(env.DREAM_MODEL ?? ''), retry: attempt === 1 }));

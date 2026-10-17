@@ -383,7 +383,7 @@ describe('D. 輸出檢查（checkReply 單元）', () => {
 describe('D. 輸出檢查（整合：log-C 案例逐一重現 → scripted＋filtered）', () => {
   let w;
   beforeAll(async () => {
-    w = await startWorker({ varsOverride: { DREAM_CHATS_PER_MINUTE: '1000', DREAM_CALLS_PER_DAY: '1000' } });
+    w = await startWorker({ varsOverride: { DREAM_CHATS_PER_MINUTE: '1000', DREAM_CALLS_PER_DAY: '1000', DREAM_CALLS_PER_IP_PER_DAY: '1000' } }); // 測試都從同一個 IP 送
     await loadDreamFixtures(w);
   });
   afterAll(async () => { await w?.close(); });

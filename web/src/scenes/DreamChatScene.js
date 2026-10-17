@@ -17,7 +17,7 @@ import { cloud, dream } from '../cloud-client.js';
 import { mountTurnstile } from '../ui/turnstile-panel.js';
 import { TURNSTILE_ACTIONS } from '../cloud/turnstile-config.js';
 import {
-  MAX_INPUT_CHARS, cleanChatInput, charCount, clampInput, buildHistory, scriptedKindFor, cleanReply, DREAM_MSG,
+  MAX_INPUT_CHARS, cleanChatInput, charCount, clampInput, buildHistory, scriptedKindFor, cleanReply, DREAM_MSG, chatQuotaView,
 } from '../cloud/dream.js';
 import { waitText } from '../cloud/sync.js';
 
@@ -31,7 +31,6 @@ const inflight = new Map();
 /** 開啟聊天的次數：每次開啟一個新的 session 編號。 */
 let sessionSeq = 0;
 
-const QUOTA_NOTE = '今天的交談次數已經用完了，明天再來吧。';
 const VERIFY_NOTE = '第一次交談前，請先完成人機驗證（防止濫用）。';
 /** 429（每分鐘超過上限，不扣句數）時狀態列的提示。 */
 const rateLimitedNote = (sec) => {
@@ -96,7 +95,7 @@ export class DreamChatScene extends Phaser.Scene {
       pending.then(() => this.afterInflight(sid));
     }
     this.refresh();
-    if (this.quotaUsedUp) this.setStatus(QUOTA_NOTE);
+    if (this.quotaUsedUp) this.setStatus(this.quotaView.note);
     if (!dream.hasPass()) this.startVerify();
   }
 
@@ -106,15 +105,20 @@ export class DreamChatScene extends Phaser.Scene {
     this.busy = false;
     this.showWaiting(false);
     this.renderLog();
-    if (this.quotaUsedUp) this.setStatus(QUOTA_NOTE);
+    if (this.quotaUsedUp) this.setStatus(this.quotaView.note);
     this.refresh();
   }
 
   /** 是否還是同一次開啟（離開後重進就是新的 session）。 */
   isLive(sid) { return !this.closed && this.sid === sid; }
 
-  /** 今日不能再說：剩餘句數已知是 0（通行證回應或上一次 chat），或伺服器回過 reason quota（可能還有句數、但 AI 呼叫次數用完；修訂 1a 3）。 */
-  get quotaUsedUp() { return dream.remaining() === 0 || dream.quotaHit(); }
+  /**
+   * 額度顯示（最後一輪修正）：剩餘句數是 0 → 「次數用完」；伺服器回過 reason quota／budget 但還有句數 → 剩餘「—」＋「夢境今天變得模糊了」。
+   */
+  get quotaView() { return chatQuotaView({ remaining: dream.remaining(), quotaHit: dream.quotaHit() }); }
+
+  /** 今日不能再說：剩餘句數已知是 0（通行證回應或上一次 chat），或伺服器回過 reason quota／budget（修訂 1a 3）。 */
+  get quotaUsedUp() { return this.quotaView.locked; }
 
   // ---------- 版面 ----------
   drawBackdrop() {
@@ -215,8 +219,7 @@ export class DreamChatScene extends Phaser.Scene {
   }
 
   refresh() {
-    const rem = dream.remaining();
-    this.remainText.setText(`今日剩餘 ${rem === null ? '—' : rem} 句`);
+    this.remainText.setText(this.quotaView.remainingLabel);
     const enabled = this.canSend;
     this.inputEl.disabled = !enabled;
     this.sendBtn.setEnabled(enabled);
@@ -244,7 +247,18 @@ export class DreamChatScene extends Phaser.Scene {
     body.className = 'sl-msg-text';
     body.textContent = shownText(m);
     el.appendChild(body);
+    if (m.unsent) this.markUnsent(el);
     return { el, body };
+  }
+
+  /** 被每分鐘上限擋下、沒有送到夢客那裡的玩家訊息：畫面保留，標示「沒有送出」（不放進 history）。 */
+  markUnsent(el) {
+    el.classList.add('sl-msg-unsent');
+    if (el.querySelector('.sl-msg-note')) return;
+    const note = document.createElement('div');
+    note.className = 'sl-msg-note';
+    note.textContent = DREAM_MSG.unsent;
+    el.appendChild(note);
   }
 
   renderLog() {
@@ -342,7 +356,7 @@ export class DreamChatScene extends Phaser.Scene {
     }
     this.verifying = false;
     this.showVerifyPanel(false);
-    this.setStatus(this.quotaUsedUp ? QUOTA_NOTE : '');
+    this.setStatus(this.quotaUsedUp ? this.quotaView.note : '');
     this.refresh();
     const queued = this.pendingText;
     this.pendingText = null;
@@ -402,6 +416,8 @@ export class DreamChatScene extends Phaser.Scene {
     this.refresh();
     this.showWaiting(true);
     const idx = log.findLastIndex((m) => m.role === 'player' && m.text === text);
+    const sent = idx >= 0 ? log[idx] : null;
+    if (sent) delete sent.unsent; // 重送（例如通行證重新驗證後）
     const history = buildHistory(log.slice(0, Math.max(0, idx))); // 這一句之前的紀錄
     const chapter = typeof session.state?.chapter === 'string' ? session.state.chapter : (session.data?.manifest?.chapters?.[0] ?? 'prologue');
 
@@ -421,6 +437,7 @@ export class DreamChatScene extends Phaser.Scene {
         msg = { role: 'guest', text: pickScripted(guest, scriptedKindFor(null)) ?? '……', source: 'scripted' };
       }
       if (msg) log.push(msg);
+      if (r.type === 'rate_limited' && sent) sent.unsent = true; // 伺服器沒收到：之後的 history 不送這句
       if (r.type === 'unauthorized') cloud.invalidate();
     } finally {
       if (inflight.get(guestId) === finished) inflight.delete(guestId);
@@ -438,13 +455,17 @@ export class DreamChatScene extends Phaser.Scene {
     if (!this.isLive(sid)) return;
     if (r.type === 'reply' && (r.reason === 'quota' || r.reason === 'budget' || r.remaining === 0)) {
       this.locked = true;
-      this.setStatus(QUOTA_NOTE);
+      this.setStatus(this.quotaView.note ?? DREAM_MSG.dreamBlurred);
     }
     if (r.type === 'unauthorized') {
       this.locked = true;
       this.setStatus(DREAM_MSG.relink);
     }
-    if (r.type === 'rate_limited') this.setStatus(rateLimitedNote(r.retryAfter));
+    if (r.type === 'rate_limited') {
+      this.setStatus(rateLimitedNote(r.retryAfter));
+      const el = sent ? [...this.logEl.querySelectorAll('.sl-msg-player')].at(-1) : null;
+      if (el) this.markUnsent(el);
+    }
     this.busy = false;
     this.refresh();
     if (this.canSend && !this.sys.game.device.input.touch) this.inputEl.focus();
@@ -467,8 +488,10 @@ export class DreamChatScene extends Phaser.Scene {
       guest: this.guest.id,
       name: this.nameText.text,
       remaining: this.remainText.text,
-      messages: this.log.map((m) => ({ role: m.role, text: m.text, source: m.source ?? null })),
-      shown: [...this.logEl.querySelectorAll('.sl-msg')].map((el) => ({ cls: el.className, text: el.querySelector('.sl-msg-text')?.textContent ?? el.textContent })),
+      messages: this.log.map((m) => ({ role: m.role, text: m.text, source: m.source ?? null, ...(m.unsent ? { unsent: true } : {}) })),
+      shown: [...this.logEl.querySelectorAll('.sl-msg')].map((el) => ({
+        cls: el.className, text: el.querySelector('.sl-msg-text')?.textContent ?? el.textContent, ...(el.querySelector('.sl-msg-note') ? { note: el.querySelector('.sl-msg-note').textContent } : {}),
+      })),
       waiting: this.waitingEl !== null && this.waitingEl !== undefined,
       typing: this.typing !== null && this.typing !== undefined,
       busy: this.busy,

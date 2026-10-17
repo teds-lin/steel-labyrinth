@@ -5,9 +5,10 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import {
   startWorker, newPlayer, newSecrets, doTransfer, doRotate, json, auth, putSave, sampleSave, d1Rows, readWranglerConfig, ROOT,
-  tsToken, loadDreamFixtures, getPass, dreamChat, aiReply,
+  tsToken, loadDreamFixtures, getPass, dreamChat, aiReply, TEST_PEPPER,
 } from './helpers.js';
 import { purge } from '../../worker/src/index.js';
+import { ipBucketKey } from '../../worker/src/codes.js';
 
 const DAY = 86400;
 
@@ -90,14 +91,16 @@ const MAX_ROWS = {
   'POST /api/dream/pass（Turnstile 失敗）': { read: 30, written: 2 },
   'POST /api/dream/pass（Turnstile 失敗、失敗上限已滿）': { read: 30, written: 0 },
   'POST /api/dream/pass（玩家額度用完 429）': { read: 30, written: 0 },
-  'POST /api/dream/chat（AI 成功）': { read: 40, written: 5 },
-  'POST /api/dream/chat（重試後成功）': { read: 50, written: 7 },
-  'POST /api/dream/chat（重試後仍過濾）': { read: 50, written: 6 },
-  'POST /api/dream/chat（AI 錯誤）': { read: 40, written: 3 },
-  'POST /api/dream/chat（AI 錯誤、帶 usage）': { read: 40, written: 4 },
-  'POST /api/dream/chat（重試時預扣失敗）': { read: 50, written: 4 },
+  // 最後一輪修正：每次 AI 呼叫多計 ip:dcall 1 列（與 pl:dcall 一起原子計數）
+  'POST /api/dream/chat（AI 成功）': { read: 50, written: 6 },
+  'POST /api/dream/chat（重試後成功）': { read: 60, written: 9 },
+  'POST /api/dream/chat（重試後仍過濾）': { read: 60, written: 8 },
+  'POST /api/dream/chat（AI 錯誤）': { read: 50, written: 4 },
+  'POST /api/dream/chat（AI 錯誤、帶 usage）': { read: 50, written: 5 },
+  'POST /api/dream/chat（重試時預扣失敗）': { read: 60, written: 5 },
   'POST /api/dream/chat（句數用完）': { read: 30, written: 0 },
   'POST /api/dream/chat（AI 呼叫次數用完）': { read: 30, written: 0 },
+  'POST /api/dream/chat（IP 呼叫次數用完）': { read: 30, written: 0 },
   'POST /api/dream/chat（預算用完）': { read: 30, written: 0 },
   'POST /api/dream/chat（每分鐘上限 429）': { read: 30, written: 0 },
   'POST /api/dream/chat（通行證無效）': { read: 1, written: 0 },
@@ -112,7 +115,7 @@ const CHAT_CALLS = {
 };
 /** 改用預寫台詞或 429、一列都不寫的夢境請求（每日寫入算式依賴這一點）。 */
 const DREAM_ZERO_WRITE = ['POST /api/dream/pass（Turnstile 失敗、失敗上限已滿）', 'POST /api/dream/pass（玩家額度用完 429）',
-  'POST /api/dream/chat（句數用完）', 'POST /api/dream/chat（AI 呼叫次數用完）', 'POST /api/dream/chat（預算用完）',
+  'POST /api/dream/chat（句數用完）', 'POST /api/dream/chat（AI 呼叫次數用完）', 'POST /api/dream/chat（IP 呼叫次數用完）', 'POST /api/dream/chat（預算用完）',
   'POST /api/dream/chat（每分鐘上限 429）', 'POST /api/dream/chat（通行證無效）'];
 const WRITE_KINDS = ['PUT（新建）', 'PUT（覆蓋）', 'PUT（409）', 'DELETE', 'PUT（刪除後重建）',
   'POST /api/clear（新紀錄）', 'POST /api/clear（改善成績）', 'POST /api/clear（沒有改善）', 'POST /api/transfer/rotate',
@@ -196,12 +199,14 @@ async function measureAll(w, lane) {
     await fill(`pl:dpass:${d.player_id}`, 1e6, nowS + 3600);
     await rec('POST /api/dream/pass（玩家額度用完 429）', () => w.fetch('/api/dream/pass', json(passBody, auth(d.token))));
     const chatBody = async (pl) => ({ pass: await getPass(w, pl.token), guest: 'lamp', chapter: 'chapter1', history: [], input: '你好' });
+    // 每一種都從新的 IP 送（cf-connecting-ip；正式環境一定有）→ 量到「新建 ip:dcall bucket」的最壞情況
     const chatCase = async (name, ai, prep) => {
       const pl = await newPlayer(w);
       const body = await chatBody(pl);
-      if (prep) await prep(pl);
+      const ip = w.nextIp();
+      if (prep) await prep(pl, ip);
       w.setAi(ai);
-      await rec(name, () => dreamChat(w, pl.token, body));
+      await rec(name, () => w.fetch('/api/dream/chat', json(body, auth(pl.token, { 'cf-connecting-ip': ip }))));
     };
     const usage = { usage: { prompt_tokens: 800, completion_tokens: 50, total_tokens: 850 } };
     await chatCase('POST /api/dream/chat（AI 成功）', () => aiReply('燈還亮著。', usage));
@@ -219,6 +224,8 @@ async function measureAll(w, lane) {
     await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(neuronsBucket).run();
     await chatCase('POST /api/dream/chat（句數用完）', () => aiReply('燈。'), (pl) => fill(`pl:dchat:${pl.player_id}`, Number(v.DREAM_CHATS_PER_DAY), midnight));
     await chatCase('POST /api/dream/chat（AI 呼叫次數用完）', () => aiReply('燈。'), (pl) => fill(`pl:dcall:${pl.player_id}`, Number(v.DREAM_CALLS_PER_DAY), midnight));
+    await chatCase('POST /api/dream/chat（IP 呼叫次數用完）', () => aiReply('燈。'),
+      async (pl, ip) => fill(`ip:dcall:${await ipBucketKey(TEST_PEPPER, ip, now)}`, Number(v.DREAM_CALLS_PER_IP_PER_DAY), midnight));
     await chatCase('POST /api/dream/chat（預算用完）', () => aiReply('燈。'), () => fill(neuronsBucket, Number(v.DREAM_NEURONS_PER_DAY), midnight));
     await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(neuronsBucket).run();
     await chatCase('POST /api/dream/chat（每分鐘上限 429）', () => aiReply('燈。'), (pl) => fill(`pl:dmin:${pl.player_id}`, Number(v.DREAM_CHATS_PER_MINUTE), now + 60));
@@ -297,6 +304,9 @@ describe('每種請求的 D1 讀寫列數（x-d1-rows 實測；上限是回歸�
       expect(m['POST /api/dream/chat（每分鐘上限 429）'].status).toBe(429);
       // 改用預寫台詞（句數、呼叫次數、預算）、429 與無效通行證：一列都不寫
       for (const k of DREAM_ZERO_WRITE) expect(m[k].written, k).toBe(0);
+      // ip:dcall：每個請求最多新增 1 列（之後 Cron 刪除時再寫 1 列，算在「夢境 IP 限流紀錄清理」）
+      const ipRows = await w.db.prepare("SELECT COUNT(*) AS n FROM rate_limits WHERE bucket LIKE 'ip:dcall:%'").first();
+      expect(ipRows.n).toBe(Object.keys(CHAT_CALLS).length + 1); // 6 種呼叫 AI 的請求各 1 列＋「IP 呼叫次數用完」預先填的 1 列
     } finally {
       await w.close();
     }
@@ -493,13 +503,15 @@ describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；�
     const aiCalls = Math.floor(n('DREAM_NEURONS_PER_DAY') / n('DREAM_NEURONS_MIN_PER_CALL'));
     const rowsPerCall = Math.max(...Object.entries(CHAT_CALLS).map(([k, c]) => Math.ceil(wr(k) / c)));
     const chats = aiCalls * rowsPerCall;
+    // 最後一輪修正：ip:dcall 每日換鹽、時間窗到 UTC 午夜，由 Cron 刪除（每列再寫 1 列）；每次 AI 呼叫最多新增 1 列
+    const dreamIpPurge = aiCalls;
     // 全域 bucket 多三列：g:dpass、g:dpassfail、g:neurons:<日期>（每天由 Cron 刪除時各再寫 1 列）
     const dreamRlPurge = 3;
-    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge + raceWaste + passes + chats + dreamRlPurge;
+    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge + raceWaste + passes + chats + dreamIpPurge + dreamRlPurge;
     const line = `惡意流量每日寫入上限：建立玩家 ${players}＋轉移 ${transfers}＋已登入每小時通道 ${hourly}（${hourlyReq} 次 × ${lane('每小時', plainKinds)} 列）`
       + `＋保留通道 ${reserved}（${reservedReq} 次 × ${lane('保留', plainKinds)} 列）＋last_seen ${lastSeen}＋Cron ${cron}（${n('PURGE_BATCH')} 人 × ${perPerson} 列）`
       + `＋限流紀錄清理 ${rlPurge}＋並行失敗路徑 ${raceWaste}`
-      + `＋夢境通行證 ${passes}（成功 ${passReq} 次 × ${wr('POST /api/dream/pass')} 列＋失敗 ${passFailReq} 次 × ${wr('POST /api/dream/pass（Turnstile 失敗）')} 列）＋夢客對話 ${chats}（${aiCalls} 次 AI 呼叫 × ${rowsPerCall} 列）＋夢境限流紀錄清理 ${dreamRlPurge}＝${total} 列`;
+      + `＋夢境通行證 ${passes}（成功 ${passReq} 次 × ${wr('POST /api/dream/pass')} 列＋失敗 ${passFailReq} 次 × ${wr('POST /api/dream/pass（Turnstile 失敗）')} 列）＋夢客對話 ${chats}（${aiCalls} 次 AI 呼叫 × ${rowsPerCall} 列）＋ip:dcall 清理 ${dreamIpPurge}＋夢境限流紀錄清理 ${dreamRlPurge}＝${total} 列`;
     mkdirSync(join(ROOT, 'test-results'), { recursive: true });
     writeFileSync(join(ROOT, 'test-results', 'cron-cost-total.txt'), `${line}\n`);
     console.log(line);

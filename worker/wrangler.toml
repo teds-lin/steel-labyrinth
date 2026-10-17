@@ -63,8 +63,9 @@ DREAM_MAX_TOKENS = "200"          # 實測輸出最多約 100 tokens
 # 額度：每位玩家每 UTC 日幾句（scripted 不扣）；全站每日 neurons 預算
 DREAM_CHATS_PER_DAY = "20"
 DREAM_CALLS_PER_DAY = "40"        # （修訂 1 A）每位玩家每 UTC 日 AI 呼叫次數（＝句數 × 2）；filtered、ai_error、重試都計入，不退還
+DREAM_CALLS_PER_IP_PER_DAY = "60" # （最後一輪修正）每個 IP（IPv4 單一位址、IPv6 /64）每 UTC 日 AI 呼叫次數，與 pl:dcall 一起原子計數；滿了回 quota
 DREAM_CHATS_PER_MINUTE = "6"      # （修訂 1 A）每位玩家每分鐘 chat 請求（實際呼叫 AI 的才計；超過 429）
-DREAM_NEURONS_PER_DAY = "8000"
+DREAM_NEURONS_PER_DAY = "7000"   # （最後一輪修正）由 8000 降低：ip:dcall 讓每次 AI 呼叫多 2 列寫入（計數＋Cron 清理），7000 ÷ 10 = 700 次 × 7 列才能維持每日寫入 < 10 萬列（cron-cost.test.js）
 DREAM_NEURONS_PER_CALL = "20"     # 每次 AI 呼叫預扣（實測每句約 9.4，帶滿 6 則紀錄約 17.5），呼叫後依 usage 修正
 DREAM_NEURONS_MIN_PER_CALL = "10" # 每次呼叫至少計這麼多（每日最多 8000 ÷ 10 = 800 次呼叫 → 寫入列數有上限；修訂 1 由 8 調高，實測每句約 9.4、進位後本來就是 10）
 DREAM_NEURONS_MAX_PER_CALL = "60" # （修訂 1 A）每次呼叫最多計這麼多（估計值的 3 倍；不完全信任 usage）

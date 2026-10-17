@@ -18,7 +18,25 @@ export const DREAM_MSG = Object.freeze({
   relink: '此裝置的雲端連結已失效，請重新用轉移碼接續',
   /** 重新驗證後伺服器仍然不認通行證（一次送出最多重新驗證 1 次，修訂 1 B）。 */
   passRejected: '夢境通行證無法使用，請稍後再試。',
+  /** 今日句數用完（remaining_today 是 0）。 */
+  quotaUsedUp: '今天的交談次數已經用完了，明天再來吧。',
+  /** 伺服器回 reason quota／budget 但還有句數（AI 呼叫次數或全站預算用完）：不說「次數用完」，免得和剩餘句數互相矛盾。 */
+  dreamBlurred: '夢境今天變得模糊了，明天再來吧。',
+  /** 被每分鐘上限（429）擋下、沒有送到夢客那裡的玩家訊息。 */
+  unsent: '沒有送出',
 });
+
+/**
+ * 交談畫面的額度顯示（最後一輪修正）：
+ * - remaining 是 0 → 「今日剩餘 0 句」＋句數用完；
+ * - 伺服器回過 quota／budget 但還有句數 → 剩餘句數顯示「—」＋「夢境今天變得模糊了」（不同時顯示「剩 20 句」與「用完了」）；
+ * - 其他 → 剩餘句數（還不知道時「—」），沒有提示。
+ */
+export function chatQuotaView({ remaining, quotaHit }) {
+  if (remaining === 0) return { remainingLabel: '今日剩餘 0 句', note: DREAM_MSG.quotaUsedUp, locked: true };
+  if (quotaHit) return { remainingLabel: '今日剩餘 — 句', note: DREAM_MSG.dreamBlurred, locked: true };
+  return { remainingLabel: `今日剩餘 ${Number.isInteger(remaining) ? remaining : '—'} 句`, note: null, locked: false };
+}
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -42,7 +60,7 @@ const isSig = (v) => typeof v === 'string' && v !== '';
 
 /**
  * 對話紀錄 → 送給伺服器的 history（API.md 鐘塔之夢 修訂 1 C）：
- * - 玩家說的話：最多 MAX_HISTORY_CHARS 字；
+ * - 玩家說的話：最多 MAX_HISTORY_CHARS 字；被每分鐘 429 擋下的（unsent）不送；
  * - 夢客的回覆：只送伺服器簽過章的（有 sig；ai 與伺服器的 scripted 都有），文字與 sig 原樣送回
  *   （修訂 1a 4：text 必須與收到的 reply 完全相同——紀錄裡存原文，畫面上才移除 Cc／Cf）。
  *   開場白、離線的預寫台詞、說明沒有 sig → 不送。簽過的文字不能截斷（截了簽章就對不上），超過上限就整則不送。
@@ -53,7 +71,10 @@ export function buildHistory(log) {
   const out = [];
   for (const m of log) {
     if (!isObj(m) || typeof m.text !== 'string') continue;
-    if (m.role === 'player') out.push({ role: 'player', text: clampInput(m.text, MAX_HISTORY_CHARS) });
+    if (m.role === 'player') {
+      if (m.unsent === true) continue; // 被每分鐘 429 擋下、伺服器沒收到的訊息不送（最後一輪修正）
+      out.push({ role: 'player', text: clampInput(m.text, MAX_HISTORY_CHARS) });
+    }
     else if (m.role === 'guest' && isSig(m.sig) && charCount(m.text) <= MAX_HISTORY_CHARS) {
       out.push({ role: 'guest', text: m.text, sig: m.sig });
     }
@@ -117,14 +138,14 @@ export function createDreamClient({ api, now = monotonicNow } = {}) {
   let pass = null;
   let deadline = 0; // 毫秒（now() 的時間軸）：超過就當作過期
   let remaining = null;
-  let quotaHit = false; // 伺服器回過 reason quota（可能 remaining_today > 0：當日 AI 呼叫次數用完，修訂 1a 3）
+  let quotaHit = false; // 伺服器回過 reason quota／budget（可能 remaining_today > 0：當日 AI 呼叫次數、每 IP 呼叫次數或全站預算用完）
 
   return {
     hasPass: () => typeof pass === 'string' && now() < deadline,
     clearPass() { pass = null; deadline = 0; },
     /** 最後一次伺服器回報的今日剩餘句數；還不知道時為 null。 */
     remaining: () => remaining,
-    /** 這張通行證期間伺服器回過 reason quota（重新取得通行證時清除）。 */
+    /** 這張通行證期間伺服器回過 reason quota 或 budget（今天不能再說；重新取得通行證時清除）。 */
     quotaHit: () => quotaHit,
 
     /** 用 Turnstile token 換通行證（回應的 remaining_today 一併記下）。回傳 { ok:true } 或 { ok:false, kind, message }。 */
@@ -159,7 +180,7 @@ export function createDreamClient({ api, now = monotonicNow } = {}) {
       const out = interpretChat(r);
       if (out.type === 'pass_invalid') this.clearPass();
       if (out.type === 'reply' && out.remaining !== null) remaining = out.remaining;
-      if (out.type === 'reply' && out.reason === 'quota') quotaHit = true;
+      if (out.type === 'reply' && (out.reason === 'quota' || out.reason === 'budget')) quotaHit = true;
       return out;
     },
   };

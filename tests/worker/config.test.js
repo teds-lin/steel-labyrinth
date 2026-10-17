@@ -144,7 +144,7 @@ describe('M4 鐘塔之夢的設定', () => {
 
   it('額度、預算與 neurons 換算', () => {
     expect(Number(cfg.vars.DREAM_CHATS_PER_DAY)).toBe(20);
-    expect(Number(cfg.vars.DREAM_NEURONS_PER_DAY)).toBe(8000);
+    expect(Number(cfg.vars.DREAM_NEURONS_PER_DAY)).toBe(7000); // 最後一輪修正：加了 ip:dcall 後每次呼叫多 2 列（計數＋Cron 清理），由 8000 降到 7000 才能維持每日寫入 < 10 萬列
     expect(Number(cfg.vars.DREAM_NEURONS_PER_CALL)).toBe(20);
     expect(Number(cfg.vars.DREAM_NEURONS_MIN_PER_CALL)).toBeGreaterThan(0);
     expect(Number(cfg.vars.DREAM_NEURONS_MIN_PER_CALL)).toBeLessThanOrEqual(Number(cfg.vars.DREAM_NEURONS_PER_CALL));

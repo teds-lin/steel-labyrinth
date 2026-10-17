@@ -33,6 +33,7 @@ const URL_CLOUD = `${URL_LOCAL}&api=${encodeURIComponent(MOCK_API)}`;
 const ATTIC_SPOT = { map: 'attic', x: 3, y: 2, dir: 'up' }; // 面向測試用的入夢物件（3,1）
 const TOWER_SPOT = { map: 'fx_tower', x: 5, y: 3, dir: 'right' }; // 面向測試夢客（6,3）
 const QUOTA_NOTE = '今天的交談次數已經用完了，明天再來吧。';
+const BLUR_NOTE = '夢境今天變得模糊了，明天再來吧。';
 const isPost = (re) => ({ method, path }) => method === 'POST' && re.test(path);
 
 async function shot(page, testInfo, name) {
@@ -202,7 +203,10 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
       await page.waitForFunction((k) => { const x = window.__SL.chat(); return x && !x.busy && x.messages.length === k + 1 && /說得太快了/.test(x.status); }, n, { timeout: 8_000 });
       c = await u.chat();
       expect(c.status).toBe('說得太快了，請等 30 秒後再試。');
-      expect(c.messages.at(-1)).toEqual({ role: 'player', text: '說太快了', source: null });
+      // 最後一輪修正：沒有送到夢客那裡的訊息標示「沒有送出」，之後也不放進 history
+      expect(c.messages.at(-1)).toEqual({ role: 'player', text: '說太快了', source: null, unsent: true });
+      expect(c.shown.at(-1).cls).toContain('sl-msg-unsent');
+      expect(c.shown.at(-1).note).toBe('沒有送出');
       expect(c.inputEnabled).toBe(true);
       expect(c.remaining).toBe('今日剩餘 2 句');
     }
@@ -218,6 +222,7 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     req = mock.calls(/^\/api\/dream\/chat$/, 'POST').at(-1);
     expect(req.body.history.some((h) => h.role === 'guest' && h.text === '……我好像說錯話了，當我沒說。' && typeof h.sig === 'string')).toBe(true);
     expect(req.body.history.some((h) => h.text === '霧太濃了，我聽不清楚。')).toBe(false);
+    expect(req.body.history.some((h) => h.text === '說太快了')).toBe(false); // 被 429 擋下的那句不送
     expect(req.body.history.every((h) => h.role === 'player' || typeof h.sig === 'string')).toBe(true);
     expect(mock.calls(/^\/api\/dream\/chat$/, 'POST').flatMap((x) => x.droppedHistory ?? [])).toEqual([]);
     expect(mock.calls(/^\/api\/dream\/chat$/, 'POST').some((x) => (x.body.history ?? []).some((h) => h.text === '你來了。這裡是測試用的夢。'))).toBe(false);
@@ -552,10 +557,11 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     mock.queueReply({ reply: '夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'quota' });
     const last = await u.say('再聊聊');
     expect(last.source).toBe('scripted');
+    // 最後一輪修正：還有句數時不同時顯示「今日剩餘 20 句」與「次數已經用完」→ 剩餘句數「—」＋夢境模糊
     let c = await u.chat();
-    expect(c.remaining).toBe('今日剩餘 20 句');
+    expect(c.remaining).toBe('今日剩餘 — 句');
     expect(c.locked).toBe(true);
-    expect(c.status).toBe(QUOTA_NOTE);
+    expect(c.status).toBe(BLUR_NOTE);
     await u.tapButton('leave');
     await g.waitScene('Map');
     await openGuestChat(g, u);
@@ -563,7 +569,8 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     c = await u.chat();
     expect(c.locked).toBe(true);
     expect(c.inputEnabled).toBe(false);
-    expect(c.status).toBe(QUOTA_NOTE);
+    expect(c.remaining).toBe('今日剩餘 — 句');
+    expect(c.status).toBe(BLUR_NOTE);
   });
 
   test('通行證回應的 remaining_today 是 0：第一次開啟、驗證完就鎖住並顯示額度用完', async ({ page }, testInfo) => {
