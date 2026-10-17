@@ -3,10 +3,16 @@ import { describe, it, expect } from 'vitest';
 import { API_BASE_DEFAULT, resolveApiBase, cloudConfigured } from '../../web/src/cloud/endpoint.js';
 
 describe('resolveApiBase', () => {
-  it('預設是空字串（雲端存檔尚未開放）', () => {
-    expect(API_BASE_DEFAULT).toBe('');
-    expect(resolveApiBase('', 'teds-lin.github.io')).toBe('');
-    expect(resolveApiBase('?test=1', 'localhost')).toBe('');
+  it('正式網站預設連到已部署的 Worker', () => {
+    expect(API_BASE_DEFAULT).toBe('https://steel-labyrinth.ai-in-2026.workers.dev');
+    expect(resolveApiBase('', 'teds-lin.github.io')).toBe(API_BASE_DEFAULT);
+    expect(resolveApiBase('?test=1', 'teds-lin.github.io')).toBe(API_BASE_DEFAULT);
+  });
+  it('頁面在本機時預設停用雲端，避免本機開發與測試打到正式 Worker', () => {
+    for (const host of ['localhost', '127.0.0.1', '[::1]', '::1', 'LOCALHOST']) {
+      expect(resolveApiBase('', host), host).toBe('');
+      expect(resolveApiBase('?test=1', host), host).toBe('');
+    }
     expect(cloudConfigured('')).toBe(false);
     expect(cloudConfigured('http://localhost:8787')).toBe(true);
   });
@@ -21,7 +27,7 @@ describe('resolveApiBase', () => {
   });
   it('不合法的網址、非 http(s)、帶帳密 → 預設', () => {
     for (const bad of ['?api=javascript:alert(1)', '?api=ftp://localhost', '?api=not a url', '?api=', '?api=http://u:p@localhost:1']) {
-      expect(resolveApiBase(bad, 'localhost'), bad).toBe(API_BASE_DEFAULT);
+      expect(resolveApiBase(bad, 'localhost'), bad).toBe('');
     }
     expect(resolveApiBase(null, null)).toBe(API_BASE_DEFAULT);
   });

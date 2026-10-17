@@ -8,9 +8,9 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "steel-labyrinth"
-# 部署前要換成 `wrangler d1 create steel-labyrinth` 回傳的 database_id。
+# 正式 D1（2026-10-17 以 `wrangler d1 create steel-labyrinth` 建立）。
 # 本機（wrangler dev --local、Miniflare 測試）只把它當作識別字串，不會連線到 Cloudflare。
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "fac6b0f7-d6aa-422b-bda1-a0a30446482f"
 migrations_dir = "migrations"
 
 # 定期清理（每天一次，UTC 03:17）：刪除 180 天未登入的玩家、超過 7 天沒有使用的空帳號（每次最多 PURGE_BATCH 人）及其資料、過期的限流紀錄。部署時自動註冊，不需另外設定。
