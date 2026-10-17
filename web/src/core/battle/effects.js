@@ -18,6 +18,8 @@ export const COLLAPSE_MAX = 100;
 /** 規格補充 2 第 3 條：執行被預兆揭露的意圖時，對我方的傷害與崩解增加量乘上這個值（其他減免之後；round，最少 1）。 */
 export const FORESEEN_MULT = 0.5;
 const foresee = (v) => Math.max(1, Math.round(v * FORESEEN_MULT));
+/** 規格補充 3 第 2 條：睡眠中的目標受到的第一次傷害 × 這個值（其他倍率之後、round 之前），然後醒來。 */
+export const SLEEP_MULT = 1.5;
 /** 這些積木一次行動只作用一次（不分目標）；其他積木逐一作用在每個目標上。 */
 export const ONCE_PER_ACTION = Object.freeze(['collapse', 'summon']);
 
@@ -68,13 +70,14 @@ export function checkBattleEffect(e, path = 'effect') {
 
 // ---------- 公式（純數學，平衡測試共用） ----------
 
-/** 傷害：atk × power ÷ 100，未 ignoreDef 時 −def × 0.5；× mult、爆擊 ×1.5、防禦中 ×0.5；round，最少 1。 */
-export function damageAmount({ atk, power, def = 0, ignoreDef = false, mult = 1, crit = false, guard = false }) {
+/** 傷害：atk × power ÷ 100，未 ignoreDef 時 −def × 0.5；× mult、爆擊 ×1.5、防禦中 ×0.5、睡眠中 ×1.5；round，最少 1。 */
+export function damageAmount({ atk, power, def = 0, ignoreDef = false, mult = 1, crit = false, guard = false, sleep = false }) {
   let v = (atk * power) / 100;
   if (!ignoreDef) v -= def * DEF_FACTOR;
   v *= mult;
   if (crit) v *= CRIT_MULT;
   if (guard) v *= GUARD_MULT;
+  if (sleep) v *= SLEEP_MULT;
   return Math.max(1, Math.round(v));
 }
 
@@ -158,8 +161,9 @@ export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log, o
     case 'damage': {
       let amount;
       let crit = false;
+      const sleeping = hasStatus(target, 'sleep');
       if (Object.hasOwn(effect, 'fixed')) {
-        amount = effect.fixed;
+        amount = sleeping ? Math.max(1, Math.round(effect.fixed * SLEEP_MULT)) : effect.fixed;
       } else {
         let r;
         [r, draft.rng] = nextFloat(draft.rng);
@@ -167,16 +171,16 @@ export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log, o
         [crit, draft.rng] = chance(draft.rng, CRIT_CHANCE);
         amount = damageAmount({
           atk: effectiveStat(source, effect.stat ?? 'atk'), power: effect.power, def: effectiveStat(target, 'def'),
-          ignoreDef: effect.ignore_def === true, mult, crit, guard: hasStatus(target, 'guard'),
+          ignoreDef: effect.ignore_def === true, mult, crit, guard: hasStatus(target, 'guard'), sleep: sleeping,
         });
         if (crit) log.push({ type: 'crit', source: source.uid, target: target.uid });
       }
       const foreseen = opts.foreseen === true && target.side === 'party';
       if (foreseen) amount = foresee(amount);
       target.hp = Math.max(0, target.hp - amount);
-      log.push({ type: 'damage', source: source.uid, target: target.uid, amount, crit, hp: target.hp, ...(foreseen ? { foreseen: true } : {}) });
+      log.push({ type: 'damage', source: source.uid, target: target.uid, amount, crit, hp: target.hp, ...(foreseen ? { foreseen: true } : {}), ...(sleeping ? { sleeping: true } : {}) });
       if (target.hp === 0) { defeat(draft, target, data, log); return; }
-      if (amount >= 1 && hasStatus(target, 'sleep')) { // 規格補充 2 第 2 條：受到傷害就醒
+      if (amount >= 1 && sleeping) { // 規格補充 2 第 2 條：受到傷害就醒（第一下已經 × SLEEP_MULT）
         delete target.status.sleep;
         log.push({ type: 'wake', uid: target.uid });
       }

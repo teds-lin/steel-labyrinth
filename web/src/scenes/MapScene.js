@@ -2,7 +2,7 @@
 // 劇情流程（對話 → pending 的 battle／goto → 戰鬥 → on_win 對話 → …）都在這裡依序 await。
 import { TILE, MAP_ZOOM, MAP_VIEW, COLORS, TEST_MODE, battleSeed } from '../config.js';
 import { session } from '../session.js';
-import { step, enterMap, mapSize, tileIdAt, objectVisible, isUnlocked } from '../core/grid.js';
+import { step, enterMap, mapSize, tileIdAt, objectVisible, isUnlocked, fleeBackLocation } from '../core/grid.js';
 import { takePending } from '../core/effects.js';
 import { tileKey, spriteKey, heroKey } from '../textures.js';
 import { investigateFacing, echoFacing, loadNotice } from '../adapters.js';
@@ -379,7 +379,9 @@ export class MapScene extends Phaser.Scene {
       session.battleReturn = (res) => {
         const loc = session.state?.location;
         if (res?.outcome === 'fled' && fleeBack && loc?.map === fleeBack.map) {
-          session.setState({ ...session.state, location: { map: fleeBack.map, x: fleeBack.x, y: fleeBack.y, dir: fleeBack.dir } });
+          // 前一格目前不能站（canMove false）時留在原地（規格補充 3 第 5 條）
+          const map = session.mapById(loc.map);
+          if (map) session.setState({ ...session.state, location: fleeBackLocation(map, session.state, fleeBack, session.data) });
         }
         this.scene.wake('UI');
         this.scene.wake();

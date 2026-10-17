@@ -89,6 +89,7 @@ export function describe(ev, labels, data) {
   switch (ev.type) {
     case 'turn_start': return null;
     case 'sleep_skip': return `${n(ev.uid)}睡著了，無法行動`;
+    case 'wake': return `${n(ev.uid)}醒過來了！`;
     case 'expire': return null;
     case 'action':
       if (ev.item) return `${n(ev.uid)}使用了${itemName(data, ev.item)}`;

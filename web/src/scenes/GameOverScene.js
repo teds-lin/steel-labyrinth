@@ -1,10 +1,11 @@
 // Game Over：戰敗或失控。「重新挑戰」＝戰前狀態經 core 的 prepareRetry（全隊生命靈性回滿、崩解 ≤ 60）後重打同一場；
+// 這場重試戰帶 retryOptions(戰前狀態)：不能逃跑、結束時崩解取 max(戰後, 戰前)（規格補充 3 第 1 條）；
 // 「回標題」結束這次遊戲。地圖與 UI 場景在戰鬥期間是睡眠狀態，重新挑戰時維持睡眠，回標題時一併停止。
 import { WIDTH, COLORS, TEST_MODE, battleSeed } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, ButtonList } from '../ui/widgets.js';
 import { sanitizeLoadedState } from '../core/save.js';
-import { prepareRetry } from '../core/battle/engine.js';
+import { prepareRetry, retryOptions } from '../core/battle/engine.js';
 
 const TEXTS = {
   defeat: { title: '戰敗', body: '隊伍全滅了。\n霧氣慢慢掩蓋了倒下的身影……' },
@@ -98,7 +99,7 @@ export class GameOverScene extends Phaser.Scene {
     // 備份保留「戰前」狀態（不是回滿後的），之後再輸還是從同一個戰前狀態計算
     session.preBattle = { state: pre.state, encounter: pre.encounter };
     session.setState(next);
-    this.scene.start('Battle', { encounter: pre.encounter, seed: battleSeed() });
+    this.scene.start('Battle', { encounter: pre.encounter, seed: battleSeed(), retry: retryOptions(pre.state) });
   }
 
   toTitle() {

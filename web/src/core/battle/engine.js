@@ -138,11 +138,23 @@ function performMut(draft, actor, skill, targetUid, data, log, extra = {}, opts 
 
 // ---------- 公開 API ----------
 
+/** startBattle 的重試選項 → { preCollapse } 或 null。不合法時丟錯（不默默當成一般戰，以免重試戰又能逃）。 */
+function retryInfo(opts) {
+  if (!isObj(opts) || opts.retry !== true) return null;
+  const c = opts.preCollapse;
+  if (!Number.isInteger(c) || c < 0 || c > 100) throw new Error(`重新挑戰需要戰前崩解 preCollapse（0～100 的整數），收到 ${JSON.stringify(c)}`);
+  return { preCollapse: c };
+}
+
 /**
  * 開始戰鬥。state 的 party（hp/sp 的 null＝滿值）、collapse、ammo、items 帶進戰鬥；所有敵人立刻決定意圖。
  * 回傳 battle（純資料）；battle.opening 是開場到第一位行動者為止的事件。
+ * opts.retry：這是「重新挑戰」的那場戰鬥（規格補充 3 第 1 條）。必須同時給 opts.preCollapse＝戰前（prepareRetry 之前）
+ *   的崩解；這場戰鬥一律不能逃跑（battle.canFlee false），finishBattle 寫回的崩解＝max(戰後, preCollapse)。
+ *   battle.retry＝{ preCollapse }；不是重試戰時為 null。
  */
-export function startBattle(encId, state, data, seed) {
+export function startBattle(encId, state, data, seed, opts = {}) {
+  const retry = retryInfo(opts);
   const enc = encounterDef(data, encId);
   const party = Array.isArray(state?.party) ? state.party : [];
   if (party.length === 0) throw new Error('隊伍是空的，無法開始戰鬥');
@@ -156,7 +168,7 @@ export function startBattle(encId, state, data, seed) {
     units: [...units, ...enemies], actor: null,
     collapse: Number.isInteger(state.collapse) ? state.collapse : 0,
     ammo: Number.isInteger(state.ammo) ? state.ammo : 0,
-    items, drops: [], outcome: null, nextUid: enemies.length, canFlee: enc.can_flee === true, opening: [],
+    items, drops: [], outcome: null, nextUid: enemies.length, canFlee: enc.can_flee === true && retry === null, retry, opening: [],
   };
   for (const e of draft.units.filter((u) => u.side === 'enemy')) decideIntentMut(draft, e, data);
   const log = [];
@@ -348,7 +360,7 @@ export const RETRY_COLLAPSE_CAP = 60;
 /**
  * 規格補充 2 第 1 條：「重新挑戰」的開戰狀態＝戰前狀態，但全隊生命、靈性回滿（寫成 deriveStats 的上限數值），
  * 崩解改為 min(戰前崩解, 60)。其他（子彈、道具、旗標）照戰前。pending 清成 null。純函式，不修改輸入。
- * 用法：GameOver「重新挑戰」→ startBattle(enc, prepareRetry(戰前自動存檔的 state, data), data, 新種子)。
+ * 用法：GameOver「重新挑戰」→ startBattle(enc, prepareRetry(pre, data), data, 新種子, retryOptions(pre))。
  */
 export function prepareRetry(preState, data) {
   if (!isObj(preState)) throw new Error('prepareRetry：戰前狀態必須是物件');
@@ -360,13 +372,21 @@ export function prepareRetry(preState, data) {
   return { ...structuredClone(preState), party, collapse: Math.min(c, RETRY_COLLAPSE_CAP), pending: null };
 }
 
+/** 重新挑戰時傳給 startBattle 的第 5 個參數：{ retry: true, preCollapse: 戰前崩解 }（規格補充 3 第 1 條）。 */
+export function retryOptions(preState) {
+  const c = Number.isInteger(preState?.collapse) ? preState.collapse : 0;
+  return { retry: true, preCollapse: Math.min(100, Math.max(0, c)) };
+}
+
 function writeBack(battle, state, revive) {
   const party = state.party.map((m) => {
     const u = battle.units.find((x) => x.side === 'party' && x.id === m.id);
     if (!u) return { ...m };
     return { id: m.id, hp: revive && u.hp <= 0 ? REVIVE_HP : u.hp, sp: u.sp };
   });
-  return { ...state, party, ammo: battle.ammo, collapse: battle.collapse, items: { ...battle.items } };
+  // 規格補充 3 第 1 條：重試戰的崩解不得低於戰前（重新挑戰時的 min(戰前, 60) 只是讓這場打得下去，不是回復手段）
+  const floor = isObj(battle.retry) && Number.isInteger(battle.retry.preCollapse) ? battle.retry.preCollapse : 0;
+  return { ...state, party, ammo: battle.ammo, collapse: Math.max(battle.collapse, floor), items: { ...battle.items } };
 }
 
 /**
@@ -376,6 +396,7 @@ function writeBack(battle, state, revive) {
  * - fled：回寫狀態，沒有獎勵與劇情；next null。
  * - defeat：on_lose 'continue' → 與勝利相同的劇情（不發掉落）；否則（預設 'retry'）state 不變、next { type:'retry' }。
  * - lost_control：一律 state 不變、next { type:'retry' }（畫面顯示失控／Game Over，提供重新挑戰或回標題）。
+ * - 重試戰（startBattle 的 opts.retry）：回寫的崩解＝max(戰後, battle.retry.preCollapse)；生命、靈性照戰後的值。
  */
 export function finishBattle(battle, state, data) {
   if (battle.outcome === null) throw new Error('戰鬥尚未結束');

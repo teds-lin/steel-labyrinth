@@ -38,7 +38,7 @@ export const SMART = Object.freeze({
  *    艾妲對沒睡著的 Boss 催眠（保留鎮魂的靈性）。一般戰不開槍（子彈留給 Boss）、不放催眠。
  * 5. 其他：攻擊生命比例最低的敵人。
  */
-export function makeSmartPolicy({ useItems = true, useOmen = true } = {}) {
+export function makeSmartPolicy({ useItems = true, useOmen = true, useHypnosis = true } = {}) {
   return function smartPolicy(battle, cmds, data) {
     const actor = unitOf(battle, cmds.actor);
     const skill = (id) => cmds.skills.find((s) => s.id === id && s.usable);
@@ -73,7 +73,7 @@ export function makeSmartPolicy({ useItems = true, useOmen = true } = {}) {
       // 4. Boss 戰
       if (useOmen && skill('omen') && !actor.mods['buff:eva'] && !bossUnit.revealed && !hasStatus(bossUnit, 'sleep')) return { type: 'skill', skill: 'omen', target: bossUnit.uid };
       if (skill('shoot')) return { type: 'skill', skill: 'shoot', target: bossUnit.uid };
-      if (skill('hypnosis') && !hasStatus(bossUnit, 'sleep') && actor.sp - 6 >= SMART.adaReserveSp) {
+      if (useHypnosis && skill('hypnosis') && !hasStatus(bossUnit, 'sleep') && actor.sp - 6 >= SMART.adaReserveSp) {
         return { type: 'skill', skill: 'hypnosis', target: bossUnit.uid };
       }
     }
@@ -85,6 +85,27 @@ export function makeSmartPolicy({ useItems = true, useOmen = true } = {}) {
 
 export const smartPolicy = makeSmartPolicy();
 export const noItemNoOmenPolicy = makeSmartPolicy({ useItems: false, useOmen: false });
+/** 合理策略但完全不催眠（規格補充 3 第 2 條：催眠要有正收益，合理策略不得輸給它）。 */
+export const smartNoHypnosisPolicy = makeSmartPolicy({ useHypnosis: false });
+
+/**
+ * 聰明催眠（審查者 hyp2.mjs 的 hypSmart）：以不催眠的合理策略為底；場上有小怪、Boss 醒著時艾妲催眠 Boss，
+ * Boss 睡著時本來要打 Boss 的單體攻擊改打小怪。用來確認「最強的我方策略」也不超過 Boss 勝率上限。
+ */
+export function hypnosisSmartPolicy(battle, cmds, data) {
+  const enemies = battle.units.filter((u) => u.side === 'enemy' && u.alive);
+  const boss = enemies.reduce((a, b) => (a === null || b.stats.hp > a.stats.hp ? b : a), null);
+  const adds = enemies.filter((u) => u !== boss);
+  const r = smartNoHypnosisPolicy(battle, cmds, data);
+  if (r.type === 'item' || r.skill === 'requiem' || r.skill === 'guard') return r;
+  if (adds.length && boss && !hasStatus(boss, 'sleep') && cmds.skills.some((s) => s.id === 'hypnosis' && s.usable)) {
+    return { type: 'skill', skill: 'hypnosis', target: boss.uid };
+  }
+  if (boss && hasStatus(boss, 'sleep') && adds.length && r.target === boss.uid) {
+    return { type: 'skill', skill: r.skill === 'omen' ? 'attack' : r.skill, target: adds[0].uid };
+  }
+  return r;
+}
 
 /** 亂按：只用普攻，目標用 (種子, 行動序號) 雜湊決定（不碰戰鬥亂數）。 */
 export function mashPolicy(battle, cmds) {

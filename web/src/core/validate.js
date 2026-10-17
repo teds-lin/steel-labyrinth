@@ -281,27 +281,124 @@ function checkPartySkills(ctx) {
   }
 }
 
-/** 所有劇情效果陣列（對話節點與選項、遭遇 on_win、道具 field_effects）。 */
-function allStoryEffects(bundle, ctx) {
-  const out = [];
-  for (const { dlg } of ctx.dialogues.values()) {
-    for (const n of arr(dlg.nodes)) {
-      if (!isObj(n)) continue;
-      out.push(...arr(n.effects));
-      for (const ch of arr(n.choices)) if (isObj(ch)) out.push(...arr(ch.effects));
+/**
+ * 劇情裡每一個 join_party／leave_party 出現的位置（site）：
+ * { kind:'join'|'leave', who, dlg（對話 id；遭遇 on_win、道具 field_effects 為 null）, chapter（章節順序；未知 null）, v（對話圖的頂點）, i（同一頂點內的效果順序） }。
+ * 對話圖：節點是頂點 n:<id>（節點 effects 在進入時套用），每個選項另成頂點 c:<節點>:<序號>（選項 effects），
+ * 邊＝next、branches[].next、節點 → 選項 → 選項的 next。
+ */
+function partySites(bundle) {
+  const order = isObj(bundle.manifest) && Array.isArray(bundle.manifest.chapters) ? bundle.manifest.chapters : arr(bundle.story).map((s) => s?.id);
+  const chapterIdx = new Map(order.map((id, i) => [id, i]));
+  const sites = [];
+  const graphs = new Map();
+  const push = (effects, base) => arr(effects).forEach((e, i) => {
+    if (!isObj(e)) return;
+    for (const kind of ['join', 'leave']) {
+      const who = e[`${kind}_party`];
+      if (isStr(who) && who !== HERO_ID) sites.push({ ...base, kind, who, i });
+    }
+  });
+  for (const story of arr(bundle.story)) {
+    if (!isObj(story)) continue;
+    const chapter = chapterIdx.has(story.id) ? chapterIdx.get(story.id) : null;
+    for (const dlg of arr(story.dialogues)) {
+      if (!isObj(dlg) || !isStr(dlg.id) || graphs.has(dlg.id)) continue;
+      const edges = new Map();
+      const nodes = arr(dlg.nodes).filter((n) => isObj(n) && isStr(n.id));
+      for (const n of nodes) {
+        const v = `n:${n.id}`;
+        const out = [];
+        if (isStr(n.next)) out.push(`n:${n.next}`);
+        for (const b of arr(n.branches)) if (isObj(b) && isStr(b.next)) out.push(`n:${b.next}`);
+        arr(n.choices).forEach((c, ci) => {
+          if (!isObj(c)) return;
+          const cv = `c:${n.id}:${ci}`;
+          out.push(cv);
+          edges.set(cv, isStr(c.next) ? [`n:${c.next}`] : []);
+          push(c.effects, { dlg: dlg.id, chapter, v: cv });
+        });
+        edges.set(v, out);
+        push(n.effects, { dlg: dlg.id, chapter, v });
+      }
+      graphs.set(dlg.id, dialogueGraph(edges, `n:${dlg.start}`));
     }
   }
-  for (const enc of ctx.encounters.values()) if (isObj(enc.on_win)) out.push(...arr(enc.on_win.effects));
-  for (const it of ctx.items.values()) out.push(...arr(it.field_effects));
-  return out;
+  for (const enc of arr(bundle.encounters)) if (isObj(enc) && isObj(enc.on_win)) push(enc.on_win.effects, { dlg: null, chapter: null, v: null });
+  for (const it of arr(bundle.items)) if (isObj(it)) push(it.field_effects, { dlg: null, chapter: null, v: null });
+  return { sites, graphs };
 }
 
-/** 規格補充 2 第 10 條：join_party 可能加入的隊友（不重複）加上主角，靜態上限不超過 MAX_PARTY。 */
+/** 對話圖的支配關係與可達性：dom(v)＝從 start 到 v 的每條路都經過的頂點；after(v)＝從 v 走 ≥ 1 步到得了的頂點。 */
+function dialogueGraph(edges, start) {
+  const reach = (from, skip) => {
+    const seen = new Set();
+    const stack = from === skip ? [] : [from];
+    while (stack.length) {
+      const v = stack.pop();
+      if (seen.has(v) || v === skip) continue;
+      seen.add(v);
+      for (const w of edges.get(v) ?? []) stack.push(w);
+    }
+    return seen;
+  };
+  const all = reach(start, null);
+  const dom = new Map([...all].map((v) => [v, new Set([v])]));
+  for (const d of all) {
+    const without = reach(start, d);
+    for (const v of all) if (!without.has(v)) dom.get(v).add(d);
+  }
+  const after = new Map();
+  for (const v of edges.keys()) {
+    const s = new Set();
+    for (const w of edges.get(v)) for (const x of reach(w, null)) s.add(x);
+    after.set(v, s);
+  }
+  return { dom, after };
+}
+
+/**
+ * 規格補充 2 第 10 條＋規格補充 3 第 3 條：「可能同時在隊」的人數（含主角）不超過 MAX_PARTY。
+ * 兩名隊友 X、Y 視為不會同時在隊，只有在「X 一定先離隊、之後也不會回來，Y 才入隊」（或反過來）時：
+ * - Y 的每一個 join_party，都在同一段對話中被某個 leave_party X 支配（所有路徑上 leave 都在 join 之前；同一節點依陣列順序），而且
+ * - X 的每一個 join_party 都不可能發生在那個 leave_party 之後：在更早的章節（manifest.chapters 順序），
+ *   或在同一段對話中、從 leave 那一點走不到。
+ * 其他情況（例如離隊在另一段不保證先播的對話、只在其中一個選項）一律保守地當成可能同時在隊。
+ * 假設：前一章的入隊對話不會在之後的章節重播（以旗標守門）。
+ * 人數＝「可能同時在隊」關係的最大團＋主角。
+ */
 function checkPartyLimit(bundle, ctx) {
-  const joins = new Set();
-  for (const e of allStoryEffects(bundle, ctx)) if (has(e, 'join_party') && isStr(e.join_party) && e.join_party !== HERO_ID) joins.add(e.join_party);
-  if (joins.size + 1 > MAX_PARTY) {
-    ctx.errors.push(`join_party：可能加入的隊友（${[...joins].join('、')}）加上主角共 ${joins.size + 1} 人，超過隊伍上限 ${MAX_PARTY}`);
+  const { sites, graphs } = partySites(bundle);
+  const members = [...new Set(sites.filter((s) => s.kind === 'join').map((s) => s.who))];
+  if (members.length + 1 <= MAX_PARTY) return;
+  const of = (kind, who) => sites.filter((s) => s.kind === kind && s.who === who);
+  const dominates = (L, J) => L.dlg !== null && L.dlg === J.dlg
+    && (L.v === J.v ? L.i < J.i : graphs.get(L.dlg)?.dom.get(J.v)?.has(L.v) === true);
+  const neverAfter = (K, L) => {
+    if (K.chapter !== null && L.chapter !== null && K.chapter !== L.chapter) return K.chapter < L.chapter;
+    if (K.dlg === null || K.dlg !== L.dlg) return false;
+    if (K.v === L.v && K.i > L.i) return false;
+    return !(graphs.get(L.dlg)?.after.get(L.v)?.has(K.v) ?? true);
+  };
+  /** X 在 Y 入隊之前一定已經離隊、而且不會再回來。 */
+  const retiredBefore = (x, y) => {
+    const joinsX = of('join', x);
+    const leavesX = of('leave', x);
+    return of('join', y).every((J) => leavesX.some((L) => dominates(L, J) && joinsX.every((K) => neverAfter(K, L))));
+  };
+  const together = (x, y) => !retiredBefore(x, y) && !retiredBefore(y, x);
+  // 最大團（隊友人數很少，直接窮舉）
+  let best = [];
+  const grow = (clique, rest) => {
+    if (clique.length > best.length) best = clique;
+    rest.forEach((m, k) => {
+      if (clique.every((c) => together(c, m))) grow([...clique, m], rest.slice(k + 1));
+    });
+  };
+  grow([], members);
+  if (best.length + 1 > MAX_PARTY) {
+    ctx.errors.push(`join_party 隊伍上限：可能同時在隊的隊友（${best.join('、')}）加上主角共 ${best.length + 1} 人，超過隊伍上限 ${MAX_PARTY}`
+      + '（leave_party 只有在同一段對話、所有路徑都先於入隊，而且離隊的人之後不會再入隊時才算數）');
   }
 }
 
@@ -915,7 +1012,28 @@ function checkMap(map, ctx) {
     refDialogue(trg.dialogue, where, 'dialogue', ctx, trg.battle === undefined); // 有 battle 時 dialogue 可省略
     refEncounter(trg.battle, where, ctx);
     if (trg.if !== undefined) checkCond(trg.if, where, ctx);
+    if (trg.once !== undefined && !isBool(trg.once)) errors.push(`${where}：once 必須是 true/false`);
+    // 規格補充 3 第 4 條：once 的觸發點逃跑後就不會再觸發，遭遇會永久消失
+    if (trg.once === true) {
+      for (const id of new Set([trg.battle, ...dialogueBattles(trg.dialogue, ctx)])) {
+        if (isStr(id) && ctx.encounters.get(id)?.can_flee === true) {
+          errors.push(`${where}：once: true 的觸發點接了可以逃跑的戰鬥「${id}」（逃跑後遭遇會永久消失）；請改用 if: { "not_flag": … } 搭配勝利旗標`);
+        }
+      }
+    }
   }
+}
+
+/** 對話（只看這一段，不跟 goto）裡所有 battle 效果的遭遇 id。 */
+function dialogueBattles(id, ctx) {
+  const dlg = isStr(id) ? ctx.dialogues.get(id)?.dlg : undefined;
+  const out = [];
+  for (const n of arr(dlg?.nodes)) {
+    if (!isObj(n)) continue;
+    const lists = [n.effects, ...arr(n.choices).map((c) => (isObj(c) ? c.effects : null))];
+    for (const l of lists) for (const e of arr(l)) if (isObj(e) && isStr(e.battle)) out.push(e.battle);
+  }
+  return out;
 }
 
 function checkLock(lock, where, ctx, mapId) {

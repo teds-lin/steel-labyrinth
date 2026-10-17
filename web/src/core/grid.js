@@ -56,6 +56,17 @@ export function canMove(map, state, x, y, data) {
 }
 
 /**
+ * 逃跑成功後玩家的位置（規格補充 2 第 9 條、規格補充 3 第 5 條）：from（踩上觸發點之前的那一格）在同一張地圖、
+ * 而且以目前的 state 仍然可以站（canMove）時回到 from；否則留在目前位置。回傳新的 location 物件。
+ */
+export function fleeBackLocation(map, state, from, data) {
+  const here = { ...state.location };
+  if (!from || from.map !== here.map || map?.id !== here.map) return here;
+  if (!canMove(map, state, from.x, from.y, data)) return here;
+  return { map: from.map, x: from.x, y: from.y, dir: from.dir ?? here.dir };
+}
+
+/**
  * 往 dir 走一格。回傳 { state, moved, event }。
  * event：null｜{type:'bump',x,y[,object]}｜{type:'blocked',x,y,dialogue}｜{type:'exit',to,spawn}｜{type:'trigger',id,dialogue[,battle],from:{x,y,dir}}
  * 觸發點有 battle 時事件帶 battle（遭遇 id）：畫面先播 dialogue（可能為 null），再開始戰鬥。

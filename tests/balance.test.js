@@ -21,12 +21,16 @@
 //   noItemNoOmen 同上，但不用道具、不用預兆（Boss ≥ 30% 的下限）。
 //   noOmen       合理策略但不用預兆（只在 Boss 戰前狀態上比較：預兆要有實質價值，至少多 5% 勝率）。
 //   hypnosis     催眠單一策略：艾妲一有靈性就催眠 Boss，其餘普攻（睡眠受傷就醒，不該比合理策略強）。
+//   smartNoHypnosis 合理策略但完全不催眠（規格補充 3 第 2 條：催眠要有正收益 → 合理策略 ≥ 它）。
+//   hypnosisSmart   聰明催眠（審查者 hyp2.mjs）：有小怪時催眠 Boss、Boss 睡著時改打小怪。只用來檢查「最強策略」上限。
 //   basic        engine 的 basicPolicy（普攻＋生命低時繃帶），只記錄（只跑第一組種子）。
 //   mash         亂按：只用普攻、目標亂選，只記錄（只跑第一組種子；確認一般戰不會因為策略差就全滅）。
 //
 // ■ 額外的 Boss 情境（都用合理策略那條鏈的 Boss 戰前狀態）
 //   窮途：子彈 0、沒有道具 → 合理策略 ≥ 40%。
 //   重新挑戰：主角 30% 生命、艾妲 1 HP 進 Boss（只記錄）→ prepareRetry 後的狀態 → 合理策略 ≥ 60%。
+//   最強策略上限（規格補充 3 第 2 條）：smart、smartNoHypnosis、hypnosisSmart、noOmen、hypnosis、basic、mash 在同一個
+//   Boss 戰前狀態，加上 noItemNoOmen 自己那條鏈；每種策略 5 組種子平均的最大值 ≤ 90%，每一組 ≤ 95%。
 //
 // ■ 「回合數」＝我方行動次數最多的那個人的行動次數（roundsOf）。
 // ■ 執行時間：（2 條鏈 × 5 組種子＋2 條鏈）× 5 場 × 200 次＋Boss 情境，約 10～15 秒（beforeAll 另給 180 秒）。
@@ -37,7 +41,10 @@ import { loadBundle } from '../tools/lib/bundle.mjs';
 import { deriveStats } from '../web/src/core/stats.js';
 import { prepareRetry } from '../web/src/core/battle/engine.js';
 import { runChain, runEncounter, SEED_BASES } from './lib/balance.js';
-import { smartPolicy, noItemNoOmenPolicy, basicPolicy, mashPolicy, hypnosisPolicy, makeSmartPolicy, isBossEncounter } from './lib/policies.js';
+import {
+  smartPolicy, noItemNoOmenPolicy, basicPolicy, mashPolicy, hypnosisPolicy, makeSmartPolicy, isBossEncounter,
+  smartNoHypnosisPolicy, hypnosisSmartPolicy,
+} from './lib/policies.js';
 
 const DATA_DIR = fileURLToPath(new URL('../web/data/', import.meta.url));
 const BALANCE_RUNS = Number(process.env.BALANCE_RUNS) || 200;
@@ -78,13 +85,17 @@ beforeAll(() => {
   chains.mash = [runChain(data, mashPolicy, BALANCE_RUNS, { seedBase: SEED_BASES[0], statesFrom: chains.smart[0].preStates })];
 
   const noOmen = makeSmartPolicy({ useOmen: false });
-  for (const k of ['smart', 'noOmen', 'hypnosis', 'broke', 'lowHp', 'retry']) boss[k] = [];
+  for (const k of ['smart', 'noOmen', 'hypnosis', 'smartNoHypnosis', 'hypnosisSmart', 'basic', 'mash', 'broke', 'lowHp', 'retry']) boss[k] = [];
   SEED_BASES.forEach((seedBase, i) => {
     const pre = chains.smart[i].preStates.get(BOSS);
     const run = (state, policy) => runEncounter(BOSS, state, data, policy, BALANCE_RUNS, seedBase);
     boss.smart.push(chains.smart[i].stats.get(BOSS));
     boss.noOmen.push(run(pre, noOmen));
     boss.hypnosis.push(run(pre, hypnosisPolicy));
+    boss.smartNoHypnosis.push(run(pre, smartNoHypnosisPolicy));
+    boss.hypnosisSmart.push(run(pre, hypnosisSmartPolicy));
+    boss.basic.push(run(pre, basicPolicy));
+    boss.mash.push(run(pre, mashPolicy));
     boss.broke.push(run({ ...pre, ammo: 0, items: {} }, smartPolicy));
     const low = { ...pre, party: pre.party.map((m) => ({ ...m, hp: m.id === 'hero' ? Math.round(deriveStats(m.id, pre, data).hp * 0.3) : 1 })) };
     boss.lowHp.push(run(low, smartPolicy));
@@ -169,6 +180,22 @@ describe('B9 策略價值（Boss 戰前狀態相同、種子相同）', () => {
     const withOmen = avg(boss.smart.map((s) => s.victory));
     const without = avg(boss.noOmen.map((s) => s.victory));
     expect(withOmen, `用預兆 ${pct(withOmen)}，不用 ${pct(without)}`).toBeGreaterThanOrEqual(without + 0.05);
+  });
+  it('催眠要有正收益：合理策略勝率 ≥ 同策略但不催眠（5 組種子平均）', () => {
+    const smart = avg(boss.smart.map((s) => s.victory));
+    const noHyp = avg(boss.smartNoHypnosis.map((s) => s.victory));
+    expect(smart, `合理 ${pct(smart)}，不催眠 ${pct(noHyp)}`).toBeGreaterThanOrEqual(noHyp);
+  });
+  it('所有我方策略中最好的 Boss 勝率 ≤ 90%（5 組種子平均），每組 ≤ 95%', () => {
+    const all = {
+      smart: boss.smart, smartNoHypnosis: boss.smartNoHypnosis, hypnosisSmart: boss.hypnosisSmart, noOmen: boss.noOmen,
+      hypnosis: boss.hypnosis, basic: boss.basic, mash: boss.mash, noItemNoOmen: chains.noItemNoOmen.map((c) => c.stats.get(BOSS)),
+    };
+    const rows = Object.entries(all).map(([name, list]) => ({ name, v: list.map((s) => s.victory) }));
+    const best = rows.reduce((a, b) => (avg(b.v) > avg(a.v) ? b : a));
+    const msg = rows.map((r) => `${r.name} ${pct(avg(r.v))}（最高 ${pct(Math.max(...r.v))}）`).join('、');
+    expect(avg(best.v), `最好的是 ${best.name}；${msg}`).toBeLessThanOrEqual(0.9);
+    for (const r of rows) for (const v of r.v) expect(v, `${r.name} 單組 ${pct(v)}；${msg}`).toBeLessThanOrEqual(0.95);
   });
   it('催眠單一策略勝率 ≤ 合理策略', () => {
     const hyp = avg(boss.hypnosis.map((s) => s.victory));

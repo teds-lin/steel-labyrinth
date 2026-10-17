@@ -27,6 +27,8 @@ const CMD = { top: 462, colX: [94, 266], w: 164, h: 54, gapY: 8 };
 const LIST = { top: 330, w: WIDTH - 24, h: 50, gap: 6, perPage: 4 };
 /** 技能是否放在第一層指令（資料的 menu: "root"）；其他技能放進「技能」子選單。 */
 const isRootSkill = (id) => (session.data?.skills ?? []).find((s) => s?.id === id)?.menu === 'root';
+/** 技能在 skills.json 的位置（第一層依這個順序排列）。 */
+const skillIndex = (id) => (session.data?.skills ?? []).findIndex((s) => s?.id === id);
 const HISTORY_MAX = 300;
 const DEPTH = { field: 1, units: 5, fx: 20, ui: 30, overlay: 40, cmd: 45 };
 const MS = (ms) => (TEST_MODE ? 0 : ms);
@@ -38,6 +40,8 @@ export class BattleScene extends Phaser.Scene {
     this.encounterId = data?.encounter ?? null;
     this.seed = Number.isFinite(data?.seed) ? data.seed : 1;
     this.notice = typeof data?.notice === 'string' && data.notice ? data.notice : null;
+    // 重新挑戰的那場戰鬥：{ retry: true, preCollapse }（GameOver 用 core 的 retryOptions 產生；規格補充 3 第 1 條）
+    this.retry = data?.retry?.retry === true ? data.retry : null;
   }
 
   create() {
@@ -70,7 +74,7 @@ export class BattleScene extends Phaser.Scene {
     this.enc = (data.encounters ?? []).find((e) => e.id === this.encounterId) ?? null;
 
     try {
-      this.b = startBattle(this.encounterId, session.state, data, this.seed);
+      this.b = startBattle(this.encounterId, session.state, data, this.seed, this.retry ?? undefined);
     } catch (e) {
       console.warn('無法開始戰鬥', e);
       this.b = null;
@@ -684,22 +688,19 @@ export class BattleScene extends Phaser.Scene {
       const sub = s.usable ? (s.cost.ammo > 0 ? `子彈 ${this.b.ammo}` : null) : reasonText(s.reason);
       entries.push({ label: s.name, sub, enabled: s.usable, reason: reasonText(s.reason), onSelect: () => this.chooseSkill(s, 'root') });
     };
-    // 第一層：menu: root 的技能依序排進 2 欄格子，「技能」「道具」固定在第 2、4 格（例如 攻擊｜技能／開槍｜道具／防禦）
-    const roots = c.skills.filter((s) => isRootSkill(s.id)).map((s) => s.id);
+    // 第一層（2 欄格子，由左而右、由上而下）：menu: root 的技能依 skills.json 的順序，接著「技能」「道具」「逃跑」。
+    // 例如 攻擊｜防禦／開槍｜技能／道具｜逃跑。
+    const roots = c.skills.filter((s) => isRootSkill(s.id)).map((s) => s.id).sort((a, b) => skillIndex(a) - skillIndex(b));
     const others = c.skills.filter((s) => !isRootSkill(s.id));
-    const skillsEntry = () => entries.push({
+    roots.forEach(skillEntry);
+    entries.push({
       label: '技能', sub: others.length ? null : '沒有技能', enabled: others.length > 0, reason: '沒有可以使用的技能',
       onSelect: () => this.showSkills(0),
     });
-    const itemsEntry = () => entries.push({
+    entries.push({
       label: '道具', sub: c.items.length ? null : '沒有道具', enabled: c.items.length > 0, reason: '沒有可以使用的道具',
       onSelect: () => this.showItems(0),
     });
-    if (roots[0]) skillEntry(roots[0]);
-    skillsEntry();
-    if (roots[1]) skillEntry(roots[1]);
-    itemsEntry();
-    roots.slice(2).forEach(skillEntry);
     if (c.canFlee) entries.push({ label: '逃跑', onSelect: () => this.submit({ type: 'flee' }) });
     this.buildMenu('root', entries);
   }
@@ -889,6 +890,7 @@ export class BattleScene extends Phaser.Scene {
     return {
       encounter: this.encounterId,
       seed: this.seed,
+      retry: b.retry ?? null,
       mode: this.mode,
       outcome: b.outcome,
       actor: actor ? { ...actor, label: labels[actor.uid] } : null,
