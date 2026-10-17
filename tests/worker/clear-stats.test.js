@@ -46,15 +46,22 @@ describe('POST /api/clear', () => {
     for (const b of [
       ok({ chapter: 'prologue', play_seconds: 0, collapse: 0 }),
       ok({ chapter: 'chapter1', play_seconds: 36000, collapse: 100 }), // 修訂 4 第 7 節：MAX_PLAYER_SECONDS
+      ok({ chapter: 'chapter3' }), // M4：第三章開放
     ]) expect((await clear(p.token, b)).status).toBe(200);
     const { ending, ...noEnding } = ok({ chapter: 'chapter2' });
     expect((await clear(p.token, noEnding)).status).toBe(200);
   });
 
+  // 真正還沒開放的章節：CHAPTERS 最後一章的下一章（開放新章節後自動往後推）
+  const UNRELEASED = `chapter${Number(String(readWranglerConfig().vars.CHAPTERS).split(',').at(-1).replace(/^chapter/, '')) + 1}`;
+  it('UNRELEASED 確實不在 CHAPTERS 白名單內', () => {
+    expect(UNRELEASED).toMatch(/^chapter\d+$/);
+    expect(String(readWranglerConfig().vars.CHAPTERS).split(',')).not.toContain(UNRELEASED);
+  });
   it('chapter 不在 CHAPTERS 白名單 → 400，不寫入（修訂 2 E；審查 t1：一小時灌 30 個假章節）', async () => {
     const p = await newPlayer(w);
     for (let i = 0; i < 5; i++) await expectError(await clear(p.token, ok({ chapter: `spam_${i}` })), 400, 'bad_request');
-    for (const c of ['chapter3', 'a', 'z'.repeat(32), 'ch_2_x', 'Chapter1']) await expectError(await clear(p.token, ok({ chapter: c })), 400, 'bad_request');
+    for (const c of [UNRELEASED, 'a', 'z'.repeat(32), 'ch_2_x', 'Chapter1']) await expectError(await clear(p.token, ok({ chapter: c })), 400, 'bad_request');
     const rows = await w.db.prepare('SELECT COUNT(*) AS n FROM clears WHERE player_id = ?').bind(p.player_id).first();
     expect(rows.n).toBe(0);
   });

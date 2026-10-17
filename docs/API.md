@@ -274,6 +274,11 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 - 輸出處理（依序）：去除 `<think>…</think>` 與 Markdown 符號 → 去除 HTML 標籤 → 截到 150 字（在句號處截斷）→ 用 `dream_lexicon` 檢查簡體字與陸用語，命中就重新生成一次，仍命中 → `scripted`＋`filtered` → 檢查是否自稱 AI、提到人設規則用語（由人設的 `leak_markers` 定義），命中同樣重試一次再改用預寫。
 - 隱私：不儲存 `input`、`history`、`reply`；log 只記 reason 與耗時。
 
+## 補充（2026-10-17，鐘塔之夢：通行證帶今日剩餘句數）
+1. `POST /api/dream/pass` 的 200 回應多一個 `remaining_today`：`{ "pass": "…", "expires_at": <秒>, "remaining_today": 20 }`。值＝`DREAM_CHATS_PER_DAY` − 這位玩家今日（UTC 日）已用的句數，最小 0；與 `/api/dream/chat` 回應的 `remaining_today` 是同一個計數（`pl:dchat:<player_id>`）。取得通行證只讀這個計數、不扣額度。
+2. 額度用完（`remaining_today: 0`）時照樣發通行證；之後的 `/api/dream/chat` 回 `scripted`＋`quota`。
+3. 客戶端拿到通行證後立即顯示「今日剩餘 N 句」（不必等第一句回覆）；之後以每次 `/api/dream/chat` 回應的值更新。回應沒有這個欄位或值不合法（不是非負整數）時維持原本的顯示（尚未知道時顯示「—」）。
+
 ## 私有資料上傳
 - `tools/upload-dream.mjs`（公開 repo 的工具，資料來自私有 repo）：把 `dream/personas/*.json` 與 `dream/lexicon.json` 轉成 SQL，`wrangler d1 execute --remote --file` 寫入 `dream_personas`、`dream_lexicon`。Worker 讀取後快取在記憶體（每個 isolate 最多 10 分鐘）。
 - 公開 repo 不包含任何人設內容與詞表；測試使用 `tests/worker/fixtures/` 的假人設與假詞表。

@@ -19,6 +19,8 @@ export const MESSAGES = {
   precondition_required: '缺少版本資訊，請重新整理後再試。',
   rate_limited: '操作太頻繁，請稍後再試。',
   internal: '雲端暫時無法使用，請稍後再試。',
+  turnstile_failed: '人機驗證失敗，請再試一次。',
+  pass_invalid: '夢境通行證已失效，請重新入夢。',
 };
 
 /** 會被轉成錯誤回應的例外。extra 會併入 body（例如 409 的 current）。 */

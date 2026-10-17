@@ -1,5 +1,5 @@
 // UI 場景（疊在 Map 上方）：HUD、對話框、觸控按鈕、提示訊息，以及鍵盤動作的統一分派。
-import { WIDTH, HUD_H, PANEL_Y, HEIGHT, COLORS } from '../config.js';
+import { WIDTH, HUD_H, PANEL_Y, HEIGHT, COLORS, TEST_MODE } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, Button } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
@@ -7,6 +7,8 @@ import { COLLAPSE_MAX } from '../core/echo.js';
 import { echoAvailable } from '../core/interact.js';
 import { echoHud, collapseHud, ammoHud, resonanceHud, partyHud } from '../ui/hud.js';
 import { partyStatus } from '../core/stats.js';
+import { isDreamMap } from '../core/dream.js';
+import { playBell } from '../ui/bell.js';
 
 const DIR_KEYS = {
   ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
@@ -43,6 +45,10 @@ export class UIScene extends Phaser.Scene {
     g.lineStyle(1, COLORS.gasDeep, 1);
     g.lineBetween(0, HUD_H - 0.5, WIDTH, HUD_H - 0.5);
     this.mapName = addText(this, 10, 12, '', { fontSize: '14px', color: '#f0d2a0' }).setOrigin(0, 0.5).setDepth(11);
+    // 夢境中：地圖名稱旁的標籤
+    this.dreamTag = addText(this, 0, 12, '夢境中', {
+      fontSize: '11px', color: '#dfe8ff', backgroundColor: '#34477a', padding: { x: 5, y: 2 },
+    }).setOrigin(0, 0.5).setDepth(11).setVisible(false);
     this.echoText = addText(this, WIDTH - 10, 12, '', { fontSize: '13px', color: COLORS.text }).setOrigin(1, 0.5).setDepth(11);
     this.infoText = addText(this, 10, 31, '', { fontSize: '12px', color: COLORS.textDim }).setOrigin(0, 0.5).setDepth(11);
     this.collapseText = addText(this, WIDTH - 10, 31, '', { fontSize: '11px', color: COLORS.textDim }).setOrigin(1, 0.5).setDepth(11);
@@ -55,6 +61,8 @@ export class UIScene extends Phaser.Scene {
     const s = session.state;
     if (!s) return;
     this.mapName.setText(session.mapName(s.location?.map));
+    this.inDream = isDreamMap(session.mapById(s.location?.map));
+    this.mapName.setColor(this.inDream ? '#c8d8ff' : '#f0d2a0');
     // 殘響：依 core 的 echoAvailable（譜系提供 trace 時免費）；數值異常時由 echoHud 防呆
     let view;
     try {
@@ -105,8 +113,10 @@ export class UIScene extends Phaser.Scene {
       pg.fillStyle(m.ratio > 0.35 ? 0x6fa86a : COLORS.danger, 1).fillRect(x, 57, Math.round(w * m.ratio), 3);
     });
     // 地圖名稱太長時避免壓到右邊
-    const room = WIDTH - 10 - this.echoText.width - 16 - 10;
+    const tagW = this.inDream ? this.dreamTag.width + 6 : 0;
+    const room = WIDTH - 10 - this.echoText.width - 16 - 10 - tagW;
     this.mapName.setScale(this.mapName.width > room ? room / this.mapName.width : 1);
+    this.dreamTag.setVisible(this.inDream).setX(10 + this.mapName.displayWidth + 6);
   }
 
   // ---------- 觸控操作區 ----------
@@ -162,7 +172,47 @@ export class UIScene extends Phaser.Scene {
       resonance: this.hudInfo?.resonance ?? null,
       party: (this.partyView ?? []).map((m) => m.text),
       toast: this.toastText.visible ? this.toastText.text : null,
+      map: this.mapName.text,
+      dream: this.dreamTag.visible ? this.dreamTag.text : null,
+      veil: this.veil?.visible ? this.veil.alpha : 0,
     };
+  }
+
+  // ---------- 入夢與醒來的過場 ----------
+  /**
+   * cover true：霧色淡入蓋住畫面、鐘聲與擴散的鐘聲波紋；false：霧淡出。回傳 Promise（動畫結束）。
+   * 測試模式時間縮短、不出聲。
+   */
+  dreamVeil(cover) {
+    if (!this.veil) {
+      this.veil = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0xaab6c6, 1).setOrigin(0).setDepth(60).setAlpha(0).setVisible(false);
+      this.veilFog = this.add.image(WIDTH / 2, HEIGHT / 2, 'fx:fog').setScale(4, 8).setDepth(61).setAlpha(0).setVisible(false);
+      this.bellText = addText(this, WIDTH / 2, HEIGHT / 2, '——噹。', { fontSize: '22px', color: '#2a3550', fontStyle: 'bold' })
+        .setOrigin(0.5).setDepth(62).setAlpha(0).setVisible(false);
+    }
+    const d = TEST_MODE ? 60 : (cover ? 700 : 900);
+    const targets = [this.veil, this.veilFog];
+    this.tweens.killTweensOf([...targets, this.bellText]);
+    for (const t of [...targets, this.bellText]) t.setVisible(true);
+    if (cover) {
+      playBell({ muted: TEST_MODE });
+      for (let i = 0; i < 3; i++) {
+        const ring = this.add.circle(WIDTH / 2, HEIGHT / 2, 20, 0x000000, 0).setStrokeStyle(2, 0x6f86b8, 0.9).setDepth(63);
+        this.tweens.add({ targets: ring, radius: 260, alpha: 0, delay: TEST_MODE ? 0 : i * 260, duration: TEST_MODE ? 60 : 1100, onComplete: () => ring.destroy() });
+      }
+      this.tweens.add({ targets: this.bellText, alpha: { from: 0, to: 1 }, duration: d });
+    } else {
+      this.tweens.add({ targets: this.bellText, alpha: 0, duration: d / 2 });
+    }
+    return new Promise((res) => {
+      this.tweens.add({
+        targets, alpha: cover ? 1 : 0, duration: d, ease: 'Sine.easeInOut',
+        onComplete: () => {
+          if (!cover) for (const t of [...targets, this.bellText]) t.setVisible(false);
+          res();
+        },
+      });
+    });
   }
 
   // ---------- 提示 ----------

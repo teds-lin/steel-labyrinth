@@ -45,6 +45,8 @@ export const MSG = Object.freeze({
   localWrite: '無法寫入本機存檔（瀏覽器封鎖了儲存空間）',
   tooLarge: '存檔太大，超過雲端每格 16 KB 的上限，無法上傳',
   pendingTransfer: '上一次接續還在確認中，請稍候再試',
+  turnstileFailed: '人機驗證失敗，請再試一次',
+  turnstileRetry: '需要重新完成人機驗證，請再試一次',
 });
 
 /** 修訂 4 第 7 節：回報通關的遊戲時間上限（秒）；伺服器拒絕更大的值，超過就以上限回報。 */
@@ -576,8 +578,26 @@ export function createCloudSync({
     autoUpload: () => info()?.auto_upload === true,
     localSummary,
 
-    /** 第一次啟用：用客戶端產生的權杖與轉移碼建立匿名玩家。已啟用時直接成功。 */
-    async enable() {
+    /**
+     * M4：啟用前要不要先做人機驗證。有待確認的建立（逾時後重送同一組秘密）時不需要：
+     * 伺服器認得權杖就直接 200（Turnstile token 只能用一次，重送時已失效）。
+     */
+    enableNeedsTurnstile() {
+      if (!isOpen() || info()) return false;
+      return readPending(backend)?.op !== 'enable';
+    },
+
+    /** 清除本機雲端資訊（夢境 API 回 401 unauthorized：權杖已被別台裝置的轉移作廢）。 */
+    invalidate() {
+      failed('dream', { kind: 'http', status: 401, error: 'unauthorized' });
+    },
+
+    /**
+     * 第一次啟用：用客戶端產生的權杖與轉移碼建立匿名玩家。已啟用時直接成功。
+     * M4：turnstileToken（action create_player）隨請求送出；伺服器要求驗證（400／403）時回 needTurnstile，
+     * 保留待確認的秘密，下次帶新的 Turnstile token 重送同一組。
+     */
+    async enable({ turnstileToken = null } = {}) {
       if (!isOpen()) return local('enable', 'not_open', MSG.notOpen);
       const cur = info();
       if (cur) return { ok: true, transferCode: cur.transfer_code };
@@ -598,14 +618,31 @@ export function createCloudSync({
           // 送出前先存：逾時或重新整理也不會遺失
           if (!writePending(backend, p)) return local('enable', 'storage', MSG.storageBlocked);
         }
-        const r = await api.createPlayer({ token: p.token, transfer_code: p.transfer_code });
+        const req = { token: p.token, transfer_code: p.transfer_code };
+        if (isStr(turnstileToken)) req.turnstile_token = turnstileToken;
+        const r = await api.createPlayer(req);
         if (r.ok) {
           const pid = r.body?.player_id;
           if (!isStr(pid)) return local('enable', 'bad_response', MSG.unavailable);
           if (!promote({ player_id: pid, token: p.token, transfer_code: p.transfer_code })) return local('enable', 'storage', MSG.storageBlocked);
           return succeeded('enable', { ok: true, transferCode: p.transfer_code });
         }
-        if (r.status === 409) { p = null; continue; } // 轉移碼雜湊碰撞：換一組重送
+        if (r.status === 409) {
+          // 轉移碼雜湊碰撞：換一組重送。用過的 Turnstile token 不能再用 → 丟掉這組秘密，請畫面重新驗證
+          p = null;
+          if (isStr(turnstileToken)) {
+            clearPending(backend);
+            return local('enable', 'turnstile_required', MSG.turnstileRetry, { needTurnstile: true });
+          }
+          continue;
+        }
+        if (r.status === 403 && r.error === 'turnstile_failed') {
+          return { ...failed('enable', r), kind: 'turnstile_failed', needTurnstile: true, message: MSG.turnstileFailed };
+        }
+        if (!isStr(turnstileToken) && r.kind === 'http' && (r.status === 400 || r.status === 403)) {
+          // 重送時伺服器不認得這組權杖（第一次請求其實沒到）→ 需要新的 Turnstile token
+          return { ...failed('enable', r), kind: 'turnstile_required', needTurnstile: true, message: MSG.turnstileRetry };
+        }
         return failed('enable', r);
       }
       return local('enable', 'conflict', MSG.unavailable);

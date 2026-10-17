@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   startWorker, newPlayer, newSecrets, doTransfer, doRotate, json, auth, putSave, expectError, sampleSave, d1Rows, readWranglerConfig,
+  tsToken,
 } from './helpers.js';
 import { generateTransferCode } from '../../worker/src/codes.js';
 
@@ -219,11 +220,11 @@ describe('第 5 節：轉移碼探測', () => {
     try {
       const victim = await newPlayer(s);
       const ip = '198.51.100.40';
-      for (let i = 0; i < 2; i++) await expectError(await create(s, ip, { token: newSecrets().token, transfer_code: victim.transfer_code }), 409, 'conflict');
+      for (let i = 0; i < 2; i++) await expectError(await create(s, ip, { token: newSecrets().token, transfer_code: victim.transfer_code, turnstile_token: tsToken('create_player') }), 409, 'conflict');
       expect(await bucketCount(s, 'g:transfer')).toBe(2);
       // 這個 IP 的轉移額度已經用完：接續與再一次探測都 429
       await expect429((await doTransfer(s, victim.transfer_code, { ip })).res);
-      await expect429(await create(s, ip, { token: newSecrets().token, transfer_code: victim.transfer_code }));
+      await expect429(await create(s, ip, { token: newSecrets().token, transfer_code: victim.transfer_code, turnstile_token: tsToken('create_player') }));
     } finally {
       await s.close();
     }
@@ -254,15 +255,15 @@ describe('第 5 節：轉移碼探測', () => {
     it.each([
       ['權杖只有 1 種字元', { token: lowToken, transfer_code: generateTransferCode() }],
       ['權杖只有 15 種字元', { token: fifteen, transfer_code: generateTransferCode() }],
-      ['轉移碼同一字元 4 次', { token: newSecrets().token, transfer_code: 'AAAA-BCDE' }],
-      ['轉移碼同一字元 8 次', { token: newSecrets().token, transfer_code: 'AAAA-AAAA' }],
-      ['轉移碼同一字元分散 4 次', { token: newSecrets().token, transfer_code: 'A2A3-A4A5' }],
+      ['轉移碼同一字元 4 次', { token: newSecrets().token, transfer_code: 'AAAA-BCDE', turnstile_token: tsToken('create_player') }],
+      ['轉移碼同一字元 8 次', { token: newSecrets().token, transfer_code: 'AAAA-AAAA', turnstile_token: tsToken('create_player') }],
+      ['轉移碼同一字元分散 4 次', { token: newSecrets().token, transfer_code: 'A2A3-A4A5', turnstile_token: tsToken('create_player') }],
     ])('POST /api/player：%s', async (_, body) => {
       await expectError(await create(s, s.nextIp(), body), 400, 'bad_request');
     });
 
     it('邊界：16 種字元的權杖、同一字元 3 次的轉移碼可以建立', async () => {
-      expect((await create(s, s.nextIp(), { token: sixteen, transfer_code: 'AAAB-CDEF' })).status).toBe(201);
+      expect((await create(s, s.nextIp(), { token: sixteen, transfer_code: 'AAAB-CDEF', turnstile_token: tsToken('create_player') })).status).toBe(201);
     });
 
     it('POST /api/transfer：new_token／new_transfer_code 低熵 → 400，原本的碼仍有效', async () => {

@@ -7,6 +7,7 @@ import { facingTarget, echo, investigate } from '../../web/src/core/interact.js'
 import { startDialogue } from '../../web/src/core/dialogue.js';
 import { takePending } from '../../web/src/core/effects.js';
 import { evalCondition } from '../../web/src/core/conditions.js';
+import { enterDream, wakeUp, isDreamMap, dreamChoiceDialogue } from '../../web/src/core/dream.js';
 
 export const DEFAULT_NAME = '測試員';
 
@@ -29,6 +30,8 @@ export class Sim {
     this.messages = []; // 引擎回傳的提示訊息
     this.dialoguesPlayed = [];
     this.battles = []; // { encounter, outcome }
+    this.chats = []; // open_chat 開啟過的夢客 id（模擬器不真的聊天）
+    this.wakes = []; // 每次醒來 wakeUp 的 { relocated }
   }
 
   mapOf(id) { return this.data.maps.find((m) => m.id === id); }
@@ -42,11 +45,15 @@ export class Sim {
     return 0;
   }
 
-  /** 把一段對話跑到結束（picker 可覆寫選項策略），再處理對話留下的 pending（battle／goto）。 */
+  /**
+   * 把一段對話跑到結束（picker 可覆寫選項策略），再處理對話留下的 pending（battle／goto／enter_dream／wake／open_chat）。
+   * dlgId 也可以是執行時產生的對話物件（例如引擎的「入夢」選項，同畫面層）。
+   */
   play(dlgId, picker = (cur) => this.pick(cur), maxSteps = 500) {
     if (dlgId === null || dlgId === undefined) return 0;
-    const dlg = this.dialogues.get(dlgId);
+    const dlg = typeof dlgId === 'object' ? dlgId : this.dialogues.get(dlgId);
     if (!dlg) throw new Error(`找不到對話「${dlgId}」`);
+    if (typeof dlgId === 'object') dlgId = dlg.id;
     this.dialoguesPlayed.push(dlgId);
     const r = startDialogue(dlg, this.state);
     let n = 0;
@@ -74,6 +81,9 @@ export class Sim {
     for (const p of pending) {
       if (p.type === 'battle') this.fight(p.encounter);
       else if (p.type === 'goto') this.goto(p.map, p.spawn, p.dialogue);
+      else if (p.type === 'enter_dream') this.enterDream(p.map, p.spawn);
+      else if (p.type === 'wake') this.wake(p.dialogue);
+      else if (p.type === 'open_chat') this.chats.push(p.guest);
       else throw new Error(`未知的 pending「${p.type}」`);
     }
   }
@@ -82,6 +92,21 @@ export class Sim {
     const r = enterMap(this.state, this.data, map, spawn);
     this.state = r.state;
     this.play(r.dialogue);
+    this.play(dialogue);
+  }
+
+  /** 入夢（同 MapScene.doEnterDream）：記住現實位置、移到夢境地圖；第一次進入時播 on_enter。 */
+  enterDream(map, spawn) {
+    const r = enterDream(this.state, this.data, map, spawn);
+    this.state = r.state;
+    this.play(r.dialogue);
+  }
+
+  /** 醒來（同 MapScene.doWake）：回到 dream_return，再播 wake 帶的對話。 */
+  wake(dialogue) {
+    const r = wakeUp(this.state, this.data);
+    this.state = r.state;
+    this.wakes.push({ relocated: r.relocated });
     this.play(dialogue);
   }
 
@@ -97,12 +122,15 @@ export class Sim {
   /** 開場對話（manifest.start.dialogue）。 */
   start() { this.play(this.data.manifest.start.dialogue); return this; }
 
-  /** 章節結束畫面的「繼續」：最後完成的章節若有 end_screen.continue，就進入下一章。 */
+  /** 章節結束畫面的「繼續」：最後完成的章節若有 end_screen.continue，就進入下一章（同 ChapterEndScene：章節改成 manifest 的下一章）。 */
   continueChapter() {
     const last = this.state.chapter_done.at(-1);
     const story = this.data.story.find((s) => s.id === last);
     const cont = story?.end_screen?.continue;
     if (!cont) throw new Error(`章節「${last}」的 end_screen 沒有 continue`);
+    const chapters = this.data.manifest?.chapters ?? [];
+    const i = chapters.indexOf(last);
+    if (i >= 0 && i + 1 < chapters.length) this.state = { ...this.state, chapter: chapters[i + 1] };
     this.goto(cont.map, cont.spawn, cont.dialogue);
     return this;
   }
@@ -199,6 +227,9 @@ export class Sim {
     this.state = r.state;
     for (const id of r.dialogues) this.play(id);
     if (r.battle) this.fight(r.battle);
+    // 鐘塔之夢（同 MapScene.runDialogues）：look 之後問「入夢」（look 本身已經入夢時不問）；沒有 look 的夢客直接開聊天
+    if (r.dream && !isDreamMap(this.map)) this.play(dreamChoiceDialogue(r.dream));
+    if (r.guest && r.dialogues.length === 0) this.chats.push(r.guest);
     return r;
   }
 
@@ -333,5 +364,32 @@ export function playChapter2(sim, { wife = 'truth' } = {}) {
   sim.investigate('obj_rest');
   sim.stepOnTrigger('trg_boss_warn');
   sim.investigate('obj_hauler');
+  return sim;
+}
+
+/**
+ * 第三章：開場（問馬洛）→ 沙發躺下（第一次入夢，鐘塔與夢客見面、拿到代號）→ 十二點的椅子休息 → 南邊的門醒來
+ * → 白天：艾妲 → 馬洛（說實話、出發）→ 第三章完。不打仗。
+ * redream：醒來後先從沙發再入夢一次（引擎的「入夢」選項）、休息、再醒來，才去找馬洛。
+ */
+export function playChapter3(sim, { redream = false } = {}) {
+  sim.choiceRules = ['躺下'];
+  sim.investigate('obj_ch3_sofa'); // dlg_ch3_sofa → enter_dream → 鐘塔（第一次播 dlg_dream_arrive）
+  sim.choiceRules = [];
+  sim.investigate('obj_chair_twelve');
+  sim.choiceRules = ['推開門'];
+  sim.investigate('obj_tower_door'); // wake → 回到沙發旁
+  if (redream) {
+    sim.choiceRules = [];
+    sim.investigate('obj_ch3_sofa'); // look（again）→ 引擎的入夢選項（第 0 個＝入夢）
+    sim.investigate('obj_chair_twelve');
+    sim.choiceRules = ['醒來'];
+    sim.investigate('obj_tower_door');
+  }
+  sim.choiceRules = ['鐘聲'];
+  sim.investigate('obj_ch3_ada');
+  sim.choiceRules = ['說實話', '走吧'];
+  sim.investigate('obj_ch3_marlo_day');
+  sim.choiceRules = [];
   return sim;
 }

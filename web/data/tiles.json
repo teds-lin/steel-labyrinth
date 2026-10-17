@@ -185,5 +185,31 @@
     "id": "concrete_floor",
     "solid": false,
     "color": "#5c5f63"
+  },
+  {
+    "id": "tower_wall",
+    "solid": true,
+    "color": "#262a3a"
+  },
+  {
+    "id": "clock_face",
+    "solid": true,
+    "color": "#c8b98c",
+    "glow": true
+  },
+  {
+    "id": "dream_floor",
+    "solid": false,
+    "color": "#48505e"
+  },
+  {
+    "id": "high_chair",
+    "solid": true,
+    "color": "#5b4a3c"
+  },
+  {
+    "id": "tower_gate",
+    "solid": false,
+    "color": "#d8dde4"
   }
 ]

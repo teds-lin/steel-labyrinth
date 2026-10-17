@@ -6,6 +6,8 @@ import { session, formatPlaytime } from '../session.js';
 import { addText, fitText } from '../ui/widgets.js';
 import { cloud, formatStamp } from '../cloud-client.js';
 import { MSG, normalizeTransferCode } from '../cloud/sync.js';
+import { mountTurnstile } from '../ui/turnstile-panel.js';
+import { TURNSTILE_ACTIONS } from '../cloud/turnstile-config.js';
 
 const SLOTS = [1, 2, 3];
 const INTRO = '把存檔放到雲端，換一台裝置也能用轉移碼接續遊玩。\n不需要註冊，也不會收集個人資料。\n本機存檔照常使用，不受雲端影響。';
@@ -108,12 +110,48 @@ export const cloudPages = {
     });
   },
 
+  /** M4：建立玩家前先做人機驗證（action create_player）；逾時後重送同一組秘密時不需要。 */
   enableCloud() {
+    if (cloud.enableNeedsTurnstile()) { this.showEnableVerify(); return; }
+    this.doEnable(null);
+  },
+
+  doEnable(turnstileToken) {
     const t = this.showBusy('雲端存檔', '正在啟用雲端存檔…');
-    cloud.enable().then((r) => {
+    cloud.enable({ turnstileToken }).then((r) => {
       if (!this.isCurrent(t)) return;
+      if (!r.ok && r.needTurnstile) { this.showEnableVerify(turnstileToken ? r.message : null); return; }
       this.showCloud(r.ok ? '已啟用雲端存檔' : r.message);
     });
+  },
+
+  /** 人機驗證頁：顯示 Turnstile 小工具，通過後建立玩家；失敗時顯示原因與「再試一次」。 */
+  showEnableVerify(error = null) {
+    const note = '為了防止有人大量建立帳號，啟用雲端存檔前請先完成人機驗證。';
+    if (error) {
+      this.setPage('cloud-verify', '人機驗證', `${error}\n\n${note}`, [
+        { id: 'verify-retry', label: '再試一次', onSelect: () => this.showEnableVerify() },
+        { id: 'verify-cancel', label: '取消', onSelect: () => this.showCloud() },
+      ], { y: 300 });
+      this.backAction = () => this.showCloud();
+      this.cloudView = { page: 'verify', error };
+      return;
+    }
+    this.setPage('cloud-verify', '人機驗證', note, [
+      { id: 'verify-cancel', label: '取消', onSelect: () => this.showCloud() },
+    ], { y: 420 });
+    const ticket = this.pageSeq;
+    const h = mountTurnstile(this, WIDTH / 2, 300, {
+      action: TURNSTILE_ACTIONS.createPlayer,
+      onResult: (r) => {
+        if (!this.isCurrent(ticket)) return;
+        if (r.ok) this.doEnable(r.token);
+        else this.showEnableVerify(r.message);
+      },
+    });
+    this.pageCleanup.push(() => h.cancel());
+    this.backAction = () => this.showCloud();
+    this.cloudView = { page: 'verify', error: null };
   },
 
   renderCloud(slots, status) {

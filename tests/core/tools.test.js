@@ -204,6 +204,20 @@ describe('M2：loadBundle／collectStrings 支援 characters／skills／enemies�
       { unique_id: 'enemies.json#fog.summon_text', text: '從霧裡出現了！' },
     ]);
   });
+  it('字串匯出包含現實物件 dream 的 prompt／yes／no（鐘塔之夢補充 5；沒寫的不輸出）', () => {
+    const rows = collectStrings({ maps: [{ id: 'room', name: '房間', objects: [
+      { id: 'bed', dream: { map: 'hall', spawn: 'c', prompt: '眼皮好重。', yes: '睡吧', no: '再撐一下' } },
+      { id: 'cup', dream: { map: 'hall', spawn: 'c', yes: '喝一口' } },
+      { id: 'desk' },
+    ] }] });
+    expect(rows).toEqual([
+      { unique_id: 'maps/room.json#name', text: '房間' },
+      { unique_id: 'maps/room.json#bed.dream.prompt', text: '眼皮好重。' },
+      { unique_id: 'maps/room.json#bed.dream.yes', text: '睡吧' },
+      { unique_id: 'maps/room.json#bed.dream.no', text: '再撐一下' },
+      { unique_id: 'maps/room.json#cup.dream.yes', text: '喝一口' },
+    ]);
+  });
   it('check-data 對含戰鬥資料的目錄照樣檢查（壞引用 → 結束碼 1）', () => {
     writeGood();
     battleFiles();

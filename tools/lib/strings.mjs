@@ -6,7 +6,13 @@ const isStr = (v) => typeof v === 'string';
 export function collectStrings(bundle) {
   const rows = [];
   const add = (file, path, text) => { if (isStr(text)) rows.push({ unique_id: `${file}#${path}`, text }); };
-  for (const map of arr(bundle.maps)) add(`maps/${map.id}.json`, 'name', map.name);
+  for (const map of arr(bundle.maps)) {
+    add(`maps/${map.id}.json`, 'name', map.name);
+    // 鐘塔之夢補充 5：入夢選項的文字（選填）
+    for (const obj of arr(map.objects)) {
+      for (const k of ['prompt', 'yes', 'no']) add(`maps/${map.id}.json`, `${obj?.id}.dream.${k}`, obj?.dream?.[k]);
+    }
+  }
   for (const item of arr(bundle.items)) {
     add('items.json', `${item.id}.name`, item.name);
     add('items.json', `${item.id}.desc`, item.desc);

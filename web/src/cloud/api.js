@@ -4,6 +4,8 @@
 // - error：伺服器 body 的 error 錯誤碼；沒有時為 http_<status>／network／timeout；不合法的 slot 為 invalid_slot（不送請求）。
 
 export const DEFAULT_TIMEOUT_MS = 5000;
+/** 夢客對話要等 AI 生成（最多重試一次），逾時放寬。 */
+export const DREAM_CHAT_TIMEOUT_MS = 20000;
 const SLOT_COUNT = 3;
 
 const validSlot = (s) => Number.isInteger(s) && s >= 1 && s <= SLOT_COUNT;
@@ -38,7 +40,7 @@ export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null,
    * token：指定這次要用的權杖（轉移／建立玩家逾時後，用待確認的新權杖確認結果）；未指定時用 getToken()。
    * 修訂 2 C：所有 POST／PUT 一律帶 body 與 Content-Type: application/json（否則伺服器回 415）。
    */
-  async function request(path, { method = 'GET', body, auth = true, headers = {}, token: override } = {}) {
+  async function request(path, { method = 'GET', body, auth = true, headers = {}, token: override, timeout: wait } = {}) {
     if (typeof fetchFn !== 'function' || base === '') return fail('network', 0, 'network');
     const h = { ...headers };
     if (body === undefined && (method === 'POST' || method === 'PUT')) body = {};
@@ -53,7 +55,7 @@ export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null,
       timer = setTimeout(() => {
         try { ctrl?.abort(); } catch { /* 忽略 */ }
         resolve(fail('timeout', 0, 'timeout'));
-      }, limit);
+      }, Number.isFinite(wait) && wait > 0 ? wait : limit);
     });
     const run = (async () => {
       let res;
@@ -104,8 +106,11 @@ export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null,
 
   return {
     /** 修訂 2 A：權杖與轉移碼由客戶端產生後送出；回應只有 player_id。 */
-    createPlayer: ({ token: t, transfer_code: code } = {}) => request('/api/player', {
-      method: 'POST', body: { token: t, transfer_code: code }, auth: false,
+    // M4：建立玩家需要 turnstile_token（action create_player）；冪等重送時不帶（伺服器認得權杖就直接 200）
+    createPlayer: ({ token: t, transfer_code: code, turnstile_token: ts } = {}) => request('/api/player', {
+      method: 'POST',
+      body: typeof ts === 'string' && ts !== '' ? { token: t, transfer_code: code, turnstile_token: ts } : { token: t, transfer_code: code },
+      auth: false,
     }),
     /** opts.token：用指定的權杖列表（確認待確認的權杖是否已生效）。 */
     listSaves: ({ token: t } = {}) => request('/api/saves', { token: t }),
@@ -125,5 +130,11 @@ export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null,
     rotateTransfer: (newCode) => request('/api/transfer/rotate', { method: 'POST', body: { new_transfer_code: newCode } }),
     reportClear: (rec) => request('/api/clear', { method: 'POST', body: rec }),
     stats: () => request('/api/stats', { auth: false }),
+    /** M4：用 Turnstile token（action dream_pass）換夢境通行證。 */
+    dreamPass: (turnstileToken) => request('/api/dream/pass', { method: 'POST', body: { turnstile_token: turnstileToken } }),
+    /** M4：和夢客說一句話：{ pass, guest, chapter, history, input }。 */
+    dreamChat: ({ pass, guest, chapter, history, input } = {}) => request('/api/dream/chat', {
+      method: 'POST', body: { pass, guest, chapter, history, input }, timeout: DREAM_CHAT_TIMEOUT_MS,
+    }),
   };
 }

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test as base } from '@playwright/test';
 import { expect, game, makeSave, seedSaves } from './helpers.js';
 import { createMockCloud, MOCK_API } from './cloud-mock.js';
+import { installFakeTurnstile, FAKE_TS_TOKEN } from './fake-turnstile.js';
 
 /**
  * 同 helpers.js 的錯誤蒐集 fixture，但忽略瀏覽器對「模擬 API 回非 2xx／連線失敗」自動印的
@@ -12,6 +13,7 @@ import { createMockCloud, MOCK_API } from './cloud-mock.js';
  */
 const test = base.extend({
   page: async ({ page }, use) => {
+    await installFakeTurnstile(page);
     const errors = [];
     page.on('console', (m) => {
       if (m.type() !== 'error' || /GL Driver Message/.test(m.text())) return;
@@ -112,6 +114,7 @@ async function otherDevice(browser, testInfo) {
     viewport: u.viewport, hasTouch: u.hasTouch, isMobile: u.isMobile, deviceScaleFactor: u.deviceScaleFactor,
     baseURL: u.baseURL ?? 'http://localhost:8091/',
   });
+  await installFakeTurnstile(ctx);
   const page = await ctx.newPage();
   const errors = [];
   page.on('console', (m) => {
@@ -662,7 +665,10 @@ test.describe('M3 雲端存檔：修訂 2（秘密由客戶端產生、雜湊判
     expect((await u.menu()).cloud.status).toBe('已啟用雲端存檔');
     const bodies = mock.calls(/^\/api\/player$/, 'POST').map((c) => c.body);
     expect(bodies.length).toBe(2);
-    expect(bodies[1]).toEqual(bodies[0]);
+    // M4：第一次帶 Turnstile token；冪等重送（同一組秘密）不需要新的 Turnstile
+    const { turnstile_token: ts, ...first } = bodies[0];
+    expect(ts).toBe(FAKE_TS_TOKEN);
+    expect(bodies[1]).toEqual(first);
     expect(mock.players.length).toBe(1);
     expect((await lsGet(page, CLOUD_KEY)).token).toBe(mock.players[0].token);
   });

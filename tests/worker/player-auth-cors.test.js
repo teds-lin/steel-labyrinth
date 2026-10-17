@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   d1Rows, startWorker, newPlayer, newSecrets, doTransfer, json, auth, expectError, readWranglerConfig, devVarOverrides, TEST_PEPPER,
+  tsToken,
 } from './helpers.js';
 import { sha256Hex } from '../../worker/src/codes.js';
 
@@ -60,7 +61,7 @@ describe('POST /api/player（修訂 2 A：秘密由客戶端產生）', () => {
 
   it('轉移碼雜湊和別人相同 → 409 conflict（客戶端換一組重送）', async () => {
     const a = await newPlayer(w);
-    const body = await expectError(await create({ token: newSecrets().token, transfer_code: a.transfer_code }), 409, 'conflict');
+    const body = await expectError(await create({ token: newSecrets().token, transfer_code: a.transfer_code, turnstile_token: tsToken('create_player') }), 409, 'conflict');
     expect(body.current).toBeUndefined();
     // 換一組就成功
     expect((await create(newSecrets())).status).toBe(201);
@@ -88,7 +89,7 @@ describe('POST /api/player（修訂 2 A：秘密由客戶端產生）', () => {
 
   it('轉移碼的格式寬容：小寫、沒有連字號都接受（正規化後存雜湊）', async () => {
     const { token, transfer_code: code } = newSecrets();
-    expect((await create({ token, transfer_code: code.toLowerCase().replace('-', '') })).status).toBe(201);
+    expect((await create({ token, transfer_code: code.toLowerCase().replace('-', ''), turnstile_token: tsToken('create_player') })).status).toBe(201);
     expect((await doTransfer(w, code)).res.status).toBe(200);
   });
 });

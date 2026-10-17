@@ -1,0 +1,84 @@
+{
+  "id": "clocktower",
+  "name": "鐘塔之夢",
+  "dream": true,
+  "tiles": [
+    "##OOOOOOOOO##",
+    "#%%OOOOOOO%%#",
+    "#%.........%#",
+    "#...h...h...#",
+    "#..h.....h..#",
+    "#~..........#",
+    "#...........#",
+    "#..........~#",
+    "#..h.....h..#",
+    "#...h...h...#",
+    "#%.........%#",
+    "#%%.......%%#",
+    "######+######"
+  ],
+  "legend": {
+    "#": "tower_wall",
+    "O": "clock_face",
+    "%": "fog",
+    ".": "dream_floor",
+    "~": "mist",
+    "h": "high_chair",
+    "+": "tower_gate"
+  },
+  "on_enter": "dlg_dream_arrive",
+  "spawns": [
+    {
+      "id": "center",
+      "x": 6,
+      "y": 6,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_chair_twelve",
+      "x": 6,
+      "y": 2,
+      "sprite": "dream_chair_twelve",
+      "solid": true,
+      "look": "dlg_chair_twelve"
+    },
+    {
+      "id": "obj_guest_three",
+      "x": 10,
+      "y": 6,
+      "sprite": "guest_three",
+      "solid": true,
+      "guest": "three",
+      "look": "dlg_three_look"
+    },
+    {
+      "id": "obj_guest_nine",
+      "x": 2,
+      "y": 6,
+      "sprite": "guest_nine",
+      "solid": true,
+      "guest": "nine",
+      "look": "dlg_nine_look"
+    },
+    {
+      "id": "obj_chair_six",
+      "x": 6,
+      "y": 10,
+      "sprite": "dream_chair",
+      "solid": true,
+      "look": "dlg_chair_six"
+    },
+    {
+      "id": "obj_tower_door",
+      "x": 6,
+      "y": 12,
+      "sprite": "dream_door",
+      "solid": true,
+      "look": "dlg_tower_door"
+    }
+  ],
+  "exits": [],
+  "triggers": []
+}

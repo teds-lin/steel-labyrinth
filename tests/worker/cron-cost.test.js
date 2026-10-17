@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import {
   startWorker, newPlayer, newSecrets, doTransfer, doRotate, json, auth, putSave, sampleSave, d1Rows, readWranglerConfig, ROOT,
+  tsToken, loadDreamFixtures, getPass, dreamChat, aiReply,
 } from './helpers.js';
 import { purge } from '../../worker/src/index.js';
 
@@ -83,6 +84,21 @@ const MAX_ROWS = {
   'GET /api/stats（未快取）': { read: 1, written: 0 },
   'GET /api/stats（快取）': { read: 0, written: 0 },
   '401（錯誤權杖）': { read: 0, written: 0 },
+  // M4 鐘塔之夢（Turnstile 不碰 D1；失敗時只有限流計數）
+  'POST /api/player（Turnstile 失敗）': { read: 10, written: 2 },
+  'POST /api/dream/pass': { read: 10, written: 2 },
+  'POST /api/dream/pass（Turnstile 失敗）': { read: 11, written: 2 },
+  'POST /api/dream/chat（AI 成功）': { read: 15, written: 3 },
+  'POST /api/dream/chat（重試後成功）': { read: 21, written: 4 },
+  'POST /api/dream/chat（重試後仍過濾）': { read: 22, written: 5 },
+  'POST /api/dream/chat（AI 錯誤）': { read: 14, written: 3 },
+  'POST /api/dream/chat（額度用完）': { read: 8, written: 0 },
+  'POST /api/dream/chat（預算用完）': { read: 8, written: 0 },
+  'POST /api/dream/chat（通行證無效）': { read: 1, written: 0 },
+};
+/** 每種夢客對話實際呼叫 AI 的次數（算「每次 AI 呼叫最多寫幾列」用）。 */
+const CHAT_CALLS = {
+  'POST /api/dream/chat（AI 成功）': 1, 'POST /api/dream/chat（重試後成功）': 2, 'POST /api/dream/chat（重試後仍過濾）': 2, 'POST /api/dream/chat（AI 錯誤）': 1,
 };
 const WRITE_KINDS = ['PUT（新建）', 'PUT（覆蓋）', 'PUT（409）', 'DELETE', 'PUT（刪除後重建）',
   'POST /api/clear（新紀錄）', 'POST /api/clear（改善成績）', 'POST /api/clear（沒有改善）', 'POST /api/transfer/rotate',
@@ -133,7 +149,7 @@ async function measureAll(w, lane) {
     await rec('POST /api/player（新建，IPv4）', () => w.fetch('/api/player', json(s, { 'cf-connecting-ip': w.nextIp() })));
     await rec('POST /api/player（冪等重送）', () => w.fetch('/api/player', json(s, { 'cf-connecting-ip': w.nextIp() })));
     await rec('POST /api/player（新建，IPv6）', () => w.fetch('/api/player', json(newSecrets(), { 'cf-connecting-ip': '2001:db8:501::1' })));
-    await rec('POST /api/player（轉移碼碰撞 409，IPv6）', () => w.fetch('/api/player', json({ token: newSecrets().token, transfer_code: s.transfer_code }, { 'cf-connecting-ip': '2001:db8:502::1' })));
+    await rec('POST /api/player（轉移碼碰撞 409，IPv6）', () => w.fetch('/api/player', json({ token: newSecrets().token, transfer_code: s.transfer_code, turnstile_token: tsToken('create_player') }, { 'cf-connecting-ip': '2001:db8:502::1' })));
     const token = s.token;
     await rec('GET /api/saves', () => w.fetch('/api/saves', { headers: auth(token) }));
     await w.db.prepare('UPDATE players SET last_seen = 0 WHERE token_hash IS NOT NULL').run();
@@ -148,6 +164,40 @@ async function measureAll(w, lane) {
     await rec('GET /api/stats（未快取）', () => w.fetch('/api/stats'));
     await rec('GET /api/stats（快取）', () => w.fetch('/api/stats'));
     await rec('401（錯誤權杖）', () => w.fetch('/api/saves', { headers: auth('A'.repeat(43)) }));
+    // ---- M4 ----
+    await rec('POST /api/player（Turnstile 失敗）', () => w.fetch('/api/player', json({ ...newSecrets(), turnstile_token: 'fail' }, { 'cf-connecting-ip': w.nextIp() })));
+    await loadDreamFixtures(w);
+    const passBody = { turnstile_token: tsToken('dream_pass') };
+    let d = await newPlayer(w);
+    await rec('POST /api/dream/pass', () => w.fetch('/api/dream/pass', json(passBody, auth(d.token))));
+    d = await newPlayer(w);
+    await rec('POST /api/dream/pass（Turnstile 失敗）', () => w.fetch('/api/dream/pass', json({ turnstile_token: 'fail' }, auth(d.token))));
+    const chatBody = async (pl) => ({ pass: await getPass(w, pl.token), guest: 'lamp', chapter: 'chapter1', history: [], input: '你好' });
+    const chatCase = async (name, ai, prep) => {
+      const pl = await newPlayer(w);
+      const body = await chatBody(pl);
+      if (prep) await prep(pl);
+      w.setAi(ai);
+      await rec(name, () => dreamChat(w, pl.token, body));
+    };
+    const usage = { usage: { prompt_tokens: 800, completion_tokens: 50, total_tokens: 850 } };
+    await chatCase('POST /api/dream/chat（AI 成功）', () => aiReply('燈還亮著。', usage));
+    await chatCase('POST /api/dream/chat（重試後成功）', (c, n) => aiReply(n === 1 ? '这是燈。' : '燈還亮著。', usage));
+    await chatCase('POST /api/dream/chat（重試後仍過濾）', () => aiReply('这是燈。', usage));
+    await chatCase('POST /api/dream/chat（AI 錯誤）', () => { throw new Error('boom'); });
+    const now = Math.floor(Date.now() / 1000);
+    const midnight = (Math.floor(now / DAY) + 1) * DAY;
+    await chatCase('POST /api/dream/chat（額度用完）', () => aiReply('燈。'), (pl) => w.db.prepare('INSERT OR REPLACE INTO rate_limits (bucket, count, reset_at) VALUES (?, 20, ?)').bind(`pl:dchat:${pl.player_id}`, midnight).run());
+    const neuronsBucket = `g:neurons:${new Date(now * 1000).toISOString().slice(0, 10)}`;
+    await chatCase('POST /api/dream/chat（預算用完）', () => aiReply('燈。'), () => w.db.prepare('INSERT OR REPLACE INTO rate_limits (bucket, count, reset_at) VALUES (?, 8000, ?)').bind(neuronsBucket, midnight).run());
+    await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(neuronsBucket).run();
+    out['POST /api/dream/chat（通行證無效）'] = await (async () => {
+      const pl = await newPlayer(w);
+      const res = await dreamChat(w, pl.token, { pass: 'x.y', guest: 'lamp', chapter: 'chapter1', input: '你好' });
+      const r = { ...d1Rows(res), newBuckets: 0, status: res.status };
+      await res.arrayBuffer();
+      return r;
+    })();
     return out;
   }
 
@@ -206,6 +256,13 @@ describe('每種請求的 D1 讀寫列數（x-d1-rows 實測；上限是回歸�
       expect(Object.keys(m).sort()).toEqual(Object.keys(MAX_ROWS).sort());
       expect(m['POST /api/player（轉移碼碰撞 409，IPv6）'].status).toBe(409);
       expect(m['POST /api/transfer（成功，IPv6）'].status).toBe(200);
+      expect(m['POST /api/player（Turnstile 失敗）'].status).toBe(403);
+      expect(m['POST /api/dream/pass'].status).toBe(200);
+      expect(m['POST /api/dream/pass（Turnstile 失敗）'].status).toBe(403);
+      expect(m['POST /api/dream/chat（通行證無效）'].status).toBe(401);
+      for (const k of Object.keys(CHAT_CALLS)) expect(m[k].status, k).toBe(200);
+      // 改用預寫台詞（額度、預算）與無效通行證：一列都不寫
+      for (const k of ['POST /api/dream/chat（額度用完）', 'POST /api/dream/chat（預算用完）', 'POST /api/dream/chat（通行證無效）']) expect(m[k].written, k).toBe(0);
     } finally {
       await w.close();
     }
@@ -230,7 +287,7 @@ describe('每種請求的 D1 讀寫列數（x-d1-rows 實測；上限是回歸�
   });
 });
 
-const PLAYER_KEYS = ['write', 'clear', 'rotate', 'rsv', 'transfer'];
+const PLAYER_KEYS = ['write', 'clear', 'rotate', 'rsv', 'transfer', 'dpass', 'dchat'];
 
 /**
  * 實測 Cron 刪除一個「3 格存檔＋每章一筆通關紀錄＋5 種玩家限流 bucket」的玩家要寫幾列（含索引與 trigger）。
@@ -388,10 +445,23 @@ describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；�
     // 退到每小時通道而成功的請求，寫入列數與每小時通道相同（保留名額不被消耗），已含在 hourly。
     const raceWaste = await concurrentRejectedWrites();
     expect(raceWaste).toBe(0);
-    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge + raceWaste;
+    // M4：Turnstile 失敗的建立玩家只寫限流計數，算在「建立玩家」那一項（不多於成功建立）
+    expect(wr('POST /api/player（Turnstile 失敗）')).toBeLessThanOrEqual(wr('POST /api/player（新建，IPv4）'));
+    // M4：夢境通行證＝全站每小時上限 × 25 窗 × 每次最多寫入列數（Turnstile 失敗也計入限流）
+    const passReq = n('RL_DREAM_PASS_GLOBAL_PER_HOUR') * windows;
+    const passes = passReq * Math.max(wr('POST /api/dream/pass'), wr('POST /api/dream/pass（Turnstile 失敗）'));
+    // M4：夢客對話。每次寫入都要先在全站每日 neurons 預算預扣成功，而每次 AI 呼叫最少計 DREAM_NEURONS_MIN_PER_CALL，
+    // 所以每日 AI 呼叫次數 ≤ DREAM_NEURONS_PER_DAY ÷ DREAM_NEURONS_MIN_PER_CALL；改用預寫台詞（額度、預算）寫 0 列。
+    const aiCalls = Math.floor(n('DREAM_NEURONS_PER_DAY') / n('DREAM_NEURONS_MIN_PER_CALL'));
+    const rowsPerCall = Math.max(...Object.entries(CHAT_CALLS).map(([k, c]) => Math.ceil(wr(k) / c)));
+    const chats = aiCalls * rowsPerCall;
+    // 全域 bucket 多兩列：g:dpass、g:neurons:<日期>（每天由 Cron 刪除時各再寫 1 列）
+    const dreamRlPurge = 2;
+    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge + raceWaste + passes + chats + dreamRlPurge;
     const line = `惡意流量每日寫入上限：建立玩家 ${players}＋轉移 ${transfers}＋已登入每小時通道 ${hourly}（${hourlyReq} 次 × ${lane('每小時', plainKinds)} 列）`
       + `＋保留通道 ${reserved}（${reservedReq} 次 × ${lane('保留', plainKinds)} 列）＋last_seen ${lastSeen}＋Cron ${cron}（${n('PURGE_BATCH')} 人 × ${perPerson} 列）`
-      + `＋限流紀錄清理 ${rlPurge}＋並行失敗路徑 ${raceWaste}＝${total} 列`;
+      + `＋限流紀錄清理 ${rlPurge}＋並行失敗路徑 ${raceWaste}`
+      + `＋夢境通行證 ${passes}（${passReq} 次 × ${passes / passReq} 列）＋夢客對話 ${chats}（${aiCalls} 次 AI 呼叫 × ${rowsPerCall} 列）＋夢境限流紀錄清理 ${dreamRlPurge}＝${total} 列`;
     mkdirSync(join(ROOT, 'test-results'), { recursive: true });
     writeFileSync(join(ROOT, 'test-results', 'cron-cost-total.txt'), `${line}\n`);
     console.log(line);

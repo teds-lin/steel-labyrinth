@@ -1,4 +1,5 @@
-// 《鋼鐵迷都》雲端存檔 Worker（Cloudflare Worker＋D1）。規格：docs/API.md（與前文衝突時以最後的修訂為準，目前是「修訂 4b」）。
+// 《鋼鐵迷都》雲端存檔 Worker（Cloudflare Worker＋D1＋Workers AI）。規格：docs/API.md（與前文衝突時以最後的修訂為準，目前是「修訂 4b」；
+// M4 鐘塔之夢：Turnstile、夢境通行證、夢客對話，見 turnstile.js、dream.js）。
 // 安全重點：SQL 一律參數綁定；權杖與轉移碼由客戶端產生、伺服器只存雜湊、低熵秘密拒收；權杖用常數時間比較；
 // IP 只以「每日鹽＋IP（IPv6 取 /64，另加 /48 一層）」雜湊當限流 key；已登入寫入有每位玩家的保留通道；不在允許清單的 Origin 一律 403；POST／PUT 必須是 JSON（415）；
 // 超過限流不寫入 D1；錯誤回應不含內部細節；body 先看 content-length、讀取時再實際限制大小。
@@ -15,6 +16,8 @@ import {
 } from './ratelimit.js';
 import { buildSummary, DATA_LIMIT } from './summary.js';
 import { MeteredDb } from './db.js';
+import { verifyTurnstile } from './turnstile.js';
+import { signPass, remainingToday, chat as dreamChat } from './dream.js';
 
 const SLOT_COUNT = 3;
 const LAST_SEEN_GRANULARITY = 86400; // last_seen 一天最多更新一次，省 D1 寫入額度
@@ -92,7 +95,7 @@ async function hitWrite(env, playerId, { kind, name, fallback }, now) {
 }
 
 /** 玩家的限流 bucket 前綴（pl:<kind>:<player_id>）；Cron 刪除玩家時一起刪（purgeExpired 不刪它們）。 */
-const PLAYER_BUCKET_PREFIXES = JSON.stringify(['write', 'clear', 'rotate', 'rsv', 'transfer'].map((k) => `pl:${k}:`));
+const PLAYER_BUCKET_PREFIXES = JSON.stringify(['write', 'clear', 'rotate', 'rsv', 'transfer', 'dpass', 'dchat'].map((k) => `pl:${k}:`));
 
 const WRITE_LIMITS = {
   write: { kind: 'write', name: 'RL_WRITE_PER_HOUR', fallback: 20 },
@@ -101,6 +104,15 @@ const WRITE_LIMITS = {
 };
 
 const clientIp = (request) => request.headers.get('cf-connecting-ip');
+
+/** Turnstile（M4）：失敗一律 403 turnstile_failed；log 只記原因代碼。 */
+async function requireTurnstile(request, env, token, action) {
+  const r = await verifyTurnstile(env, token, action, clientIp(request));
+  if (!r.ok) {
+    console.log(JSON.stringify({ event: 'turnstile_failed', action, reason: r.reason }));
+    throw new HttpError(403, 'turnstile_failed');
+  }
+}
 
 /** IP 限流的 bucket：IPv4 一層；IPv6 兩層（/64 與 /48，修訂 4 第 1 節）。 */
 async function ipBuckets(request, env, kind, now, { name, fallback, name48, fallback48 }) {
@@ -166,6 +178,8 @@ async function createPlayer(request, env, now) {
   // 冪等：權杖已經建立過（例如上一次請求逾時）→ 回同一個玩家。持有權杖即擁有帳號。
   const had = await existing();
   if (had) return jsonResponse({ player_id: had.player_id }, 200);
+  // M4：新建才驗證 Turnstile（冪等重送不驗證：token 只能用一次，逾時重送時已經失效）
+  await requireTurnstile(request, env, body.turnstile_token, 'create_player');
   await assertTransferBelow(request, env, now);
   const playerId = crypto.randomUUID();
   let row;
@@ -177,11 +191,13 @@ async function createPlayer(request, env, now) {
       RETURNING player_id`).bind(playerId, tokenHash, await transferHash(pepper, code), now, limitOf(env, 'MAX_PLAYERS', 20000)).first();
   } catch (e) {
     const col = uniqueViolation(e);
-    if (col === 'players.token_hash') { // 同一個權杖的兩個請求同時抵達
+    if (col) {
+      // 同一個權杖的兩個請求同時抵達：SQLite 回報的欄位不一定是 token_hash（同時違反兩個 UNIQUE 時可能先報 transfer_hash），
+      // 所以任何 UNIQUE 衝突都先查權杖是否已建立——已建立就是冪等重送（200），否才是轉移碼碰撞（409）。
       const again = await existing();
       if (again) return jsonResponse({ player_id: again.player_id }, 200);
+      throw await collision(request, env, now);
     }
-    if (col) throw await collision(request, env, now);
     throw e;
   }
   if (!row) throw new HttpError(503, 'capacity');
@@ -439,6 +455,36 @@ export async function purge(db, now, { batch = 500 } = {}) {
   return deleted;
 }
 
+// ---------- 鐘塔之夢（M4） ----------
+
+/**
+ * POST /api/dream/pass：權杖＋Turnstile（action dream_pass）→ 30 分鐘的通行證＋今日剩餘句數 remaining_today。
+ * 限流：同一玩家每小時 6 次＋全站每小時上限。
+ */
+async function dreamPass(request, env, now) {
+  requireJsonContentType(request);
+  const { player_id: playerId } = await authenticate(request, env, now);
+  const secret = env.DREAM_PASS_SECRET;
+  if (typeof secret !== 'string' || secret.length < 32) throw new Error('DREAM_PASS_SECRET 未設定或太短');
+  await hitAll(env.DB, [
+    { bucket: `pl:dpass:${playerId}`, limit: limitOf(env, 'RL_DREAM_PASS_PER_HOUR', 6) },
+    { bucket: 'g:dpass', limit: limitOf(env, 'RL_DREAM_PASS_GLOBAL_PER_HOUR', 60) },
+  ], now);
+  const body = await readJson(request);
+  if (!isPlainObject(body)) throw badRequest();
+  await requireTurnstile(request, env, body.turnstile_token, 'dream_pass');
+  const pass = await signPass(secret, playerId, now);
+  return jsonResponse({ ...pass, remaining_today: await remainingToday(env, playerId, now) });
+}
+
+/** POST /api/dream/chat：權杖＋通行證；額度、提示詞、輸出處理見 dream.js。 */
+async function dreamChatRoute(request, env, now) {
+  requireJsonContentType(request);
+  const { player_id: playerId } = await authenticate(request, env, now);
+  const body = await readJson(request);
+  return jsonResponse(await dreamChat(env, playerId, body, now));
+}
+
 // ---------- 路由 ----------
 
 const SAVE_RE = /^\/api\/save\/([^/]+)$/;
@@ -453,6 +499,8 @@ async function route(request, env, ctx) {
   if (pathname === '/api/transfer/rotate' && method === 'POST') return rotate(request, env, now);
   if (pathname === '/api/clear' && method === 'POST') return reportClear(request, env, now);
   if (pathname === '/api/stats' && method === 'GET') return stats(request, env, now, ctx);
+  if (pathname === '/api/dream/pass' && method === 'POST') return dreamPass(request, env, now);
+  if (pathname === '/api/dream/chat' && method === 'POST') return dreamChatRoute(request, env, now);
   const m = SAVE_RE.exec(pathname);
   if (m) {
     if (method === 'GET') return getSave(request, env, now, m[1]);

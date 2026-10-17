@@ -1,6 +1,6 @@
 # 雲端存檔 Worker
 
-Cloudflare Worker＋D1。API 規格見 `docs/API.md`（與前文衝突時以最後的修訂為準，目前是「修訂 4b」）。Worker 直接 import `web/src/core/save.js` 驗證存檔（和客戶端共用同一個 `deserialize`）。
+Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝突時以最後的修訂為準，目前是「修訂 4b」；M4 的「鐘塔之夢」：Turnstile、夢境通行證、夢客對話）。Worker 直接 import `web/src/core/save.js` 驗證存檔（和客戶端共用同一個 `deserialize`）。
 
 ## 本機
 | 指令 | 說明 |
@@ -16,7 +16,8 @@ Cloudflare Worker＋D1。API 規格見 `docs/API.md`（與前文衝突時以最�
 ## 資料表與 migration
 - `0001_init.sql`：初始資料表。**已套用的 migration 不可修改**（測試會比對 0001 的雜湊）。
 - `0002_revision2.sql`：修訂 2——`saves.data_sha256`；`rate_limits` 改成 WITHOUT ROWID 並移除 `reset_at` 索引；`counters`（玩家數，trigger 維護，給 `MAX_PLAYERS` 用）；`chapter_stats`（統計彙總，trigger 維護）；移除 `clears_by_chapter` 索引。
-- 新的變更一律加新檔（`0003_*.sql`…）。
+- `0003_dream.sql`：M4——`dream_personas`（夢客人設＋預寫台詞）、`dream_lexicon`（簡體字／陸用語詞表）。內容只由 `tools/upload-dream.mjs` 產生的 SQL 寫入。
+- 新的變更一律加新檔（`0004_*.sql`…）。
 
 ## 部署（需要 `wrangler login` 一次）
 1. `npx wrangler d1 create steel-labyrinth`，把回傳的 `database_id` 填進 `worker/wrangler.toml`。
@@ -24,18 +25,22 @@ Cloudflare Worker＋D1。API 規格見 `docs/API.md`（與前文衝突時以最�
 3. `npx wrangler secret put TRANSFER_PEPPER --config worker/wrangler.toml`，輸入一個長隨機字串
    （例如 `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`）。
    **pepper 設定後不要更換**：換了之後所有既有轉移碼都會失效（權杖不受影響），IP 限流的鹽也會跟著換。
-4. `npm run worker:deploy`。Cron Trigger（`wrangler.toml` 的 `[triggers] crons`，每天 UTC 03:17 清理：180 天未登入的玩家、超過 7 天沒有使用（`last_seen`）的空帳號，每次最多 `PURGE_BATCH` 人）會隨部署自動註冊，**不需要另外設定**；部署輸出會列出 `schedule: 17 3 * * *`。
+   M4 另外兩個 secret（同樣用 `wrangler secret put`，不要寫進任何檔案）：
+   - `TURNSTILE_SECRET`：Cloudflare 儀表板建立 Turnstile 小工具（hostname `teds-lin.github.io`）後的 secret key。
+   - `DREAM_PASS_SECRET`：夢境通行證的 HMAC 金鑰，至少 32 字元的隨機字串（產生方式同上）。更換只會讓尚未過期的通行證失效（玩家重新入夢即可）。
+4. M4：上傳夢客人設與詞表（見下方「鐘塔之夢」），再 `npm run worker:deploy`。Cron Trigger（`wrangler.toml` 的 `[triggers] crons`，每天 UTC 03:17 清理：180 天未登入的玩家、超過 7 天沒有使用（`last_seen`）的空帳號，每次最多 `PURGE_BATCH` 人）會隨部署自動註冊，**不需要另外設定**；部署輸出會列出 `schedule: 17 3 * * *`。
 5. 把部署輸出的 `https://steel-labyrinth.<帳號>.workers.dev` 填進 **`web/src/cloud/endpoint.js` 的 `API_BASE_DEFAULT`**（預設是空字串＝雲端功能停用），再發布網站。`web/src/config.js` 只是呼叫它，不要改那裡。
 6. 需要調整限流值、容量或統計門檻時，改 `wrangler.toml` 的 `[vars]`，跑 `npm test`（`tests/worker/cron-cost.test.js` 會用新值重算每日最壞寫入並擋下超過 10 萬列的設定）後重新部署。
 
 ### 部署前檢查清單
 - [ ] `npm test` 全綠（含 `tests/worker`、`tests/core`）；`npm run worker:build` 成功。
-- [ ] `test-results/cron-cost-total.txt`（`npm test` 產生）的每日最壞寫入低於 10 萬列，而且有合理餘裕（目前 88,504 列）。
+- [ ] `test-results/cron-cost-total.txt`（`npm test` 產生）的每日最壞寫入低於 10 萬列，而且有合理餘裕（目前 94,006 列，M4 之後）。
 - [ ] `[vars]` 有修訂 4 的新值：`RL_WRITE_PER_HOUR=20`、`RL_ROTATE_PER_HOUR=3`、`RL_CLEAR_PER_HOUR=10`、`RL_RESERVED_PER_HOUR=3`、`RL_WRITE_GLOBAL_PER_HOUR=100`、`RL_WRITE_GLOBAL_PER_DAY=4000`、`RL_PLAYER_PER_HOUR_V6_48=10`、`RL_TRANSFER_PER_HOUR_V6_48=20`、`PURGE_BATCH=500`、`MAX_PLAYER_SECONDS=36000`（`tests/worker/config.test.js` 把關）。
 - [ ] `wrangler.toml` 的 `database_id` 已換成實際值（不是全 0）。
 - [ ] `ALLOWED_ORIGINS` 只有 `https://teds-lin.github.io`（沒有 localhost；測試會擋）。
 - [ ] `CHAPTERS` 等於 `web/data/manifest.json` 的 `chapters`（新增章節時兩邊一起改；測試會擋）。
-- [ ] `TRANSFER_PEPPER` 已用 `wrangler secret put` 設定（`npx wrangler secret list --config worker/wrangler.toml` 看得到），沒有寫進任何檔案。
+- [ ] `TRANSFER_PEPPER`、`TURNSTILE_SECRET`、`DREAM_PASS_SECRET` 都已用 `wrangler secret put` 設定（`npx wrangler secret list --config worker/wrangler.toml` 看得到），沒有寫進任何檔案；`TURNSTILE_SECRET` **不是**官方測試金鑰（`1x…`／`2x…`／`3x…`），也沒有設定 `TURNSTILE_ALLOW_TEST_SECRET`。
+- [ ] 夢客人設與詞表已上傳（`npx wrangler d1 execute steel-labyrinth --remote --config worker/wrangler.toml --command "SELECT id, updated_at FROM dream_personas"` 看得到每位夢客）；`CHAPTERS` 新增章節後，夢客才會知道該章的知識卡。
 - [ ] 遠端 migration 已套用到最新（`npx wrangler d1 migrations list steel-labyrinth --remote --config worker/wrangler.toml` 沒有待套用的項目）。
 - [ ] 部署後：`curl https://<worker>/api/stats` 回 200；帶 `-H 'Origin: https://evil.example'` 回 403；`POST` 不帶 `Content-Type: application/json` 回 415。
 - [ ] 最後才把網址填進 `web/src/cloud/endpoint.js` 並發布網站。
@@ -49,7 +54,52 @@ Cloudflare Worker＋D1。API 規格見 `docs/API.md`（與前文衝突時以最�
 - 來源：IPv4 以單一位址、IPv6 以 /64 計算；IPv6 另以 /48 限制（建立玩家 10、轉移 20）。
 - 低熵秘密 400：權杖不同字元少於 16 種、轉移碼同一字元出現 4 次以上（客戶端用同一份判斷重抽，官方客戶端不會被誤殺）。
 - `MAX_PLAYERS=5000`：最壞 5000 × 3 格 × 16 KB ≈ 240 MB，低於 D1 免費方案每個資料庫 500 MB 的一半。超過 7 天沒有使用（看 `last_seen`，修訂 4b）、沒有存檔也沒有通關紀錄的空帳號由 Cron 刪除，釋出名額；被刪的玩家回到遊戲時會看到重新連結頁面，可以重新啟用雲端存檔。
-- Cron 每次最多刪 `PURGE_BATCH=500` 人（單次最多約 8,000 列寫入）；玩家的限流紀錄與玩家一起刪，IP 與全域的過期限流紀錄每天清。
+- Cron 每次最多刪 `PURGE_BATCH=500` 人（單次最多約 9,000 列寫入；每人 18 列，M4 多了 2 個玩家限流 bucket）；玩家的限流紀錄與玩家一起刪，IP 與全域的過期限流紀錄每天清。
 - `GET /api/stats` 讀 `chapter_stats`（讀取列數＝章節數），並用 Cache API 快取 60 秒。注意：Cache API 在 `*.workers.dev` 網域上可能不生效；即使不生效，每次也只讀幾列。回報通關的遊戲時間上限 `MAX_PLAYER_SECONDS=36000`（10 小時）。
-- 惡意流量的每日寫入上限由 `tests/worker/cron-cost.test.js` 依 API.md 修訂 4 第 6 節／4a 的算式（一個 UTC 日 25 個時間窗、每次已登入寫入以最貴的「新通關」計、Cron 以每日 `PURGE_BATCH` 人計、含 IP 限流紀錄清理），用 `wrangler.toml` 的實際值與實測的每請求寫入列數計算，另含並行失敗路徑（實測 0 列），斷言低於免費的 10 萬列（目前 88,504 列）；調整 `[vars]` 時這個測試會把關。
+- 惡意流量的每日寫入上限由 `tests/worker/cron-cost.test.js` 依 API.md 修訂 4 第 6 節／4a 的算式（一個 UTC 日 25 個時間窗、每次已登入寫入以最貴的「新通關」計、Cron 以每日 `PURGE_BATCH` 人計、含 IP 限流紀錄清理），用 `wrangler.toml` 的實際值與實測的每請求寫入列數計算，另含並行失敗路徑（實測 0 列），斷言低於免費的 10 萬列（目前 94,006 列，含 M4 的夢境通行證與夢客對話）；調整 `[vars]` 時這個測試會把關。
 - **在加上 Turnstile 之前，全域額度仍可被有心人耗盡（門檻與時間點，修訂 4b 重估）**：要讓正常玩家連保留通道都寫不進去，必須「全域每日預算 4,000 用完」**而且**「全域每小時上限 100 被佔滿」。修訂 4b 之後每個帳號每小時最多只能消耗 3 次每日預算（並行也一樣），所以 N 個帳號從 UTC 午夜起持續寫入，約在 4,000 ÷ (3N) 小時後用完每日預算，之後鎖死到下一個 UTC 午夜（台灣時間早上 8 點）；佔滿每小時上限只需另外約 4 個帳號（每帳號每小時 30 次一般寫入）。換算：約 170 個帳號 → UTC 8 點（台灣下午 4 點）起鎖死；約 340 個 → UTC 4 點起；約 1,340 個 → UTC 1 點起，幾乎整天。少於約 56 個帳號整天也用不完每日預算（修正前約 5 個帳號以並行請求就能在一天內用完）。帳號建立受每 IP 每小時 5 個、每 /48 每小時 10 個、全域每小時 60 個限制：170 個帳號至少約 3 小時、1,340 個至少約 23 小時（都需要 12 個以上的 IPv4 或 6 個以上的 IPv6 /48 才能跑滿全域 60）；帳號可以事先慢慢建好囤著（有存檔就不會被 Cron 清掉，上限 `MAX_PLAYERS=5000`）。另外約 12 個 IPv4 就能佔滿建立玩家（60）或轉移（120）的全域每小時上限（/48 限制只對 IPv6 有效）；轉移額度被佔滿時，新玩家也無法啟用雲端存檔（修訂 4b 第 2 節的代價）。被耗盡時影響是「雲端暫時無法使用」，本機遊戲不受影響；通關紀錄會留在本機，之後補送。
+
+## 鐘塔之夢（M4）
+
+### 端點
+- `POST /api/player` 新建時需要 `turnstile_token`（action `create_player`）；同一個權杖的冪等重送不驗證（Turnstile token 只能用一次）。
+- `POST /api/dream/pass`：權杖＋`turnstile_token`（action `dream_pass`）→ `{ pass, expires_at }`，30 分鐘。限流：同一玩家每小時 6 次、全站每小時 `RL_DREAM_PASS_GLOBAL_PER_HOUR=30`。
+- `POST /api/dream/chat`：權杖＋通行證（屬於同一玩家、未過期，否則 401 `pass_invalid`）。一律 200，`source` 為 `ai` 或 `scripted`（`reason`：`quota`、`budget`、`ai_error`、`filtered`）。
+
+### Turnstile 的測試金鑰（本機開發與 E2E）
+Cloudflare 官方測試金鑰（不需要帳號、不需要網路）：
+
+| 用途 | sitekey（客戶端） | secret（Worker） |
+|---|---|---|
+| 一律通過 | `1x00000000000000000000AA` | `1x0000000000000000000000000000000AA` |
+| 一律失敗 | `2x00000000000000000000AB` | `2x0000000000000000000000000000000AA` |
+| token 已使用過 | — | `3x0000000000000000000000000000000AA` |
+
+測試 sitekey 產生的 token 是 `XXXX.DUMMY.TOKEN.XXXX`。Worker 只有在 `--var TURNSTILE_ALLOW_TEST_SECRET:1` 時才接受測試 secret，而且**離線模擬**（1x 通過、2x／3x 失敗；官方的模擬回應不帶真正的 hostname／action，所以不檢查），不連 `challenges.cloudflare.com`；沒有這個開關時，測試 secret 一律失敗（正式環境誤設也不會變成人人通過）。
+`npm run worker:dev`（或 E2E 的 `wrangler dev`）需要加上：
+
+```
+--var TURNSTILE_SECRET:1x0000000000000000000000000000000AA TURNSTILE_ALLOW_TEST_SECRET:1 DREAM_PASS_SECRET:local-dev-only-dream-pass-secret-0123456789
+```
+
+（`--var` 只用在本機；正式的 secret 用 `wrangler secret put`。）Workers AI 的 `AI` 綁定在 `wrangler dev` 一律連到 Cloudflare（需要登入、會用到免費額度）；不登入時呼叫 AI 會失敗，夢客改用預寫台詞（`reason: ai_error`），其他功能照常。
+
+### 夢客人設與詞表（私有資料）
+人設（`dream/personas/*.json`）與詞表（`dream/lexicon.json`）只放在私有 repo `steel-labyrinth-design`；公開 repo 的測試只用 `tests/worker/fixtures/dream/` 的假資料。
+
+1. 產生詞表（來源是 sdg_pipeline 的 `lexicon.yaml`，只讀；需要有 PyYAML 與 dragonmapper 的 Python）：
+   `node tools/gen-dream-lexicon.mjs --out ../steel-labyrinth-design/dream/lexicon.json --python <python>`
+2. 產生 SQL（只讀 `dream/personas/*.json`，同資料夾的 `README-internal.md` 等內部筆記不會被讀入；預寫台詞從公開的 `web/data/story/*.json` 的 `guests[].scripted` 合併）：
+   `node tools/upload-dream.mjs --out /tmp/steel-labyrinth-dream.sql [--apply-local | --apply-remote]`
+   - SQL 裡有人設與詞表，工具拒絕寫進公開 repo。
+   - `--apply-local` 寫進本機 D1（`wrangler dev` 用）；`--apply-remote` **只印出指令**，部署時自己執行：
+     `npx wrangler d1 execute steel-labyrinth --remote --config worker/wrangler.toml --file /tmp/steel-labyrinth-dream.sql`
+   - 人設缺欄位、有未知欄位、含主角的預設名字（提示詞不得帶玩家真名，主角在鐘塔裡叫「十二點」）、或在 story 找不到預寫台詞時會報錯。
+3. Worker 把人設與詞表快取在記憶體（每個 isolate 最多 10 分鐘），上傳後最多 10 分鐘生效。
+
+### 模型與成本
+- `DREAM_MODEL=@cf/google/gemma-4-26b-a4b-it`（`plans/M4-model-eval.md`）；`max_tokens` 200、`temperature` 0.7、`chat_template_kwargs.enable_thinking=false`。換模型只改 vars（qwen3 會自動在玩家訊息尾端加 ` /no_think`）；回應讀 `choices[0].message.content`（沒有就讀 `response`），`message.reasoning` 一律不採用。
+- 每次 AI 呼叫預扣 `DREAM_NEURONS_PER_CALL=20` neurons，呼叫後依 usage 修正（`DREAM_NEURONS_PER_M_INPUT／OUTPUT` 換算），每次至少計 `DREAM_NEURONS_MIN_PER_CALL=8`；全站每日 `DREAM_NEURONS_PER_DAY=8000`、每位玩家每日 `DREAM_CHATS_PER_DAY=20` 句（預寫台詞不扣）。
+- 每日 AI 呼叫次數 ≤ 8000 ÷ 8 = 1,000 次，每次最多寫 3 列 → 夢客對話每日最多 3,000 列；夢境通行證 30 × 25 窗 × 2 列 = 1,500 列（`tests/worker/cron-cost.test.js` 實測並計入）。
+- 隱私：對話內容（`input`、`history`、`reply`）不寫進 D1，log 只記 `source`、`reason` 與耗時。
+

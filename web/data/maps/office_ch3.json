@@ -1,0 +1,143 @@
+{
+  "id": "office_ch3",
+  "name": "白燈保全公司・辦公室",
+  "tiles": [
+    "##ww###L###ww#",
+    "#KKK.......CC#",
+    "#............#",
+    "#.DD....s....#",
+    "#.DD....t....#",
+    "#.......ss...#",
+    "#............#",
+    "#===.........#",
+    "#...........v#",
+    "######+#######"
+  ],
+  "legend": {
+    "#": "wall",
+    "w": "window",
+    "L": "wall_lamp",
+    "K": "bookshelf",
+    ".": "floor",
+    "C": "medicine_cabinet",
+    "D": "desk",
+    "s": "sofa",
+    "t": "tea_table",
+    "=": "counter",
+    "v": "stairs_down",
+    "+": "front_door"
+  },
+  "spawns": [
+    {
+      "id": "door",
+      "x": 6,
+      "y": 8,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch3_sofa",
+      "x": 9,
+      "y": 3,
+      "sprite": "sofa_bed",
+      "solid": true,
+      "look": "dlg_ch3_sofa",
+      "dream": {
+        "if": {
+          "flag": "dream_unlocked"
+        },
+        "map": "clocktower",
+        "spawn": "center",
+        "prompt": "毯子還帶著一點餘溫。睡意從腳底慢慢爬上來，遠處的鐘聲像在叫你的代號。",
+        "yes": "躺下，聽鐘聲",
+        "no": "再醒著一會兒"
+      }
+    },
+    {
+      "id": "obj_ch3_thermos",
+      "x": 9,
+      "y": 4,
+      "sprite": "thermos",
+      "solid": true,
+      "look": "dlg_ch3_thermos",
+      "dream": {
+        "if": {
+          "flag": "dream_unlocked"
+        },
+        "map": "clocktower",
+        "spawn": "center",
+        "prompt": "安眠茶的花香還留在舌尖。眼皮一沉，霧裡好像有鐘在敲。",
+        "yes": "閉上眼睛",
+        "no": "把蓋子轉緊"
+      }
+    },
+    {
+      "id": "obj_ch3_marlo_night",
+      "x": 12,
+      "y": 2,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_ch3_marlo_night",
+      "if": {
+        "not_flag": "ch3_woke"
+      }
+    },
+    {
+      "id": "obj_ch3_marlo_day",
+      "x": 4,
+      "y": 4,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_ch3_marlo_day",
+      "if": {
+        "flag": "ch3_woke"
+      }
+    },
+    {
+      "id": "obj_ch3_ada",
+      "x": 10,
+      "y": 6,
+      "sprite": "ada",
+      "solid": true,
+      "look": "dlg_ch3_ada",
+      "if": {
+        "flag": "ch3_woke"
+      }
+    },
+    {
+      "id": "obj_ch3_herb",
+      "x": 2,
+      "y": 8,
+      "sprite": "herb",
+      "solid": true,
+      "look": "dlg_ch3_herb"
+    },
+    {
+      "id": "obj_ch3_notice",
+      "x": 7,
+      "y": 1,
+      "sprite": "notice_board",
+      "solid": true,
+      "look": "dlg_ch3_notice"
+    },
+    {
+      "id": "obj_ch3_stairs",
+      "x": 12,
+      "y": 8,
+      "sprite": "stairs_dark",
+      "solid": true,
+      "look": "dlg_ch3_stairs"
+    },
+    {
+      "id": "obj_ch3_door",
+      "x": 6,
+      "y": 9,
+      "sprite": "office_door",
+      "solid": true,
+      "look": "dlg_ch3_door"
+    }
+  ],
+  "exits": [],
+  "triggers": []
+}

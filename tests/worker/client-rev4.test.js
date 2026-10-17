@@ -2,7 +2,7 @@
 // A：rotate 的回應遺失（伺服器其實已套用），之後同碼重送遇到限流 → 客戶端不可丟掉新碼、改顯示已失效的舊碼。
 // B：轉移請求晚到（超過逾時），使用者改按「啟用雲端存檔」→ 待確認的新權杖不可被覆蓋（否則帳號鎖死）。
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { startWorker, newPlayer, newSecrets, json, auth } from './helpers.js';
+import { startWorker, newPlayer, newSecrets, json, auth, tsToken } from './helpers.js';
 import { createCloudSync, PENDING_KEY, CLOUD_KEY } from '../../web/src/cloud/sync.js';
 import { createCloudApi } from '../../web/src/cloud/api.js';
 
@@ -31,7 +31,7 @@ describe('審查 t4（真客戶端 × 真 Worker）', () => {
     const A = client('10.9.9.10', {
       '/api/transfer/rotate': async (go) => { const res = await go(); if (drop) { drop = false; await res.text(); await sleep(600); } return res; },
     });
-    expect((await A.sync.enable()).ok).toBe(true);
+    expect((await A.sync.enable({ turnstileToken: tsToken('create_player') })).ok).toBe(true);
     const oldCode = A.sync.transferCode();
     const r = await A.sync.rotate();
     expect(r.ok).toBe(false);
@@ -52,7 +52,7 @@ describe('審查 t4（真客戶端 × 真 Worker）', () => {
 
   it('A2：rotate 額度用完（伺服器沒有套用新碼）→ 429 時客戶端保留待確認的新碼，不當作確定失敗', async () => {
     const A = client('10.9.9.11');
-    expect((await A.sync.enable()).ok).toBe(true);
+    expect((await A.sync.enable({ turnstileToken: tsToken('create_player') })).ok).toBe(true);
     const { token } = JSON.parse(A.backend.getItem(CLOUD_KEY));
     for (let i = 0; i < 3; i++) await (await w.fetch('/api/transfer/rotate', json({ new_transfer_code: newSecrets().transfer_code }, auth(token)))).arrayBuffer();
     const r = await A.sync.rotate();
@@ -69,7 +69,7 @@ describe('審查 t4（真客戶端 × 真 Worker）', () => {
     const r = await B.sync.connect(victim.transfer_code);
     expect(r.ok).toBe(false);
     expect(JSON.parse(B.backend.getItem(PENDING_KEY)).op).toBe('transfer');
-    const e = await B.sync.enable();
+    const e = await B.sync.enable({ turnstileToken: tsToken('create_player') });
     expect(e).toMatchObject({ ok: false, kind: 'pending_transfer' });
     expect(JSON.parse(B.backend.getItem(PENDING_KEY)).op).toBe('transfer');
     release();

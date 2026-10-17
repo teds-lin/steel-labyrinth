@@ -126,7 +126,7 @@ test.describe('M2 戰鬥', () => {
     expect(ce.subtitle).toBe(STORY.prologue.end_screen.subtitle);
     expect(ce.continue).toEqual(STORY.prologue.end_screen.continue);
     let s = await g.st();
-    expect(s.schema_version).toBe(2);
+    expect(s.schema_version).toBe(3); // 存檔 v3（M4：dream_return）
     expect(s.party.map((m) => m.id)).toEqual(['hero']);
 
     // 繼續 → 第一章開頭
@@ -224,7 +224,7 @@ test.describe('M2 戰鬥', () => {
     await g.pickMenu('存檔 2');
     await page.waitForFunction(() => /已存檔到存檔 2/.test(window.__SL.menu()?.note ?? ''), null, { timeout: 5_000 });
     const saved = await sl(page, () => JSON.parse(localStorage.getItem('steel-labyrinth:save:2')));
-    expect(saved.schema_version).toBe(2);
+    expect(saved.schema_version).toBe(3); // 存檔 v3（M4）
     expect(saved.chapter).toBe('chapter2');
     expect(saved.party.map((m) => m.id)).toEqual(['hero', 'ada']);
     expect(saved.flags.fog1_done).toBe(true);
@@ -317,7 +317,8 @@ test.describe('M2 戰鬥', () => {
     const ce = (await sl(page, () => window.__SL.debug())).chapterEnd;
     expect(ce.title).toBe(STORY.chapter2.end_screen.title);
     expect(ce.subtitle).toBe(STORY.chapter2.end_screen.subtitle);
-    expect(ce.continue).toBeNull();
+    // 第三章開放後，第二章結束畫面有「繼續」接第三章（未開放時沒有 continue）
+    expect(ce.continue).toEqual(STORY.chapter2.end_screen.continue ?? null);
     expect((await g.st()).flags.boss_done).toBe(true);
   });
 

@@ -10,6 +10,7 @@ import { MenuScene } from './scenes/MenuScene.js';
 import { ChapterEndScene } from './scenes/ChapterEndScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
+import { DreamChatScene } from './scenes/DreamChatScene.js';
 import { artReport } from './textures.js';
 import { cloud, cloudApiBase } from './cloud-client.js';
 
@@ -24,7 +25,7 @@ const game = new Phaser.Game({
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   input: { activePointers: 3 },
   // 順序＝繪製順序：Battle 蓋在（睡眠中的）Map／UI 上，Menu 一律 bringToTop
-  scene: [BootScene, TitleScene, NameScene, MapScene, UIScene, BattleScene, GameOverScene, MenuScene, ChapterEndScene],
+  scene: [BootScene, TitleScene, NameScene, MapScene, UIScene, BattleScene, GameOverScene, DreamChatScene, MenuScene, ChapterEndScene],
 });
 
 // 旋轉或改變視窗大小（例如遊戲中 375×667 → 667×375）：讓 FIT 重新計算畫布大小。
@@ -79,6 +80,10 @@ if (TEST_MODE) {
     cloud: () => ro({ ...cloud.status(), apiBase: cloudApiBase() }),
     /** 戰鬥畫面的唯讀摘要：行動者、指令、敵我生命、被揭露的意圖、選單按鈕位置、結果、完整 log。不在戰鬥中時為 null。 */
     battle: () => ro(activeScene('Battle')?.debugInfo()),
+    /** 夢客自由交談畫面（訊息、剩餘句數、輸入框狀態、人機驗證、按鈕位置）。不在該畫面時為 null。 */
+    chat: () => ro(activeScene('DreamChat')?.debugInfo()),
+    /** 地圖場景的唯讀資訊（目前地圖、夢境視覺）。 */
+    map: () => ro(activeScene('Map')?.debugInfo()),
     /** Game Over 畫面（標題、按鈕位置）。不在該畫面時為 null。 */
     gameOver: () => ro(activeScene('GameOver')?.debugInfo()),
     /** 美術覆蓋：資料裡出現但沒有專屬畫法的 sprite／tile／戰鬥背景，以及貼圖是否都已產生。 */
@@ -100,7 +105,7 @@ if (TEST_MODE) {
     debug: () => ro({
       // 繪製順序（後面的畫在上面），包含暫停中但仍顯示的場景
       sceneOrder: game.scene.scenes.filter((s) => s.sys.isActive() || s.sys.isPaused()).map((s) => s.sys.settings.key),
-      listeners: Object.fromEntries(['Map', 'Title', 'ChapterEnd', 'Menu', 'UI', 'Battle', 'GameOver'].map((k) => {
+      listeners: Object.fromEntries(['Map', 'Title', 'ChapterEnd', 'Menu', 'UI', 'Battle', 'GameOver', 'DreamChat'].map((k) => {
         const sc = game.scene.getScene(k);
         return [k, {
           resume: sc?.events?.listenerCount('resume') ?? 0,

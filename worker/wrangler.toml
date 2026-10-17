@@ -14,6 +14,10 @@ database_id = "fac6b0f7-d6aa-422b-bda1-a0a30446482f"
 migrations_dir = "migrations"
 
 # 定期清理（每天一次，UTC 03:17）：刪除 180 天未登入的玩家、超過 7 天沒有使用的空帳號（每次最多 PURGE_BATCH 人）及其資料、過期的限流紀錄。部署時自動註冊，不需另外設定。
+# M4 鐘塔之夢：Workers AI（夢客對話）。模型由 vars 的 DREAM_MODEL 決定。
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["17 3 * * *"]
 
@@ -43,4 +47,22 @@ MAX_PLAYER_SECONDS = "36000"
 # 統計：完成人數少於這個數的章節不公開
 STATS_MIN_PLAYERS = "3"
 # 允許回報通關的章節，必須等於 web/data/manifest.json 的 chapters（tests/worker/clear-stats.test.js 把關）
-CHAPTERS = "prologue,chapter1,chapter2"
+CHAPTERS = "prologue,chapter1,chapter2,chapter3"
+
+# ---------- M4 鐘塔之夢（docs/API.md「鐘塔之夢」；模型與 neurons 依 steel-labyrinth-design/plans/M4-model-eval.md） ----------
+# Turnstile：siteverify 回傳的 hostname 必須在清單內（逗號分隔）。本機與 E2E 用 --var 覆寫（見 worker/README.md）。
+TURNSTILE_HOSTNAMES = "teds-lin.github.io"
+# 夢境通行證：同一玩家每小時 6 次；全站每小時上限（計入每日寫入上限，見 tests/worker/cron-cost.test.js）
+RL_DREAM_PASS_PER_HOUR = "6"
+RL_DREAM_PASS_GLOBAL_PER_HOUR = "30"   # 一張通行證 30 分鐘；全站每小時 30 張約可支撐 15 位同時入夢的玩家
+# 夢客模型（評測完成後只改這裡）。參數固定：temperature 0.7、chat_template_kwargs.enable_thinking=false
+DREAM_MODEL = "@cf/google/gemma-4-26b-a4b-it"
+DREAM_MAX_TOKENS = "200"          # 實測輸出最多約 100 tokens
+# 額度：每位玩家每 UTC 日幾句（scripted 不扣）；全站每日 neurons 預算
+DREAM_CHATS_PER_DAY = "20"
+DREAM_NEURONS_PER_DAY = "8000"
+DREAM_NEURONS_PER_CALL = "20"     # 每次 AI 呼叫預扣（實測每句約 9.4，帶滿 6 則紀錄約 17.5），呼叫後依 usage 修正
+DREAM_NEURONS_MIN_PER_CALL = "8"  # 每次呼叫至少計這麼多（每日最多 8000 ÷ 8 = 1000 次呼叫 → 寫入列數有上限）
+# 換算 usage → neurons（1000 neurons = 0.011 美元；gemma-4-26b-a4b-it：輸入 0.10、輸出 0.30 美元／百萬 tokens）。換模型時一起改。
+DREAM_NEURONS_PER_M_INPUT = "9091"
+DREAM_NEURONS_PER_M_OUTPUT = "27273"

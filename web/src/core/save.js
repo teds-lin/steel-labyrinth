@@ -1,4 +1,4 @@
-// 存檔：序列化、版本遷移、3 個存檔槽＋自動存檔槽。只存 DATA-FORMAT「遊戲狀態」「存檔 v2」裡的事實。
+// 存檔：序列化、版本遷移、3 個存檔槽＋自動存檔槽。只存 DATA-FORMAT「遊戲狀態」「存檔 v2」「鐘塔之夢（存檔 v3）」裡的事實。
 // 拒絕原因與警告都帶 code（給畫面判斷用），訊息字串照舊。
 // 存取層（backend，通常是 localStorage）出錯時一律回 { ok:false, reason }，不讓遊戲當機。
 // 讀檔分兩關（DATA-FORMAT「讀檔驗證」）：deserialize 檢查格式；sanitizeLoadedState 對照內容資料檢查語意並修復位置。
@@ -8,7 +8,7 @@ import { HERO_ID, MAX_AMMO, MAX_PARTY, characterDef, deriveStats } from './stats
 
 export { MAX_AMMO, MAX_PARTY };
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 export const SLOT_COUNT = 3;
 export const KEY_PREFIX = 'steel-labyrinth:save:';
 export const AUTO_KEY = `${KEY_PREFIX}auto`;
@@ -93,11 +93,15 @@ export const migrations = {
       pending: null,
     };
   },
+  /** v2 → v3（鐘塔之夢）：補 dream_return＝null（v2 沒有夢境；誤帶的值一律丟掉）。 */
+  2(old) {
+    return { ...old, schema_version: 3, dream_return: null };
+  },
 };
 
-/** 把 state 轉成存檔字串（固定寫入目前版本；pending 一律寫成 null）。 */
+/** 把 state 轉成存檔字串（固定寫入目前版本；pending 一律寫成 null；沒有 dream_return 時寫成 null）。 */
 export function serialize(state) {
-  return JSON.stringify({ ...state, schema_version: CURRENT_VERSION, pending: null });
+  return JSON.stringify({ ...state, schema_version: CURRENT_VERSION, pending: null, dream_return: state?.dream_return ?? null });
 }
 
 const isStatValue = (v) => v === null || (Number.isInteger(v) && v >= 0);
@@ -123,6 +127,8 @@ const REQUIRED = [
   ['party', (v) => Array.isArray(v) && v.every(isMember)],
   ['ammo', intIn(0, MAX_AMMO)],
   ['pending', (v) => v === null || Array.isArray(v)],
+  // v3：入夢前的現實位置（醒來時回到這裡）。x／y／dir 的型別交給 sanitizeLoadedState 修復（同 location）。
+  ['dream_return', (v) => v === null || (isObj(v) && typeof v.map === 'string')],
 ];
 
 function getPath(obj, path) {
@@ -173,6 +179,38 @@ export function deserialize(str) {
 
 const findById = (list, id) => (Array.isArray(list) ? list.find((x) => isObj(x) && x.id === id) : undefined);
 
+/** 位置 { x, y, dir } 在地圖上合法：整數座標、在範圍內、可以站、方向合法。 */
+function validPlace(map, place, state, data) {
+  const { width, height } = mapSize(map);
+  const dirOk = typeof place.dir === 'string' && Object.hasOwn(DIRS, place.dir);
+  return dirOk && Number.isInteger(place.x) && Number.isInteger(place.y)
+    && place.x >= 0 && place.y >= 0 && place.x < width && place.y < height
+    && canMove(map, state, place.x, place.y, data);
+}
+
+/** spawn → { map, x, y, dir }；spawnId 找不到時用第一個 spawn；沒有 spawn → null。 */
+function spawnPlace(map, spawnId) {
+  const list = Array.isArray(map.spawns) ? map.spawns.filter(isObj) : [];
+  const sp = list.find((x) => x.id === spawnId) ?? list[0];
+  if (!sp) return null;
+  return { map: map.id, x: sp.x, y: sp.y, dir: Object.hasOwn(DIRS, sp.dir ?? '') ? sp.dir : 'down' };
+}
+const firstSpawn = (map) => spawnPlace(map, undefined);
+
+/**
+ * 該章的預設起點（{ map, x, y, dir } 或 null）：第一章（manifest.chapters[0]）與找不到的章節用 manifest.start；
+ * 其他章用前一章 end_screen.continue（接續進入這一章的位置）。
+ */
+function chapterStart(chapter, data) {
+  const chapters = Array.isArray(data?.manifest?.chapters) ? data.manifest.chapters : [];
+  const i = chapters.indexOf(chapter);
+  const prev = i > 0 ? findById(data?.story, chapters[i - 1]) : undefined;
+  const target = isObj(prev?.end_screen?.continue) ? prev.end_screen.continue : data?.manifest?.start;
+  if (!isObj(target)) return null;
+  const map = findById(data?.maps, target.map);
+  return map ? spawnPlace(map, target.spawn) : null;
+}
+
 /**
  * 讀檔的語意檢查與修復（畫面層在 storage.load 成功後呼叫）。不修改輸入。
  * 回傳 { ok:true, state, warnings:[] } 或 { ok:false, reason }。
@@ -183,6 +221,8 @@ const findById = (list, id) => (Array.isArray(list) ? list.find((x) => isObj(x) 
 export function sanitizeLoadedState(state, data) {
   try {
     if (!isObj(state)) return reject('corrupt', '存檔損壞：內容不是物件');
+    // 舊程式在記憶體中建立的 state（例如還沒有 dream_return 的 newGame）視為 null
+    if (!Object.hasOwn(state, 'dream_return')) state = { ...state, dream_return: null };
     try {
       assertShape(state);
     } catch (e) {
@@ -230,20 +270,41 @@ export function sanitizeLoadedState(state, data) {
     if (clamped) warnings.push(warning('party_clamped', '存檔的隊伍生命或靈性超過上限，已調整為上限'));
     next = { ...next, party: fixedParty, pending: null };
 
+    // v3：dream_return（入夢前的現實位置）。地圖不存在 → 改成該章的預設起點；位置不合法 → 該地圖第一個 spawn。
+    const dr = state.dream_return;
+    if (dr !== null) {
+      const drMap = findById(data?.maps, dr.map);
+      if (!drMap) {
+        const start = chapterStart(state.chapter, data);
+        if (!start) return reject('no_spawn', `存檔的醒來位置地圖「${dr.map}」不存在，也找不到這一章的預設起點`);
+        warnings.push(warning('dream_return_reset', `存檔的醒來位置地圖「${dr.map}」不存在，已改成這一章的起點（${start.map}）`));
+        next = { ...next, dream_return: start };
+      } else if (!validPlace(drMap, dr, next, data)) {
+        const sp = firstSpawn(drMap);
+        if (!sp) return reject('no_spawn', `存檔的醒來位置不合法，而地圖「${drMap.id}」沒有可用的 spawn`);
+        warnings.push(warning('dream_return_relocated', `存檔的醒來位置不合法，已移到地圖「${drMap.id}」的起始點`));
+        next = { ...next, dream_return: sp };
+      } else if (Object.keys(dr).some((k) => !['map', 'x', 'y', 'dir'].includes(k))) {
+        next = { ...next, dream_return: { map: dr.map, x: dr.x, y: dr.y, dir: dr.dir } };
+      }
+    }
+
     const loc = state.location;
     const map = findById(data?.maps, loc.map);
-    if (!map) return reject('unknown_map', `存檔所在的地圖「${loc.map}」不存在`);
-    const { width, height } = mapSize(map);
-    const dirOk = typeof loc.dir === 'string' && Object.hasOwn(DIRS, loc.dir);
-    const posOk = Number.isInteger(loc.x) && Number.isInteger(loc.y)
-      && loc.x >= 0 && loc.y >= 0 && loc.x < width && loc.y < height
-      && canMove(map, next, loc.x, loc.y, data);
+    if (!map) {
+      // 夢境地圖不存在（例如改名）但知道醒來的位置 → 直接醒來
+      if (next.dream_return !== null) {
+        warnings.push(warning('woke_up', `存檔所在的地圖「${loc.map}」不存在，已從夢中醒來`));
+        return { ok: true, state: { ...next, location: next.dream_return, dream_return: null }, warnings };
+      }
+      return reject('unknown_map', `存檔所在的地圖「${loc.map}」不存在`);
+    }
     const tidy = { map: map.id, x: loc.x, y: loc.y, dir: loc.dir };
-    if (!dirOk || !posOk) {
+    if (!validPlace(map, loc, next, data)) {
       const sp = Array.isArray(map.spawns) ? map.spawns.find(isObj) : undefined;
       if (!sp) return reject('no_spawn', `存檔位置不合法，而地圖「${map.id}」沒有可用的 spawn`);
       warnings.push(warning('relocated', `存檔位置不合法（${JSON.stringify({ x: loc.x, y: loc.y, dir: loc.dir })}），已移到地圖「${map.id}」的起始點「${sp.id}」`));
-      next = { ...next, location: { map: map.id, x: sp.x, y: sp.y, dir: Object.hasOwn(DIRS, sp.dir ?? '') ? sp.dir : 'down' } };
+      next = { ...next, location: firstSpawn(map) };
     } else if (Object.keys(loc).some((k) => !Object.hasOwn(tidy, k))) {
       next = { ...next, location: tidy }; // 去掉多餘欄位（例如 newGame 未解析時的 spawn）
     }

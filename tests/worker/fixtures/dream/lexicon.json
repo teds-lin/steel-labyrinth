@@ -1,0 +1,11 @@
+{
+  "source": "tests/worker/fixtures/dream/lexicon.json（測試用的小型假詞表，不是由 lexicon.yaml 產生）",
+  "source_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "generated_at": "2026-10-17T00:00:00Z",
+  "DO_NOT_EDIT": "測試用假詞表",
+  "format": 1,
+  "chars": ["这", "说", "们", "软", "宁"],
+  "words": ["軟件", "視頻", "質量"],
+  "exceptions": ["宁宁測試例外"],
+  "word_rules": { "視頻": { "pre": ["電"], "post": ["率", "道"], "exc": [] }, "質量": { "pre": [], "post": [], "exc": ["質量守恆"] } }
+}

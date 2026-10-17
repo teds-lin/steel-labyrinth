@@ -60,10 +60,10 @@ export class DialogueBox {
     this.catcher.setVisible(v);
   }
 
-  /** 播放對話；回傳 Promise，對話結束時 resolve。 */
+  /** 播放對話（id，或執行時產生的對話物件，例如「入夢」選項）；回傳 Promise，對話結束時 resolve。 */
   play(dialogueId) {
     return new Promise((resolve) => {
-      const dlg = session.dialogueById(dialogueId);
+      const dlg = dialogueId !== null && typeof dialogueId === 'object' ? dialogueId : session.dialogueById(dialogueId);
       if (!dlg) {
         console.error(`找不到對話「${dialogueId}」`);
         resolve();

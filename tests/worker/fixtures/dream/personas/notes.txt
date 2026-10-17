@@ -1,0 +1,1 @@
+INTERNAL_TRUTH_MARK 非 JSON 檔也不可讀入

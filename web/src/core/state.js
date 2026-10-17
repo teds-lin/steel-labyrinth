@@ -44,6 +44,7 @@ export function newGame({ name, manifest, maps } = {}) {
     party: [{ id: HERO_ID, hp: null, sp: null }], // null＝滿值（上限由 deriveStats 算）
     ammo: 0,
     pending: null,
+    dream_return: null, // 存檔 v3：夢境中記住的現實位置（{ map, x, y, dir }）
   };
 }
 

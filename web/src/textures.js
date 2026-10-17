@@ -294,6 +294,32 @@ const TILE_PAINTERS = {
     px(ctx, shade(c, -0.4), 0, 11, S, 1);
     for (let i = 0; i < 4; i++) px(ctx, 'rgba(122,82,48,0.55)', Math.floor(r() * 20), 12 + Math.floor(r() * 10), 2, 3); // 鏽痕
   },
+  // ---- M4：鐘塔之夢 ----
+  tower_wall: (ctx, c, r) => { bricks(ctx, c, r); fogWisps(ctx, r, '#8c98a6', 0.25, 4); },
+  clock_face: (ctx, c, r) => {
+    px(ctx, shade(c, -0.25), 0, 0, S, S);
+    px(ctx, c, 1, 1, S - 2, S - 2);
+    noise(ctx, c, r, 30, 0.12);
+    px(ctx, shade(c, -0.55), S / 2 - 1, 3, 2, 5); // 刻度
+    px(ctx, shade(c, -0.45), 3, S / 2 - 1, 4, 2);
+    px(ctx, shade(c, -0.45), S - 7, S / 2 - 1, 4, 2);
+    px(ctx, shade(c, 0.3), 2, 2, S - 4, 1);
+  },
+  dream_floor: (ctx, c, r) => { slabs(ctx, c, r, 12); fogWisps(ctx, r, '#b4bec8', 0.3, 5); },
+  high_chair: (ctx, c) => {
+    px(ctx, '#3a4256', 0, 0, S, S); // 夢境地板色的底
+    px(ctx, shade(c, -0.4), 5, 1, S - 10, S - 4);
+    px(ctx, c, 6, 2, S - 12, 12);
+    px(ctx, shade(c, 0.2), 6, 2, S - 12, 2);
+    px(ctx, shade(c, -0.2), 4, 14, S - 8, 5);
+    px(ctx, shade(c, -0.5), 5, 19, 2, 4); px(ctx, shade(c, -0.5), S - 7, 19, 2, 4);
+  },
+  tower_gate: (ctx, c, r) => {
+    px(ctx, c, 0, 0, S, S);
+    noise(ctx, c, r, 40, 0.1);
+    px(ctx, 'rgba(255,255,255,0.45)', 4, 0, S - 8, S);
+    fogWisps(ctx, r, '#ffffff', 0.5, 6);
+  },
   concrete_floor: (ctx, c, r) => {
     px(ctx, c, 0, 0, S, S);
     noise(ctx, c, r, 80, 0.14);
@@ -441,6 +467,31 @@ const ICONS = {
   rest_crate: [
     '.......o....', '......kOk...', '......kok...', '.bbbbbbbbbb.', 'bbubbbbubbbb', 'mmmmmmmmmmmm',
     'mMMMMmmMMMMm', 'mMmmMmmMmmMm', 'mMMMMmmMMMMm', 'mmmmmmmmmmmm', 'm..........m', 'mm........mm'],
+  // ---- M4：鐘塔之夢 ----
+  guest_three: [
+    '....kkkk....', '...kkkkkk...', '..kkkkkkkk..', '....llfl....', '....flll....', '..CCCCCCCC..',
+    '.CCCcCCcCCC.', '.CCCcCCcCCC.', '.lCCcCCcCCl.', '..CCCCCCCC..', '..CCC..CCC..', '..kk....kk..'],
+  guest_nine: [
+    '...aaaaaa...', '..aaaaaaaa..', '..aalfllaa..', '..aallflaa..', '...aollla...', '..oooooooo..',
+    '.AAoAAAAAAA.', '.AAAAAAAAAA.', '.lAAAAAAAAl.', '..AAAAAAAA..', '...AAAAAA...', '...kk..kk...'],
+  dream_chair_twelve: [
+    '..MMMMMMMM..', '..MzzzzzzM..', '..MmmmmmmM..', '..MmmmmmmM..', '..MmmmmmmM..', '..MmmmmmmM..',
+    '.MMMMMMMMMM.', '.MqqqqqqqqM.', '.MMMMMMMMMM.', '..M......M..', '..M......M..', '..k......k..'],
+  dream_chair: [
+    '..MMMMMMMM..', '..MyyyyyyM..', '..MmmmmmmM..', '..MmmmmmmM..', '..MmmmmmmM..', '..MmmmmmmM..',
+    '.MMMMMMMMMM.', '.MqqqqqqqqM.', '.MMMMMMMMMM.', '..M......M..', '..M......M..', '..k......k..'],
+  dream_door: [
+    'KKKKKKKKKKKK', 'KuuuuuuuuuuK', 'KuxxxxxxxxuK', 'KuxvvvvvvxuK', 'KuxvvvvvvxuK', 'KuxvvvvvvxuK',
+    'KuxvvvvvvxuK', 'KuxvvvvvvxuK', 'KuxvvvvvvxuK', 'KuxxxxxxxxuK', 'KuuuuuuuuuuK', 'KKKKKKKKKKKK'],
+  sofa_bed: [
+    '............', '.mmmmmmmmmm.', '.mMMMMMMMMm.', '.mMMMMMMMMm.', 'mmwwwwwwwwmm', 'mMwbbbbbbwMm',
+    'mMwbbbbbbwMm', 'mMwwwwwwwwMm', 'mMMMMMMMMMMm', 'mmmmmmmmmmmm', '.k........k.', '............'],
+  thermos: [
+    '............', '.....kk.....', '....kSSk....', '....ssss....', '....slls....', '....srrs....',
+    '....srrs....', '....slls....', '....ssss....', '.mmmmmmmmmm.', '.mMMMMMMMMm.', '.m........m.'],
+  stairs_dark: [
+    'kkkkkkkkkkkk', 'kKKKKKKKKKKk', 'kkkkkkkkkkkk', 'kKKKKKKKKKKk', 'kkkkkkkkkkkk', 'kGGGGGGGGGGk',
+    'kkkkkkkkkkkk', 'kGGGGGGGGGGk', 'kkkkkkkkkkkk', 'kggggggggggk', 'kkkkkkkkkkkk', 'kggggggggggk'],
   unknown: [
     '............', '.kkkkkkkkkk.', '.kmmmmmmmmk.', '.kmmyyyymmk.', '.kmmmmmymmk.', '.kmmmmymmmk.',
     '.kmmmymmmmk.', '.kmmmmmmmmk.', '.kmmmymmmmk.', '.kmmmmmmmmk.', '.kkkkkkkkkk.', '............'],
@@ -586,6 +637,10 @@ export function artNames(data) {
   for (const c of [...(data?.characters ?? []), ...(data?.enemies ?? [])]) {
     const name = typeof c?.sprite === 'string' ? c.sprite : c?.id;
     if (typeof name === 'string') { sprites.add(name); battleSprites.add(name); }
+  }
+  // 夢客的頭像（自由交談畫面）
+  for (const ch of data?.story ?? []) {
+    for (const g of Array.isArray(ch?.guests) ? ch.guests : []) if (typeof g?.sprite === 'string') sprites.add(g.sprite);
   }
   const bgs = new Set((data?.encounters ?? []).map((e) => e?.bg).filter((b) => typeof b === 'string'));
   const tiles = new Set((data?.tiles ?? []).map((t) => t?.id).filter((t) => typeof t === 'string'));

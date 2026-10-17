@@ -6,6 +6,7 @@
 
 export const MOCK_API = 'http://127.0.0.1:9/mock-api';
 import { createHash, randomBytes } from 'node:crypto';
+import { FAKE_TS_TOKEN } from './fake-turnstile.js';
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -56,10 +57,19 @@ export function createMockCloud() {
   const newToken = () => randomBytes(32).toString('base64url');
   const byCode = (n) => (n ? players.find((p) => normCode(p.code) === n) ?? null : null);
 
+  // M4：夢境（通行證、對話額度）。passes：通行證字串 → { player, exp, revoked }
+  const passes = new Map();
+  const dream = { quota: 20, used: 0, replies: [] };
+
   const mock = {
     log,
     players,
     faults,
+    dream,
+    /** 讓目前所有通行證失效（之後的 chat 回 401 pass_invalid）。 */
+    revokePasses() { for (const v of passes.values()) v.revoked = true; },
+    /** 指定接下來 chat 的回覆（依序取用）：{ reply, source, reason }。 */
+    queueReply(r) { dream.replies.push(r); },
     /** 建一個玩家（測試準備用）；回傳 { player_id, token, transfer_code }。 */
     seedPlayer({ saves = {} } = {}) {
       const p = { id: `p-${++seq}`, token: newToken(), code: randomCode(), saves: {} };
@@ -147,7 +157,9 @@ export function createMockCloud() {
       const code = normCode(body?.transfer_code);
       if (!TOKEN_RE.test(body?.token ?? '') || !code) { await err(400, 'bad_request', '欄位格式錯誤'); return; }
       const same = players.find((x) => x.token === body.token);
-      if (same) { await send(200, { player_id: same.id }); return; } // 持有權杖即擁有帳號：重送安全
+      if (same) { await send(200, { player_id: same.id }); return; } // 持有權杖即擁有帳號：重送安全（不需要 Turnstile）
+      // M4：新建立需要 Turnstile（假小工具的 token）
+      if (body?.turnstile_token !== FAKE_TS_TOKEN) { await err(403, 'turnstile_failed', '人機驗證失敗，請再試一次'); return; }
       if (byCode(code)) { await err(409, 'conflict', '轉移碼重複，請換一組'); return; }
       const p = { id: `p-${++seq}`, token: body.token, code: `${code.slice(0, 4)}-${code.slice(4)}`, saves: {} };
       players.push(p);
@@ -173,6 +185,34 @@ export function createMockCloud() {
     if (!p) { await err(401, 'unauthorized', '權杖無效'); return; }
     entry.player = p.id;
 
+    if (method === 'POST' && path === '/api/dream/pass') {
+      if (body?.turnstile_token !== FAKE_TS_TOKEN) { await err(403, 'turnstile_failed', '人機驗證失敗，請再試一次'); return; }
+      const pass = `pass-${p.id}-${passes.size + 1}`;
+      const exp = Math.floor(Date.now() / 1000) + 1800;
+      passes.set(pass, { player: p.id, exp, revoked: false });
+      await send(200, { pass, expires_at: exp, remaining_today: Math.max(0, dream.quota - dream.used) }); // API.md 鐘塔之夢補充
+      return;
+    }
+    if (method === 'POST' && path === '/api/dream/chat') {
+      const ps = passes.get(body?.pass);
+      if (!ps || ps.revoked || ps.player !== p.id || ps.exp <= Date.now() / 1000) { await err(401, 'pass_invalid', '夢境通行證無效'); return; }
+      const input = typeof body?.input === 'string' ? body.input.trim() : '';
+      const okBody = /^[a-z0-9_]{1,32}$/.test(body?.guest ?? '') && /^[a-z0-9_]{1,32}$/.test(body?.chapter ?? '')
+        && Array.isArray(body?.history) && body.history.length <= 6 && input.length >= 1 && [...input].length <= 120;
+      if (!okBody) { await err(400, 'bad_request', '欄位格式錯誤'); return; }
+      if (dream.used >= dream.quota) {
+        await send(200, { reply: '夢境變得模糊了，今天先聊到這裡吧。', source: 'scripted', reason: 'quota', remaining_today: 0 });
+        return;
+      }
+      const q = dream.replies.shift();
+      if (q && q.source === 'scripted') {
+        await send(200, { reply: q.reply, source: 'scripted', reason: q.reason ?? 'ai_error', remaining_today: dream.quota - dream.used });
+        return;
+      }
+      dream.used += 1;
+      await send(200, { reply: q?.reply ?? `「${input}」……我聽見了。`, source: 'ai', reason: null, remaining_today: dream.quota - dream.used });
+      return;
+    }
     if (method === 'POST' && path === '/api/transfer/rotate') {
       const next = normCode(body?.new_transfer_code);
       if (!next) { await err(400, 'bad_request', '欄位格式錯誤'); return; }

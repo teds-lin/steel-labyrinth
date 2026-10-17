@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { loadBundle } from '../tools/lib/bundle.mjs';
 import { NO_CHARGE_MESSAGE } from '../web/src/core/interact.js';
 import { simulate, finishBattle, prepareRetry, RETRY_COLLAPSE_CAP } from '../web/src/core/battle/engine.js';
-import { migrations, sanitizeLoadedState, serialize, CURRENT_VERSION } from '../web/src/core/save.js';
+import { migrations, sanitizeLoadedState, serialize, deserialize, CURRENT_VERSION } from '../web/src/core/save.js';
+import { DREAM_CHOICE_ID } from '../web/src/core/dream.js';
 import { deriveStats } from '../web/src/core/stats.js';
-import { Sim as BaseSim, DEFAULT_NAME, playPrologue, playChapter1, playChapter2 } from './lib/sim.js';
+import { Sim as BaseSim, DEFAULT_NAME, playPrologue, playChapter1, playChapter2, playChapter3 } from './lib/sim.js';
 import { makeSmartPolicy, smartPolicy } from './lib/policies.js';
 
 const DATA_DIR = fileURLToPath(new URL('../web/data/', import.meta.url));
@@ -316,10 +317,22 @@ function expectChapter2Done(sim, record) {
   expect(record.map((r) => r.encounter)).toEqual(ENCOUNTER_ORDER);
   for (const r of record) expect(r.attempts).toBeLessThanOrEqual(MAX_RETRIES);
   expect(record.filter((r) => r.encounter !== 'enc_sparring').every((r) => r.outcome === 'victory')).toBe(true);
-  // 第二章沒有 continue：結束畫面是「第二章　完／第三章　製作中」
+  // 第二章的結束畫面：第三章已開放 → continue 接第三章開場、副標是第三章的標題；未開放 → 沒有 continue、「第三章　製作中」
   const ch2 = data.story.find((st) => st.id === 'chapter2');
-  expect(ch2.end_screen.continue).toBeUndefined();
-  expect(ch2.end_screen).toMatchObject({ title: '第二章　完', subtitle: '第三章　製作中' });
+  expect(ch2.end_screen.title).toBe('第二章　完');
+  const ch3 = data.story.find((st) => st.id === 'chapter3');
+  if (data.manifest.chapters.includes('chapter3')) {
+    expect(ch3, '第三章已開放，story 必須有 chapter3').toBeTruthy();
+    const cont = ch2.end_screen.continue;
+    expect(cont).toEqual({ map: 'office_ch3', spawn: 'door', dialogue: 'dlg_ch3_opening' });
+    expect(data.maps.find((m) => m.id === cont.map)?.spawns.some((sp) => sp.id === cont.spawn)).toBe(true);
+    expect(ch3.dialogues.some((d) => d.id === cont.dialogue)).toBe(true);
+    expect(ch2.end_screen.subtitle).toBe(ch3.title);
+  } else {
+    expect(ch3).toBeUndefined();
+    expect(ch2.end_screen.continue).toBeUndefined();
+    expect(ch2.end_screen.subtitle).toBe('第三章　製作中');
+  }
   // 存檔仍然合法
   expect(sanitizeLoadedState(JSON.parse(serialize(s)), data).ok).toBe(true);
 }
@@ -361,13 +374,13 @@ describe('M2 內容：從新遊戲一路玩到第二章結束（不使用任何�
   it('序章 v1 存檔（M1 格式）用 migrations[1] 遷移後，可以接著進入第一章並玩到第二章完', () => {
     // M1 的存檔樣本：序章通關時的狀態，只留 v1 的欄位
     const prologue = playPrologue(new BaseSim(data), 'key').state;
-    const { party, ammo, pending, ...v1Fields } = prologue;
+    const { party, ammo, pending, dream_return: _dreamReturn, ...v1Fields } = prologue; // dream_return 是 v3 欄位
     const v1 = { ...JSON.parse(JSON.stringify(v1Fields)), schema_version: 1 };
     expect(Object.keys(v1).sort()).toEqual(['chapter', 'chapter_done', 'collapse', 'echo', 'flags', 'items', 'lineage', 'location', 'player', 'playtime_s', 'resonance', 'schema_version']);
     expect(v1.chapter_done).toEqual(['prologue']);
 
     const v2 = migrations[1](structuredClone(v1));
-    expect(v2.schema_version).toBe(CURRENT_VERSION);
+    expect(v2.schema_version).toBe(2); // migrations[1] 只做 v1→v2（v3 由 migrations[2] 接手）
     expect(v2.party).toEqual([{ id: 'hero', hp: null, sp: null }]);
     expect(v2.ammo).toBe(v1.items.revolver ? 3 : 0);
     const loaded = sanitizeLoadedState(v2, data);
@@ -470,5 +483,200 @@ describe('M2 修正輪：子彈與重新挑戰', () => {
     expect(record.find((r) => r.encounter === 'enc_boss').attempts).toBeGreaterThanOrEqual(2);
     expect(sim.state.flags.boss_done).toBe(true);
     expect(sim.state.chapter_done).toContain('chapter2');
+  });
+});
+
+// ───────────── M4：第三章（鐘塔之夢） ─────────────
+
+/** 新遊戲（鑰匙路線）一路玩到第二章完，回傳模擬器。 */
+function playToChapter2End(route = 'key') {
+  const sim = new BaseSim(data, { battle: noItemResolver([]) });
+  playPrologue(sim, route);
+  sim.continueChapter();
+  playChapter1(sim);
+  sim.continueChapter();
+  playChapter2(sim);
+  expect(sim.state.chapter_done).toEqual(['prologue', 'chapter1', 'chapter2']);
+  return sim;
+}
+
+/** 存檔字串 → deserialize（含遷移）→ sanitizeLoadedState：讀檔的完整路徑。 */
+function reload(str) {
+  const loaded = sanitizeLoadedState(deserialize(str), data);
+  expect(loaded.ok, loaded.reason).toBe(true);
+  return loaded;
+}
+
+/** 第三章完的共同檢查。 */
+function expectChapter3Done(sim) {
+  const s = sim.state;
+  expect(s.chapter_done).toEqual(['prologue', 'chapter1', 'chapter2', 'chapter3']);
+  expect(s.chapter).toBe('chapter3');
+  expect(s.flags).toMatchObject({ ch3_briefed: true, ch3_slept: true, met_guests: true, dream_unlocked: true, ch3_woke: true, ch3_marlo_day: true, told_marlo_dream: true });
+  expect(s.dream_return).toBeNull();
+  expect(s.location.map).toBe('office_ch3');
+  expect(sim.dialoguesPlayed.at(-1)).toBe('dlg_ch3_marlo_day');
+  const ch3 = data.story.find((st) => st.id === 'chapter3');
+  expect(ch3.end_screen.title).toBe('第三章　完');
+  if (!data.manifest.chapters.includes('chapter4')) expect(ch3.end_screen.continue).toBeUndefined();
+  expect(sanitizeLoadedState(JSON.parse(serialize(s)), data).ok).toBe(true);
+}
+
+describe('M4 內容：第三章（鐘塔之夢）', () => {
+  it('第三章已開放：manifest 有 chapter3，鐘塔是夢境地圖，沙發與保溫瓶是入夢點', () => {
+    expect(data.manifest.chapters).toEqual(['prologue', 'chapter1', 'chapter2', 'chapter3']);
+    expect(data.maps.find((m) => m.id === 'clocktower').dream).toBe(true);
+    const office = data.maps.find((m) => m.id === 'office_ch3');
+    for (const id of ['obj_ch3_sofa', 'obj_ch3_thermos']) {
+      expect(office.objects.find((o) => o.id === id).dream).toMatchObject({ map: 'clocktower', spawn: 'center' });
+    }
+  });
+
+  it('新遊戲 → 第二章完 → 第三章：第一次入夢、鐘塔存檔與讀檔、醒來回到原位、從沙發再次入夢、第三章完', () => {
+    const sim = playToChapter2End('key');
+    const office = data.maps.find((m) => m.id === 'office_ch3');
+    const sofa = office.objects.find((o) => o.id === 'obj_ch3_sofa');
+
+    // 第二章結束畫面 → 第三章開場（辦公室傍晚）
+    sim.continueChapter();
+    expect(sim.state.chapter).toBe('chapter3');
+    expect(sim.state.location.map).toBe('office_ch3');
+    expect(sim.state.flags.ch3_briefed).toBe(true);
+    expect(sim.dialoguesPlayed.at(-1)).toBe('dlg_ch3_opening');
+
+    // 第一次入夢：沙發的 look 對話選「躺下睡覺」（dream_unlocked 之前引擎不問「入夢」）
+    sim.faceObject('obj_ch3_sofa');
+    const sofaSpot = { ...sim.state.location };
+    sim.choiceRules = ['躺下'];
+    const r1 = sim.investigate('obj_ch3_sofa');
+    expect(r1.dream).toBeUndefined();
+    expect(sim.state.location.map).toBe('clocktower');
+    expect(sim.state.dream_return).toEqual(sofaSpot);
+    expect(sim.dialoguesPlayed.slice(-2)).toEqual(['dlg_ch3_sofa', 'dlg_dream_arrive']);
+    expect(sim.state.flags).toMatchObject({ ch3_slept: true, met_guests: true, dream_unlocked: true, code_accepted: true });
+    expect(sim.log.some((l) => l.dialogue === DREAM_CHOICE_ID)).toBe(false);
+    sim.choiceRules = [];
+
+    // 十二點的椅子：全隊回滿、崩解下降（每次入夢一次）
+    sim.state = { ...sim.state, collapse: 30, party: sim.state.party.map((m) => ({ ...m, hp: 1 })) };
+    sim.investigate('obj_chair_twelve');
+    expect(sim.state.collapse).toBe(20);
+    expect(sim.state.party.every((m) => m.hp === null && m.sp === null)).toBe(true);
+    expect(sim.state.flags.dream_rested).toBe(true);
+    sim.investigate('obj_chair_twelve');
+    expect(sim.state.collapse).toBe(20); // 同一趟夢不能再休息
+
+    // 夢客：未開雲端的模擬器只記下 open_chat
+    sim.choiceRules = ['自由交談'];
+    sim.investigate('obj_guest_three');
+    sim.investigate('obj_guest_nine');
+    expect(sim.chats).toEqual(['three', 'nine']);
+    sim.choiceRules = [];
+
+    // 在鐘塔存檔 → 讀檔：仍在夢中，dream_return 不變
+    const saved = serialize(sim.state);
+    expect(JSON.parse(saved)).toMatchObject({ schema_version: CURRENT_VERSION, dream_return: sofaSpot, location: { map: 'clocktower' } });
+    const loaded = reload(saved);
+    expect(loaded.warnings).toEqual([]);
+    expect(loaded.state.location).toEqual(sim.state.location);
+    expect(loaded.state.dream_return).toEqual(sofaSpot);
+    const sim2 = new BaseSim(data, { state: loaded.state });
+
+    // 南邊的門醒來：回到入夢前的位置與方向
+    sim2.choiceRules = ['推開門'];
+    sim2.investigate('obj_tower_door');
+    expect(sim2.wakes).toEqual([{ relocated: false }]);
+    expect(sim2.state.location).toEqual(sofaSpot);
+    expect(sim2.state.dream_return).toBeNull();
+    expect(sim2.state.flags.ch3_woke).toBe(true);
+    sim2.choiceRules = [];
+
+    // 從現實的沙發再次入夢：look（again）之後，引擎問「入夢」，提示文字由沙發的 dream 欄位提供
+    sim2.log = [];
+    const r2 = sim2.investigate('obj_ch3_sofa');
+    expect(r2.dream).toMatchObject({ map: 'clocktower', spawn: 'center' });
+    const ask = sim2.log.find((l) => l.dialogue === DREAM_CHOICE_ID);
+    expect(ask, '再次調查沙發時要問「入夢」').toBeTruthy();
+    expect(ask.text).toBe(sofa.dream.prompt);
+    expect(ask.choices).toEqual([sofa.dream.yes, sofa.dream.no]);
+    expect(sim2.state.location.map).toBe('clocktower');
+    expect(sim2.state.dream_return).toEqual(sofaSpot);
+    expect(sim2.dialoguesPlayed.filter((d) => d === 'dlg_dream_arrive')).toEqual([]); // on_enter 只在第一次播
+    expect(sim2.state.flags.dream_rested).toBeUndefined(); // 沙發的 again 清掉了 → 這趟可以再休息
+    sim2.state = { ...sim2.state, collapse: 5 };
+    sim2.investigate('obj_chair_twelve');
+    expect(sim2.state.collapse).toBe(0);
+
+    // 再次醒來（已醒過一次的分歧）→ 回到原位
+    sim2.choiceRules = ['醒來'];
+    sim2.investigate('obj_tower_door');
+    expect(sim2.state.location).toEqual(sofaSpot);
+    expect(sim2.state.dream_return).toBeNull();
+    expect(sim2.wakes).toEqual([{ relocated: false }, { relocated: false }]);
+
+    // 白天：艾妲、馬洛 → 第三章完
+    sim2.choiceRules = ['鐘聲'];
+    sim2.investigate('obj_ch3_ada');
+    expect(sim2.state.flags.ch3_ada_talked).toBe(true);
+    sim2.choiceRules = ['說實話', '走吧'];
+    sim2.investigate('obj_ch3_marlo_day');
+    expectChapter3Done(sim2);
+  });
+
+  it('保溫瓶也能再次入夢，提示文字與沙發不同（各自的語氣）；選「留在現實」不入夢', () => {
+    const sim = playToChapter2End('echo');
+    sim.continueChapter();
+    playChapter3(sim);
+    expectChapter3Done(sim);
+    const office = data.maps.find((m) => m.id === 'office_ch3');
+    const [sofa, thermos] = ['obj_ch3_sofa', 'obj_ch3_thermos'].map((id) => office.objects.find((o) => o.id === id));
+    for (const o of [sofa, thermos]) for (const k of ['prompt', 'yes', 'no']) expect(typeof o.dream[k], `${o.id}.dream.${k}`).toBe('string');
+    expect(thermos.dream.prompt).not.toBe(sofa.dream.prompt);
+
+    // 第三章完之後（結束畫面前）的狀態直接拿來測：保溫瓶 → 留在現實
+    const here = { ...sim.state };
+    sim.log = [];
+    sim.choiceRules = [thermos.dream.no];
+    sim.investigate('obj_ch3_thermos');
+    const ask = sim.log.find((l) => l.dialogue === DREAM_CHOICE_ID);
+    expect(ask.text).toBe(thermos.dream.prompt);
+    expect(ask.choices).toEqual([thermos.dream.yes, thermos.dream.no]);
+    expect(sim.state.location.map).toBe('office_ch3');
+    expect(sim.state.dream_return).toBeNull();
+    // 保溫瓶 → 入夢 → 醒來回到保溫瓶旁
+    sim.faceObject('obj_ch3_thermos');
+    const spot = { ...sim.state.location };
+    sim.choiceRules = [thermos.dream.yes];
+    sim.investigate('obj_ch3_thermos');
+    expect(sim.state.location.map).toBe('clocktower');
+    expect(sim.state.dream_return).toEqual(spot);
+    sim.choiceRules = ['醒來'];
+    sim.investigate('obj_tower_door');
+    expect(sim.state.location).toEqual(spot);
+    expect(here.chapter_done).toEqual(sim.state.chapter_done);
+  });
+
+  it('v2 存檔（第二章完）遷移到 v3 後，可以接著從第二章結束畫面進入第三章並玩到第三章完', () => {
+    const ch2 = playToChapter2End('key').state;
+    // v2 的存檔樣本：第二章完時的狀態，沒有 dream_return
+    const { dream_return: _dr, ...v2Fields } = ch2;
+    const v2 = { ...JSON.parse(JSON.stringify(v2Fields)), schema_version: 2, pending: null };
+    expect(Object.hasOwn(v2, 'dream_return')).toBe(false);
+    expect(v2.chapter_done).toEqual(['prologue', 'chapter1', 'chapter2']);
+
+    const v3 = migrations[2](structuredClone(v2));
+    expect(v3.schema_version).toBe(3);
+    expect(v3.dream_return).toBeNull();
+    const loaded = reload(JSON.stringify(v2)); // deserialize 會自動跑 migrations[2]
+    expect(loaded.state.schema_version).toBe(CURRENT_VERSION);
+    expect(loaded.state.dream_return).toBeNull();
+    expect(loaded.state.location).toEqual(ch2.location);
+
+    const sim = new BaseSim(data, { state: loaded.state });
+    sim.continueChapter();
+    expect(sim.state.location.map).toBe('office_ch3');
+    playChapter3(sim, { redream: true });
+    expectChapter3Done(sim);
+    expect(sim.wakes).toEqual([{ relocated: false }, { relocated: false }]);
   });
 });

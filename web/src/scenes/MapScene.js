@@ -6,6 +6,8 @@ import { step, enterMap, mapSize, tileIdAt, objectVisible, isUnlocked, fleeBackL
 import { takePending } from '../core/effects.js';
 import { tileKey, spriteKey, heroKey } from '../textures.js';
 import { investigateFacing, echoFacing, loadNotice } from '../adapters.js';
+import { isDreamMap, enterDream, wakeUp, guestById, dreamChoiceDialogue, notOpenDialogue } from '../core/dream.js';
+import { cloud } from '../cloud-client.js';
 
 const MOVE_MS = 150;
 
@@ -34,9 +36,11 @@ export class MapScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D', false);
 
+    this.backdrop = this.add.container(0, 0).setDepth(-5); // 夢境的鐘面背景
     this.layer = this.add.container(0, 0);
     this.objLayer = this.add.container(0, 0);
     this.player = this.add.image(0, 0, heroKey('down')).setDepth(10);
+    this.fogLayer = this.add.container(0, 0).setDepth(20); // 夢境的霧
     this.buildMap();
 
     if (!this.scene.isActive('UI')) this.scene.launch('UI');
@@ -79,7 +83,10 @@ export class MapScene extends Phaser.Scene {
 
   /** E2E 用的唯讀資訊。 */
   debugInfo() {
-    return { glows: this.glowCount ?? 0, map: this.currentMapId ?? null };
+    return {
+      glows: this.glowCount ?? 0, map: this.currentMapId ?? null,
+      dream: this.dreamView ?? null, // 夢境視覺：{ fog, clock, tinted }；現實地圖為 null
+    };
   }
 
   /** UI 場景是在本場景 create 時 launch 的，第一個畫格可能還沒建好。 */
@@ -134,6 +141,7 @@ export class MapScene extends Phaser.Scene {
       this.objSprites.set(o.id, { obj: o, img });
     }
     this.refreshObjects();
+    this.applyDreamLook(map, width * TILE, height * TILE);
 
     // 鏡頭：地圖比畫面小時置中，否則跟隨主角
     const cam = this.cameras.main;
@@ -147,6 +155,50 @@ export class MapScene extends Phaser.Scene {
     this.placePlayer();
     cam.startFollow(this.player, true, 1, 1);
     cam.centerOn(this.player.x, this.player.y);
+  }
+
+  /** 夢境地圖：偏冷色、霧氣、鐘面背景；現實地圖還原。 */
+  applyDreamLook(map, mw, mh) {
+    const cam = this.cameras.main;
+    this.backdrop.removeAll(true);
+    this.fogLayer.removeAll(true);
+    this.tweens.killTweensOf(this.fogLayer.list);
+    if (!isDreamMap(map)) {
+      cam.setBackgroundColor(COLORS.bg);
+      this.dreamView = null;
+      return;
+    }
+    cam.setBackgroundColor(0x0b1020);
+    const cold = 0x9fb2dc;
+    for (const img of this.layer.list) if (img.setTint && img.blendMode !== Phaser.BlendModes.ADD) img.setTint(cold);
+    for (const img of this.objLayer.list) img.setTint?.(0xc4d2f0);
+    // 鐘面：比地圖大一圈，畫在地圖後面（地圖外露出的部分看得到）
+    const cx = mw / 2;
+    const cy = mh / 2;
+    const R = Math.max(mw, mh) * 0.75;
+    const g = this.add.graphics();
+    g.fillStyle(0x121a2e, 1).fillCircle(cx, cy, R);
+    g.lineStyle(3, 0x3a4c78, 0.9).strokeCircle(cx, cy, R);
+    g.lineStyle(1, 0x3a4c78, 0.6).strokeCircle(cx, cy, R * 0.9);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const r1 = i % 3 === 0 ? R * 0.8 : R * 0.85;
+      g.lineStyle(i % 3 === 0 ? 4 : 2, 0x5a6c98, 0.8);
+      g.lineBetween(cx + Math.sin(a) * r1, cy - Math.cos(a) * r1, cx + Math.sin(a) * R * 0.9, cy - Math.cos(a) * R * 0.9);
+    }
+    this.backdrop.add(g);
+    // 霧：數團半透明的雲，緩慢飄動（測試模式不動）
+    const n = Math.max(4, Math.round((mw * mh) / 9000));
+    let seed = 7;
+    const rand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    for (let i = 0; i < n; i++) {
+      const f = this.add.image(rand() * mw, rand() * mh, 'fx:fog').setAlpha(0.35 + rand() * 0.25).setScale(1.2 + rand());
+      this.fogLayer.add(f);
+      if (!TEST_MODE) {
+        this.tweens.add({ targets: f, x: f.x + 30 + rand() * 40, duration: 6000 + rand() * 5000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
+    }
+    this.dreamView = { fog: n, clock: true, tinted: true };
   }
 
   placePlayer() {
@@ -286,18 +338,23 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     session.setState(r.state);
-    if (r.dialogues.length || r.battle) this.runDialogues(r.dialogues, r.battle ?? null);
+    const extra = { dream: r.dream ?? null, guest: r.guest ?? null };
+    if (r.dialogues.length || r.battle || extra.dream || extra.guest) this.runDialogues(r.dialogues, r.battle ?? null, extra);
     else if (r.message) this.ui.toast(r.message);
   }
 
   /** 依序播放多段對話（例如調查上鎖的門：look → on_item／locked）；章節結束就停。battle：播完後開戰。 */
-  async runDialogues(ids, battle = null) {
+  async runDialogues(ids, battle = null, { dream = null, guest = null } = {}) {
     await this.locked(async () => {
       for (const id of ids) {
         if (this.ended) return;
         await this.runDialogue(id);
       }
       if (battle && !this.ended) await this.doBattle(battle);
+      // 鐘塔之夢：look 之後問「入夢」（look 對話本身已經入夢時就不再問）
+      if (dream && !this.ended && !isDreamMap(this.mapDef)) await this.runDialogue(dreamChoiceDialogue(dream));
+      // 沒有 look 對話的夢客：直接開啟自由交談
+      if (guest && ids.length === 0 && !this.ended) await this.doOpenChat(guest);
     });
   }
 
@@ -334,6 +391,9 @@ export class MapScene extends Phaser.Scene {
         if (this.ended) return;
         if (p.type === 'goto') await this.doGoto(p);
         else if (p.type === 'battle') await this.doBattle(p.encounter);
+        else if (p.type === 'enter_dream') await this.doEnterDream(p);
+        else if (p.type === 'wake') await this.doWake(p);
+        else if (p.type === 'open_chat') await this.doOpenChat(p.guest);
         else console.warn('不認得的 pending', p);
       }
     }
@@ -357,6 +417,76 @@ export class MapScene extends Phaser.Scene {
       if (this.ended) return;
       await this.runDialogue(d);
     }
+  }
+
+  // ---------- 鐘塔之夢 ----------
+  /** 入夢：霧與鐘聲淡入 → 記住現實位置、移到夢境地圖 → 淡出 → 第一次進入時播 on_enter。 */
+  async doEnterDream(p) {
+    this.triggerFrom = null;
+    await this.waitUi();
+    await this.ui.dreamVeil(true);
+    let r;
+    try {
+      r = enterDream(session.state, session.data, p.map, p.spawn);
+    } catch (e) {
+      console.warn('入夢失敗', e);
+      await this.ui.dreamVeil(false);
+      this.ui.toast('夢境好像出了點問題');
+      return;
+    }
+    session.setState(r.state);
+    this.buildMap();
+    await this.ui.dreamVeil(false);
+    if (r.dialogue && !this.ended) await this.runDialogue(r.dialogue);
+  }
+
+  /** 醒來：回到 dream_return（不重播 on_enter），之後播 wake 帶的對話。 */
+  async doWake(p) {
+    this.triggerFrom = null;
+    await this.waitUi();
+    await this.ui.dreamVeil(true);
+    let r;
+    try {
+      r = wakeUp(session.state, session.data);
+    } catch (e) {
+      console.warn('醒來失敗', e);
+      await this.ui.dreamVeil(false);
+      return;
+    }
+    session.setState(r.state);
+    this.buildMap();
+    await this.ui.dreamVeil(false);
+    if (r.relocated) this.ui.toast('醒來的位置異常，已回到起點', 2400);
+    if (typeof p.dialogue === 'string' && !this.ended) await this.runDialogue(p.dialogue);
+  }
+
+  /** 自由交談：未啟用雲端時改播 not_open 預寫台詞；否則開啟聊天畫面，等它關閉。 */
+  async doOpenChat(guestId) {
+    const guest = guestById(session.data, guestId);
+    if (!guest) {
+      console.warn(`找不到夢客「${guestId}」`);
+      return;
+    }
+    if (!cloud.configured() || !cloud.enabled()) {
+      await this.runDialogue(notOpenDialogue(guest));
+      return;
+    }
+    await this.waitUi();
+    session.foldPlaytime();
+    await new Promise((resolve) => {
+      this.scene.pause('UI');
+      this.scene.pause();
+      this.scene.launch('DreamChat', {
+        guest: guestId,
+        onClose: () => {
+          this.scene.stop('DreamChat');
+          this.scene.resume('UI');
+          this.scene.resume();
+          session.scene = 'Map';
+          resolve();
+        },
+      });
+    });
   }
 
   /** 開戰（先自動存檔），等戰鬥結束回到地圖後播 on_win 的對話。 */

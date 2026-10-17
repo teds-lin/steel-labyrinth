@@ -4,7 +4,8 @@ import { newGame } from '../../web/src/core/state.js';
 
 const manifest = { chapters: ['prologue'], start: { map: 'attic', spawn: 'default' } };
 const maps = [{ id: 'attic', spawns: [{ id: 'default', x: 1, y: 1, dir: 'down' }] }];
-const game = () => ({ ...newGame({ name: '艾琳', manifest, maps }), flags: { door_open: true }, items: { key: 1 } });
+// 存檔 v3 起有 dream_return（newGame 由客戶端補上；這裡明確給 null，讓「來回轉換一致」不受 newGame 的版本影響）
+const game = () => ({ ...newGame({ name: '艾琳', manifest, maps }), flags: { door_open: true }, items: { key: 1 }, dream_return: null });
 
 function memoryBackend() {
   const m = new Map();
@@ -18,7 +19,7 @@ const throwingBackend = () => ({
 
 describe('serialize / deserialize', () => {
   it('版本常數', () => {
-    expect(CURRENT_VERSION).toBe(2);
+    expect(CURRENT_VERSION).toBe(3);
     expect(SLOT_COUNT).toBe(3);
     expect(KEY_PREFIX).toBe('steel-labyrinth:save:');
   });
@@ -36,7 +37,7 @@ describe('serialize / deserialize', () => {
     expect(() => deserialize(undefined)).toThrow(/損壞/);
   });
   it('未來版本 → 明確錯誤', () => {
-    expect(() => deserialize(JSON.stringify({ ...game(), schema_version: 3 }))).toThrow(/版本 3.*較新|較新/);
+    expect(() => deserialize(JSON.stringify({ ...game(), schema_version: 4 }))).toThrow(/版本 4.*較新|較新/);
   });
   it('缺版本或版本不是整數 → 錯誤', () => {
     const { schema_version, ...rest } = game();
@@ -271,17 +272,17 @@ describe('v1 → v2 遷移', () => {
   it('持有 revolver 時 ammo 3', () => {
     expect(migrations[1](v1Save({ items: { revolver: 1 } })).ammo).toBe(3);
   });
-  it('不修改輸入；deserialize 從 v1 與 v0 都能一路遷移到 v2', () => {
+  it('不修改輸入；deserialize 從 v1 與 v0 都能一路遷移到目前版本（v3）', () => {
     const v1 = v1Save();
     const before = JSON.stringify(v1);
     migrations[1](v1);
     expect(JSON.stringify(v1)).toBe(before);
     const loaded = deserialize(JSON.stringify(v1));
-    expect(loaded.schema_version).toBe(2);
+    expect(loaded.schema_version).toBe(CURRENT_VERSION);
     expect(loaded.party).toEqual([{ id: 'hero', hp: null, sp: null }]);
     const v0 = { schema_version: 0, name: '舊', lineage: null, location: { map: 'attic', x: 1, y: 1, dir: 'down' },
       flags: {}, items: { revolver: 1 }, collapse: 0, chapter: 'prologue', chapter_done: [], playtime_s: 0 };
-    expect(deserialize(JSON.stringify(v0))).toMatchObject({ schema_version: 2, ammo: 3, player: { name: '舊' } });
+    expect(deserialize(JSON.stringify(v0))).toMatchObject({ schema_version: CURRENT_VERSION, ammo: 3, player: { name: '舊' }, dream_return: null });
   });
 });
 
@@ -474,5 +475,121 @@ describe('deserialize 加強（API 修訂 2 F：Worker 與客戶端共用）', (
     expect(found.give_item.size).toBeGreaterThan(0);
     expect(found.resonance.size).toBeGreaterThan(0);
     for (const k of [...ids, ...found.give_item, ...found.take_item, ...found.resonance]) expect(k, k).toMatch(KEY);
+  });
+});
+
+// ---------- 存檔 v3（DATA-FORMAT「鐘塔之夢」）：dream_return ----------
+describe('存檔 v3：dream_return 與 v2→v3 遷移', () => {
+  const v2Save = (over = {}) => {
+    const { dream_return: _d, ...rest } = game();
+    return { ...rest, schema_version: 2, ...over };
+  };
+  it('migrations[2]：補 dream_return: null、版本 3、不修改輸入', () => {
+    const v2 = v2Save();
+    const before = JSON.stringify(v2);
+    const v3 = migrations[2](v2);
+    expect(v3.schema_version).toBe(3);
+    expect(v3.dream_return).toBe(null);
+    expect(JSON.stringify(v2)).toBe(before);
+  });
+  it('v2 存檔字串經 deserialize 遷移成 v3（dream_return: null）', () => {
+    const loaded = deserialize(JSON.stringify(v2Save()));
+    expect(loaded.schema_version).toBe(3);
+    expect(loaded.dream_return).toBe(null);
+  });
+  it('v2 存檔裡誤帶的 dream_return 一律以 null 取代（v2 沒有這個欄位）', () => {
+    expect(deserialize(JSON.stringify(v2Save({ dream_return: { map: 'x', x: 1, y: 1, dir: 'up' } }))).dream_return).toBe(null);
+  });
+  it('dream_return：null 或 { map:字串, x, y, dir }；其他型別 → corrupt 並指出欄位', () => {
+    const ok = { ...game(), dream_return: { map: 'attic', x: 1, y: 1, dir: 'down' } };
+    expect(deserialize(serialize(ok)).dream_return).toEqual({ map: 'attic', x: 1, y: 1, dir: 'down' });
+    for (const v of ['attic', 5, [], {}, { map: 3, x: 1, y: 1, dir: 'down' }]) {
+      const s = JSON.stringify({ ...game(), dream_return: v, schema_version: 3 });
+      expect(() => deserialize(s), JSON.stringify(v)).toThrow(/dream_return/);
+    }
+    const missing = { ...game(), schema_version: 3 };
+    delete missing.dream_return;
+    expect(() => deserialize(JSON.stringify(missing))).toThrow(/dream_return/);
+  });
+  it('serialize：state 沒有 dream_return（舊程式建立的 state）時寫成 null', () => {
+    const { dream_return: _d, ...s } = game();
+    expect(JSON.parse(serialize(s)).dream_return).toBe(null);
+    expect(deserialize(serialize(s)).dream_return).toBe(null);
+  });
+});
+
+describe('sanitizeLoadedState（v3：dream_return 與地圖不存在）', () => {
+  const room = (id, spawns) => ({ id, tiles: ['#####', '#...#', '#####'], legend: { '#': 'wall', '.': 'floor' }, spawns });
+  const data = {
+    tiles: [{ id: 'wall', solid: true }, { id: 'floor', solid: false }],
+    manifest: { chapters: ['prologue', 'chapter1', 'chapter2'], start: { map: 'attic', spawn: 'default' } },
+    story: [
+      { id: 'prologue', end_screen: { continue: { map: 'office', spawn: 'entry' } } },
+      { id: 'chapter1', end_screen: { continue: { map: 'dock', spawn: 'entry' } } },
+    ],
+    maps: [
+      room('attic', [{ id: 'default', x: 1, y: 1, dir: 'down' }]),
+      room('office', [{ id: 'other', x: 3, y: 1, dir: 'left' }, { id: 'entry', x: 2, y: 1, dir: 'up' }]),
+      room('dock', [{ id: 'entry', x: 3, y: 1, dir: 'right' }]),
+      { ...room('clocktower', [{ id: 'center', x: 2, y: 1, dir: 'up' }]), dream: true },
+    ],
+  };
+  const inDream = (over = {}) => ({
+    ...game(), chapter: 'chapter1', location: { map: 'clocktower', x: 2, y: 1, dir: 'up' },
+    dream_return: { map: 'office', x: 1, y: 1, dir: 'down' }, ...over,
+  });
+  it('夢境中的合法存檔原樣通過、沒有警告', () => {
+    const s = inDream();
+    expect(sanitizeLoadedState(s, data)).toEqual({ ok: true, state: s, warnings: [] });
+  });
+  it('dream_return 指向的地圖不存在 → 改成該章的預設起點（前一章 end_screen.continue）並警告', () => {
+    const r = sanitizeLoadedState(inDream({ dream_return: { map: 'ghost', x: 1, y: 1, dir: 'down' } }), data);
+    expect(r.ok).toBe(true);
+    expect(r.state.dream_return).toEqual({ map: 'office', x: 2, y: 1, dir: 'up' });
+    expect(r.warnings.map((w) => w.code)).toEqual(['dream_return_reset']);
+    expect(String(r.warnings[0])).toMatch(/ghost/);
+  });
+  it('第一章（序章）的預設起點是 manifest.start；找不到章節時也用 manifest.start', () => {
+    for (const chapter of ['prologue', 'chapter9', null]) {
+      const r = sanitizeLoadedState(inDream({ chapter, dream_return: { map: 'ghost', x: 1, y: 1, dir: 'down' } }), data);
+      expect(r.ok, String(chapter)).toBe(true);
+      expect(r.state.dream_return, String(chapter)).toEqual({ map: 'attic', x: 1, y: 1, dir: 'down' });
+    }
+  });
+  it('dream_return 的位置不合法（牆上、超出範圍、方向錯）→ 移到該地圖第一個 spawn 並警告', () => {
+    for (const bad of [{ x: 0, y: 0, dir: 'down' }, { x: 9, y: 1, dir: 'down' }, { x: 1, y: 1, dir: 'sideways' }, { x: '1', y: 1, dir: 'down' }]) {
+      const r = sanitizeLoadedState(inDream({ dream_return: { map: 'office', ...bad } }), data);
+      expect(r.ok, JSON.stringify(bad)).toBe(true);
+      expect(r.state.dream_return).toEqual({ map: 'office', x: 3, y: 1, dir: 'left' });
+      expect(r.warnings.map((w) => w.code)).toEqual(['dream_return_relocated']);
+    }
+  });
+  it('目前所在的（夢境）地圖不存在、但 dream_return 合法 → 直接醒來回到 dream_return 並警告', () => {
+    const r = sanitizeLoadedState(inDream({ location: { map: 'old_dream', x: 1, y: 1, dir: 'up' } }), data);
+    expect(r.ok).toBe(true);
+    expect(r.state.location).toEqual({ map: 'office', x: 1, y: 1, dir: 'down' });
+    expect(r.state.dream_return).toBe(null);
+    expect(r.warnings.map((w) => w.code)).toEqual(['woke_up']);
+  });
+  it('目前地圖與 dream_return 的地圖都不存在 → 醒到該章的預設起點', () => {
+    const r = sanitizeLoadedState(inDream({ location: { map: 'old_dream', x: 1, y: 1, dir: 'up' }, dream_return: { map: 'ghost', x: 1, y: 1, dir: 'up' } }), data);
+    expect(r.ok).toBe(true);
+    expect(r.state.location).toEqual({ map: 'office', x: 2, y: 1, dir: 'up' });
+    expect(r.state.dream_return).toBe(null);
+    expect(r.warnings.map((w) => w.code)).toEqual(['dream_return_reset', 'woke_up']);
+  });
+  it('沒有 dream_return 時地圖不存在 → 照舊拒絕 unknown_map', () => {
+    expect(sanitizeLoadedState(inDream({ location: { map: 'old_dream', x: 1, y: 1, dir: 'up' }, dream_return: null }), data).code).toBe('unknown_map');
+  });
+  it('預設起點也找不到（沒有 manifest）→ 拒絕 no_spawn，不當機', () => {
+    const { manifest: _m, ...noManifest } = data;
+    expect(sanitizeLoadedState(inDream({ dream_return: { map: 'ghost', x: 1, y: 1, dir: 'down' } }), noManifest).code).toBe('no_spawn');
+  });
+  it('state 沒有 dream_return（舊程式在記憶體中建立的 state）→ 視為 null', () => {
+    const { dream_return: _d, ...s } = inDream();
+    const r = sanitizeLoadedState({ ...s, location: { map: 'attic', x: 1, y: 1, dir: 'down' } }, data);
+    expect(r.ok).toBe(true);
+    expect(r.state.dream_return).toBe(null);
+    expect(r.warnings).toEqual([]);
   });
 });

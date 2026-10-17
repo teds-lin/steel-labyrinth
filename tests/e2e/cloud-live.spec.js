@@ -2,7 +2,10 @@
 // 執行：npm run e2e:cloud（playwright.cloud.config.js 會啟動靜態伺服器 8091 與 Worker 8788）。
 // 桌機用滑鼠／鍵盤，手機（375×667）用 tap；每個情境各跑一次。
 import { test as base, expect } from '@playwright/test';
+import { installFakeTurnstile } from './fake-turnstile.js';
 import { game, makeSave, seedSaves } from './helpers.js';
+import { useDreamFixture, DREAM_FIXTURE_PREFIX } from './dream-fixture.js';
+import { dreamUi, makeSaveV3 } from './dream-ui.js';
 
 const API = process.env.E2E_API_URL || 'http://localhost:8788';
 const DEAD_API = 'http://localhost:8799'; // 沒人聽的埠
@@ -20,6 +23,7 @@ const isNoise = (m) => /GL Driver Message/.test(m.text())
 
 const test = base.extend({
   page: async ({ page }, use) => {
+    await installFakeTurnstile(page); // M4：啟用雲端前的人機驗證用假小工具（假 token 是 Cloudflare 測試金鑰接受的 dummy token）
     const errors = [];
     page.on('console', (m) => { if (m.type() === 'error' && !isNoise(m)) errors.push(`[console.error] ${m.text()}`); });
     page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
@@ -34,6 +38,7 @@ async function otherDevice(browser, testInfo) {
   const ctx = await browser.newContext({
     viewport: u.viewport, hasTouch: u.hasTouch, isMobile: u.isMobile, deviceScaleFactor: u.deviceScaleFactor, baseURL: u.baseURL,
   });
+  await installFakeTurnstile(ctx);
   const page = await ctx.newPage();
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error' && !isNoise(m)) errors.push(m.text()); });
@@ -439,5 +444,49 @@ test.describe('M3 雲端存檔（整合，真的本機 Worker）', () => {
     await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'intro' && !!window.__SL.menu()?.cloud?.status, null, { timeout: 12_000 });
     expect((await A.menu()).cloud.status).toBe(UNAVAILABLE);
     expect((await A.state()).enabled).toBe(false);
+  });
+
+  test('M4 夢客交談（真的本機 Worker＋模擬 AI）：啟用雲端（Turnstile）→ 通行證 → ai／ai_error／filtered → 離開', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    await useDreamFixture(page);
+    const ATTIC = { map: 'attic', x: 3, y: 2, dir: 'up' };
+    await seedSaves(page, { 1: makeSaveV3({ location: { map: 'fx_tower', x: 5, y: 3, dir: 'right' }, dream_return: ATTIC, flags: { 'enter:fx_tower': true } }) });
+    await page.goto(`./?test=1&data=${DREAM_FIXTURE_PREFIX}&api=${encodeURIComponent(API)}`);
+    const g = game(page, { touch, data: DREAM_FIXTURE_PREFIX });
+    const u = dreamUi(page, g, touch);
+    await u.loadFromTitle(1);
+    // 啟用雲端：人機驗證（假小工具回 Cloudflare 測試金鑰的 dummy token，e2e Worker 接受）
+    await g.act('menu');
+    await g.waitScene('Menu');
+    await g.pickMenu('雲端存檔');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'intro');
+    const it = (await page.evaluate(() => window.__SL.menu())).items.find((x) => x.id === 'enable');
+    await g.pointAt(it.x, it.y);
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'cloud', null, { timeout: 15_000 });
+    for (let i = 0; i < 4 && (await g.scene()) !== 'Map'; i++) await g.key('Escape');
+    await g.waitScene('Map');
+
+    await g.act('investigate');
+    await g.waitDialogue();
+    await g.finishDialogue([0]);
+    await u.waitChat();
+    await page.waitForFunction(() => window.__SL.chat()?.inputEnabled === true || window.__SL.chat()?.verify.error, null, { timeout: 15_000 });
+    expect((await u.chat()).verify.error).toBeNull();
+    // 通行證回應帶 remaining_today：還沒說話就顯示今日剩餘句數（不是「—」）
+    expect((await u.chat()).remaining).toMatch(/^今日剩餘 \d+ 句$/);
+
+    let last = await u.say('你好，今天的霧好濃');
+    expect(last.source).toBe('ai');
+    expect(last.text.startsWith('（模擬夢客）霧裡傳來回聲：')).toBe(true);
+    expect((await u.chat()).remaining).toMatch(/^今日剩餘 \d+ 句$/);
+    last = await u.say('#ai_error 測試');
+    expect(last.source).toBe('scripted');
+    expect(last.text).toMatch(/^SCRIPTED_FALLBACK/);
+    last = await u.say('这个是什么'); // 含簡體字 → 伺服器改用 filtered 預寫台詞
+    expect(last.source).toBe('scripted');
+    expect(last.text).toMatch(/^SCRIPTED_FILTERED/);
+    expect((await u.chat()).shown.at(-1).cls).toContain('sl-msg-scripted');
+    await u.tapButton('leave');
+    await g.waitScene('Map');
   });
 });

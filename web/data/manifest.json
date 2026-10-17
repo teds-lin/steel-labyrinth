@@ -2,7 +2,8 @@
   "chapters": [
     "prologue",
     "chapter1",
-    "chapter2"
+    "chapter2",
+    "chapter3"
   ],
   "start": {
     "map": "attic",
@@ -18,12 +19,15 @@
       "office",
       "training",
       "dock",
-      "warehouse"
+      "warehouse",
+      "clocktower",
+      "office_ch3"
     ],
     "story": [
       "prologue",
       "chapter1",
-      "chapter2"
+      "chapter2",
+      "chapter3"
     ],
     "lineages": [
       "trace",

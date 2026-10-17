@@ -1,5 +1,5 @@
 // Boot：載入資料 bundle、等字型、產生貼圖，然後進標題畫面。
-import { WIDTH, HEIGHT, FONT, COLORS } from '../config.js';
+import { WIDTH, HEIGHT, FONT, COLORS, dataBase } from '../config.js';
 import { loadBundle } from '../data-loader.js';
 import { generateTextures } from '../textures.js';
 import { session } from '../session.js';
@@ -32,7 +32,7 @@ export class BootScene extends Phaser.Scene {
   async run() {
     let result;
     try {
-      [result] = await Promise.all([loadBundle(), waitFonts()]);
+      [result] = await Promise.all([loadBundle(dataBase()), waitFonts()]);
     } catch (e) {
       result = { bundle: null, errors: [`載入時發生錯誤：${e?.message ?? e}`] };
     }

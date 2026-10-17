@@ -2,12 +2,16 @@
 // 調查／殘響的規則全部在 core（investigate、echo、echoAvailable），這裡只負責找出面前的物件。
 import { facingTarget, investigate, echo, echoAvailable, NO_TRACE_MESSAGE, NO_CHARGE_MESSAGE } from './core/interact.js';
 
-/** 【調查】面前的物件。回傳 { state, dialogues, message, battle }；dialogues 依序播放，物件有 battle 時播完後開戰。 */
+/** 【調查】面前的物件。回傳 { state, dialogues, message, battle, dream, guest }；dialogues 依序播放，物件有 battle 時播完後開戰。 */
 export function investigateFacing(map, state, data) {
   const obj = facingTarget(map, state, data);
-  if (!obj) return { state, dialogues: [], message: null, battle: null };
+  if (!obj) return { state, dialogues: [], message: null, battle: null, dream: null, guest: null };
   const r = investigate(obj, state, data);
-  return { state: r.state, dialogues: r.dialogues ?? [], message: null, battle: typeof r.battle === 'string' ? r.battle : null };
+  return {
+    state: r.state, dialogues: r.dialogues ?? [], message: null, battle: typeof r.battle === 'string' ? r.battle : null,
+    dream: r.dream ?? null, // 鐘塔之夢：播完後問「入夢」
+    guest: typeof r.guest === 'string' ? r.guest : null,
+  };
 }
 
 /**
@@ -27,6 +31,9 @@ const WARNING_TEXT = {
   relocated: '存檔位置異常，已移到起點',
   name_sanitized: '存檔的名字已重新整理',
   party_clamped: '隊伍的生命或靈性超過上限，已調整',
+  dream_return_reset: '夢醒後要回去的位置異常，已改成這一章的起點',
+  dream_return_relocated: '夢醒後要回去的位置異常，已移到該地圖的起點',
+  woke_up: '夢境已經不存在，你從夢中醒來了',
 };
 
 /** 讀檔警告（core 給的是除錯用的詳細訊息）轉成給玩家看的提示，詳細內容留在 console。 */

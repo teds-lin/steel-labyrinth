@@ -7,6 +7,7 @@ import {
 import { readBodyText, HttpError, BODY_LIMIT } from '../../worker/src/http.js';
 import { buildSummary, DATA_LIMIT } from '../../worker/src/summary.js';
 import { sampleSave, sampleState } from './helpers.js';
+import { CURRENT_VERSION } from '../../web/src/core/save.js';
 
 describe('轉移碼', () => {
   it('字元集排除 0、O、1、I、L，共 31 個字元', () => {
@@ -171,7 +172,7 @@ describe('buildSummary：用共用的 deserialize 驗證並算出摘要', () => 
 
   it('正常存檔 → 摘要五個欄位', () => {
     const r = buildSummary(sampleSave());
-    expect(r).toEqual({ ok: true, summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 120, schema_version: 2 } });
+    expect(r).toEqual({ ok: true, summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 120, schema_version: CURRENT_VERSION } });
   });
 
   it('名字最多 8 字（以字素計）', () => {
@@ -194,7 +195,7 @@ describe('buildSummary：用共用的 deserialize 驗證並算出摘要', () => 
   });
 
   it('版本較新但 schema_version > CURRENT_VERSION＋5 → 不通過（修訂 2 F）', () => {
-    expect(buildSummary(JSON.stringify({ ...sampleState(), schema_version: 8 })).ok).toBe(false);
+    expect(buildSummary(JSON.stringify({ ...sampleState(), schema_version: CURRENT_VERSION + 6 })).ok).toBe(false);
     expect(buildSummary(JSON.stringify({ schema_version: 1e300 })).ok).toBe(false);
     expect(buildSummary(JSON.stringify({ schema_version: Number.MAX_SAFE_INTEGER })).ok).toBe(false);
   });
@@ -204,16 +205,16 @@ describe('buildSummary：用共用的 deserialize 驗證並算出摘要', () => 
     for (const v of bad) {
       expect(buildSummary(sampleSave({ location: { map: v, x: 0, y: 0, dir: 'down' }, chapter: v })).summary, v)
         .toMatchObject({ map: null, chapter: null });
-      expect(buildSummary(JSON.stringify({ schema_version: 3, location: { map: v }, chapter: v })).summary, v)
+      expect(buildSummary(JSON.stringify({ schema_version: CURRENT_VERSION + 1, location: { map: v }, chapter: v })).summary, v)
         .toMatchObject({ map: null, chapter: null });
     }
     expect(buildSummary(sampleSave({ chapter: null })).summary.chapter).toBeNull();
   });
 
   it('版本較新但欄位格式怪異 → 仍接受，摘要欄位改成 null', () => {
-    const r = buildSummary(JSON.stringify({ schema_version: 3, player: 5, location: { map: 7 }, chapter: [], playtime_s: 'x' }));
+    const r = buildSummary(JSON.stringify({ schema_version: CURRENT_VERSION + 1, player: 5, location: { map: 7 }, chapter: [], playtime_s: 'x' }));
     expect(r.ok).toBe(true);
-    expect(r.summary).toEqual({ name: null, map: null, chapter: null, playtime_s: null, schema_version: 3 });
+    expect(r.summary).toEqual({ name: null, map: null, chapter: null, playtime_s: null, schema_version: CURRENT_VERSION + 1 });
   });
 
   it('舊版（v1）存檔透過遷移通過驗證，摘要的 schema_version 是原始版本', () => {

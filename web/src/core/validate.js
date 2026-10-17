@@ -92,7 +92,10 @@ function run(bundle, errors) {
   const enemies = indexById(bundle.enemies ?? [], 'enemies.json', '敵人', errors);
   const encounters = indexById(bundle.encounters ?? [], 'encounters.json', '遭遇', errors);
 
-  const ctx = { errors, tiles, items, maps, dialogues, lineages, storyIds, characters, skills, enemies, encounters, storyById: new Map(), free: null };
+  const guests = new Map(); // 夢客 id → { guest, file }
+  arr(bundle.story).forEach((story) => { if (isObj(story) && isStr(story.id)) checkGuests(story, guests, errors); });
+
+  const ctx = { errors, tiles, items, maps, dialogues, lineages, storyIds, characters, skills, enemies, encounters, guests, storyById: new Map(), free: null };
   ctx.free = analyzeFree(bundle, ctx);
 
   checkManifest(bundle.manifest, ctx, storyIds, lineages);
@@ -111,6 +114,116 @@ function run(bundle, errors) {
   checkPartyLimit(bundle, ctx);
   for (const map of maps.values()) checkMap(map, ctx);
   for (const { dlg, file } of dialogues.values()) checkDialogue(dlg, file, ctx);
+  checkDreamPlacement(ctx);
+}
+
+// ---------- 鐘塔之夢（M4） ----------
+
+const GUEST_ID_RE = /^[a-z0-9_]{1,32}$/;
+const SCRIPTED_KINDS = ['greeting', 'fallback', 'quota', 'filtered', 'not_open'];
+
+/** story 檔的 guests：[{ id, name, sprite?, scripted:{ 五組非空字串陣列 } }]，id 跨章節唯一。 */
+function checkGuests(story, guests, errors) {
+  if (story.guests === undefined) return;
+  const W = `story/${story.id}.json`;
+  if (!Array.isArray(story.guests)) {
+    errors.push(`${W}：guests 必須是陣列`);
+    return;
+  }
+  story.guests.forEach((g, i) => {
+    if (!isObj(g) || typeof g.id !== 'string') { errors.push(`${W}：guests[${i}] 缺少 id`); return; }
+    const where = `${W} 夢客「${g.id}」`;
+    if (!GUEST_ID_RE.test(g.id)) errors.push(`${where}：夢客 id「${g.id}」格式不合法（必須是 [a-z0-9_]{1,32}）`);
+    if (guests.has(g.id)) errors.push(`${where}：夢客 id「${g.id}」重複（先前出現在 ${guests.get(g.id).file}）`);
+    else guests.set(g.id, { guest: g, file: W });
+    if (!isStr(g.name)) errors.push(`${where}：name 必須是非空字串`);
+    if (g.sprite !== undefined && !isStr(g.sprite)) errors.push(`${where}：sprite 必須是非空字串`);
+    if (!isObj(g.scripted)) { errors.push(`${where}：scripted 必須是物件`); return; }
+    for (const k of SCRIPTED_KINDS) {
+      const list = has(g.scripted, k) ? g.scripted[k] : undefined;
+      if (!Array.isArray(list) || list.length === 0 || !list.every(isStr)) errors.push(`${where}：scripted.${k} 必須是非空的字串陣列（每句非空）`);
+    }
+  });
+}
+
+/** 地圖直接引用的對話（on_enter、物件 look／echo／lock 的對話、出口 blocked、觸發點）。 */
+function mapDialogueRefs(map) {
+  const out = new Set();
+  const add = (id) => { if (isStr(id)) out.add(id); };
+  add(map.on_enter);
+  for (const o of arr(map.objects)) {
+    if (!isObj(o)) continue;
+    add(o.look); add(o.echo);
+    if (isObj(o.lock)) {
+      add(o.lock.on_item); add(o.lock.locked);
+      if (isObj(o.lock.on_tag)) Object.values(o.lock.on_tag).forEach(add);
+    }
+  }
+  for (const ex of arr(map.exits)) if (isObj(ex)) add(ex.blocked);
+  for (const t of arr(map.triggers)) if (isObj(t)) add(t.dialogue);
+  return out;
+}
+
+/** 對話裡（節點與選項）有沒有某個效果鍵。 */
+function dialogueUses(dlg, key) {
+  for (const n of arr(dlg?.nodes)) {
+    if (!isObj(n)) continue;
+    const lists = [n.effects, ...arr(n.choices).map((c) => (isObj(c) ? c.effects : null))];
+    for (const l of lists) for (const e of arr(l)) if (has(e, key)) return true;
+  }
+  return false;
+}
+
+/** enter_dream 只能從現實地圖、wake 只能在夢境地圖（以地圖直接引用的對話判斷）。 */
+function checkDreamPlacement(ctx) {
+  for (const map of ctx.maps.values()) {
+    const dream = map.dream === true;
+    for (const id of mapDialogueRefs(map)) {
+      const dlg = ctx.dialogues.get(id)?.dlg;
+      if (!dlg) continue;
+      if (dream && dialogueUses(dlg, 'enter_dream')) ctx.errors.push(`maps/${map.id}.json：對話「${id}」有 enter_dream，但 enter_dream 只能在現實地圖使用（這裡是夢境地圖）`);
+      if (!dream && dialogueUses(dlg, 'wake')) ctx.errors.push(`maps/${map.id}.json：對話「${id}」有 wake，但 wake 只能在夢境地圖使用`);
+    }
+  }
+}
+
+const DREAM_TEXT_KEYS = ['prompt', 'yes', 'no'];
+const DREAM_TEXT_LABEL = { prompt: '提示文字', yes: '「入夢」選項', no: '「留在現實」選項' };
+
+/** 地圖物件的 dream（入夢選項）與 guest（夢客）。 */
+function checkDreamObject(obj, map, where, ctx) {
+  const { errors } = ctx;
+  const inDream = map.dream === true;
+  if (obj.dream !== undefined) {
+    if (!isObj(obj.dream)) {
+      errors.push(`${where}：dream 必須是物件（{ "if": 條件 }）`);
+    } else {
+      if (extraKeys(obj.dream, ['if', 'map', 'spawn', ...DREAM_TEXT_KEYS]).length) errors.push(`${where}：dream 只能有 if、map、spawn、prompt、yes、no`);
+      if (obj.dream.if !== undefined) checkCond(obj.dream.if, `${where} dream`, ctx);
+      // 補充 5：入夢選項的文字（選填；沒寫用預設）
+      for (const k of DREAM_TEXT_KEYS) {
+        const v = obj.dream[k];
+        if (v !== undefined && !(typeof v === 'string' && v.trim() !== '')) errors.push(`${where}：dream.${k} 必須是非空字串（入夢選項的${DREAM_TEXT_LABEL[k]}；不寫就用預設文字）`);
+      }
+      if (inDream) errors.push(`${where}：dream 只能放在現實地圖（這裡已經是夢境地圖）`);
+      // DATA-FORMAT 補充 1：必須寫明目的地
+      if (!isStr(obj.dream.map) || !isStr(obj.dream.spawn)) errors.push(`${where}：dream 必須寫明 map 與 spawn（{ "if": 條件, "map": 夢境地圖, "spawn": … }）`);
+      else checkDreamDest({ map: obj.dream.map, spawn: obj.dream.spawn }, `${where}：dream.map`, ctx);
+    }
+  }
+  if (obj.guest !== undefined) {
+    if (!isStr(obj.guest)) errors.push(`${where}：guest 必須是非空字串`);
+    else if (!ctx.guests.has(obj.guest)) errors.push(`${where}：guest 引用不存在的夢客「${obj.guest}」（story 檔的 guests 沒有它的預寫台詞）`);
+    if (!inDream) errors.push(`${where}：guest 只能放在夢境地圖`);
+  }
+}
+
+/** 入夢目的地：地圖存在、是夢境地圖、有該 spawn。 */
+function checkDreamDest(dest, where, ctx) {
+  const map = isStr(dest.map) ? ctx.maps.get(dest.map) : undefined;
+  if (!map) { ctx.errors.push(`${where} 引用不存在的地圖「${q(dest.map)}」`); return; }
+  if (map.dream !== true) ctx.errors.push(`${where}「${map.id}」不是夢境地圖（需要 dream: true）`);
+  if (!arr(map.spawns).some((sp) => isObj(sp) && sp.id === dest.spawn)) ctx.errors.push(`${where}：地圖「${map.id}」沒有 spawn「${q(dest.spawn)}」`);
 }
 
 // ---------- 譜系、章節 ----------
@@ -848,6 +961,9 @@ function checkEffects(effects, where, ctx) {
       else if (!ctx.characters.has(e[k])) ctx.errors.push(`${where}：effects[${i}] ${k} 引用不存在的角色「${e[k]}」`);
     }
     if (has(e, 'goto')) checkDestination(e.goto, `${where}：effects[${i}] goto`, ctx);
+    if (has(e, 'enter_dream')) checkDreamDest(e.enter_dream, `${where}：effects[${i}] enter_dream`, ctx);
+    if (has(e, 'wake') && isObj(e.wake)) refDialogue(e.wake.dialogue, `${where}：effects[${i}]`, 'wake 的 dialogue', ctx);
+    if (has(e, 'open_chat') && !ctx.guests.has(e.open_chat)) ctx.errors.push(`${where}：effects[${i}] open_chat 引用不存在的夢客「${e.open_chat}」`);
   });
 }
 
@@ -908,6 +1024,7 @@ function checkMap(map, ctx) {
   const W = `maps/${map.id}.json`;
   const { errors } = ctx;
   if (!isStr(map.name)) errors.push(`${W}：缺少 name`);
+  if (map.dream !== undefined && !isBool(map.dream)) errors.push(`${W}：dream 必須是 true/false`);
 
   // 地形
   const rows = Array.isArray(map.tiles) && map.tiles.every((r) => typeof r === 'string') ? map.tiles.map((r) => Array.from(r)) : null;
@@ -971,6 +1088,7 @@ function checkMap(map, ctx) {
     refDialogue(obj.echo, where, 'echo', ctx);
     refEncounter(obj.battle, where, ctx);
     if (obj.lock !== undefined) checkLock(obj.lock, where, ctx, map.id);
+    checkDreamObject(obj, map, where, ctx);
   }
 
   // exits

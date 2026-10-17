@@ -107,3 +107,49 @@ export function dayWindow(now) {
 export function purgeExpired(db, now) {
   return db.prepare("DELETE FROM rate_limits WHERE reset_at <= ? AND substr(bucket, 1, 3) <> 'pl:'").bind(now);
 }
+
+// ---------- M4：加權計數（夢客對話的 neurons 預算） ----------
+// 和 ATOMIC_UPSERT 相同的原子性，但每個 bucket 加自己的量（inc）：全部「count＋inc ≤ limit」才一起加，否則一列都不寫。
+// ?1：[[bucket, limit, 新時間窗結束時間, inc], …] 的 JSON；?2：現在。RETURNING 加完後的 count。
+const WEIGHTED_UPSERT = `
+WITH b AS (
+  SELECT json_extract(value, '$[0]') AS bucket, json_extract(value, '$[1]') AS lim,
+         json_extract(value, '$[2]') AS reset_at, json_extract(value, '$[3]') AS inc FROM json_each(?1)
+), gate(ok) AS MATERIALIZED (
+  SELECT NOT EXISTS (SELECT 1 FROM b WHERE b.inc > b.lim)
+     AND NOT EXISTS (SELECT 1 FROM rate_limits r JOIN b ON r.bucket = b.bucket WHERE r.reset_at > ?2 AND r.count + b.inc > b.lim)
+)
+INSERT INTO rate_limits (bucket, count, reset_at)
+SELECT b.bucket, b.inc, b.reset_at FROM b, gate WHERE gate.ok
+ON CONFLICT (bucket) DO UPDATE SET
+  count    = CASE WHEN rate_limits.reset_at <= ?2 THEN excluded.count ELSE rate_limits.count + excluded.count END,
+  reset_at = CASE WHEN rate_limits.reset_at <= ?2 THEN excluded.reset_at ELSE rate_limits.reset_at END
+RETURNING bucket, count`;
+
+/**
+ * 加權版 tryHitAll：buckets＝[{ bucket, limit, resetAt, inc }]。全部加得下 → 一起加並回傳 Map(bucket → 加完的 count)；
+ * 任何一個加不下 → 一列都不寫，回傳 null。
+ */
+export async function tryHitWeighted(db, buckets, now) {
+  const spec = JSON.stringify(buckets.map((b) => [b.bucket, b.limit, b.resetAt ?? now + WINDOW_SEC, b.inc ?? 1]));
+  const { results } = await db.prepare(WEIGHTED_UPSERT).bind(spec, now).all();
+  return results.length > 0 ? new Map(results.map((r) => [r.bucket, r.count])) : null;
+}
+
+/** 修正計數（例：依實際 usage 修正預扣的 neurons、退回沒用到的對話額度）。adjust：[{ bucket, delta }]；delta 為 0 的略過。只改時間窗內的列。 */
+export async function adjustCounts(db, adjust, now) {
+  const stmts = adjust.filter((a) => a.delta !== 0)
+    .map((a) => db.prepare('UPDATE rate_limits SET count = MAX(0, count + ?) WHERE bucket = ? AND reset_at > ?').bind(a.delta, a.bucket, now));
+  if (stmts.length) await db.batch(stmts);
+}
+
+/** 只讀：時間窗內的 count（沒有或已過期 → 0）。 */
+export async function currentCount(db, bucket, now) {
+  const cur = await db.prepare(READ).bind(bucket).first();
+  return cur && cur.reset_at > now ? cur.count : 0;
+}
+
+/** UTC 日的時間窗：{ day: 'YYYY-MM-DD', resetAt: 下一個 UTC 午夜 }。 */
+export function utcDay(now) {
+  return { day: new Date(now * 1000).toISOString().slice(0, 10), resetAt: (Math.floor(now / 86400) + 1) * 86400 };
+}

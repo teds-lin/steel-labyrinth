@@ -1,0 +1,23 @@
+{
+  "id": "fx_tower",
+  "name": "測試用・夢中鐘塔",
+  "dream": true,
+  "tiles": [
+    "#########",
+    "#~.....~#",
+    "#.......#",
+    "#.......#",
+    "#.......#",
+    "#~.....~#",
+    "#########"
+  ],
+  "legend": { "#": "wall", ".": "floor", "~": "mist" },
+  "on_enter": "dlg_fx_arrive",
+  "spawns": [{ "id": "center", "x": 4, "y": 3, "dir": "up" }],
+  "objects": [
+    { "id": "obj_fx_guest", "x": 6, "y": 3, "sprite": "white_lamp_man", "solid": true, "guest": "lamp", "look": "dlg_fx_guest" },
+    { "id": "obj_fx_door", "x": 4, "y": 5, "sprite": "attic_door", "solid": true, "look": "dlg_fx_door" }
+  ],
+  "exits": [],
+  "triggers": []
+}

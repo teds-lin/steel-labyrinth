@@ -1,5 +1,5 @@
 // 效果（DATA-FORMAT「效果」「地圖與對話的擴充」）。一律回傳新 state，不原地修改。未知寫法丟錯。
-// battle／goto 不在這裡執行：寫進 state.pending（陣列，依序累加），由畫面在對話結束後用 takePending 取出處理。
+// battle／goto／enter_dream／wake／open_chat 不在這裡執行：寫進 state.pending（陣列，依序累加），由畫面在對話結束後用 takePending 取出處理。
 import { spendEcho, clampCollapse } from './echo.js';
 import { HERO_ID, MAX_AMMO, MAX_PARTY } from './stats.js';
 
@@ -33,6 +33,10 @@ const RULES = Object.freeze(Object.assign(Object.create(null), {
   heal_party: (v) => v === true,
   goto: (v) => isObj(v) && exactKeys(v, ['map', 'spawn'], ['dialogue']) && isNonEmptyStr(v.map) && isNonEmptyStr(v.spawn)
     && (v.dialogue === undefined || isNonEmptyStr(v.dialogue)),
+  // 鐘塔之夢（M4）：同 battle／goto，寫進 pending，由畫面在對話結束後處理
+  enter_dream: (v) => isObj(v) && exactKeys(v, ['map', 'spawn'], []) && isNonEmptyStr(v.map) && isNonEmptyStr(v.spawn),
+  wake: (v) => v === true || (isObj(v) && exactKeys(v, ['dialogue'], []) && isNonEmptyStr(v.dialogue)), // 補充：醒來後播的對話
+  open_chat: isNonEmptyStr,
 }));
 /** 只讀自有屬性的計數（不吃原型鏈）；不是數字時當 0。 */
 const count = (obj, k) => {
@@ -87,6 +91,12 @@ export function applyEffect(effect, state) {
       return pushPending(state, { type: 'battle', encounter: v });
     case 'goto':
       return pushPending(state, { type: 'goto', map: v.map, spawn: v.spawn, dialogue: v.dialogue ?? null });
+    case 'enter_dream':
+      return pushPending(state, { type: 'enter_dream', map: v.map, spawn: v.spawn });
+    case 'wake':
+      return pushPending(state, { type: 'wake', dialogue: v === true ? null : v.dialogue });
+    case 'open_chat':
+      return pushPending(state, { type: 'open_chat', guest: v });
     case 'set_lineage':
       return { ...state, lineage: { id: v.id, rank: v.rank } };
     case 'join_party': {
@@ -109,7 +119,7 @@ export function applyEffect(effect, state) {
   }
 }
 
-/** 取出對話結束後要處理的事（battle／goto），回傳 { state（pending 清成 null）, pending:[…] }。 */
+/** 取出對話結束後要處理的事（battle／goto／enter_dream／wake／open_chat），回傳 { state（pending 清成 null）, pending:[…] }。 */
 export function takePending(state) {
   const pending = Array.isArray(state?.pending) ? state.pending.map((p) => ({ ...p })) : [];
   return { state: { ...state, pending: null }, pending };

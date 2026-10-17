@@ -68,3 +68,17 @@ export function apiBase() {
     return API_BASE_DEFAULT;
   }
 }
+
+/**
+ * 內容資料的位置：預設 data/。測試模式（?test=1）可用 ?data=<相對路徑>/ 改讀另一份資料（E2E 用 page.route 提供，
+ * 例如測試用的夢境地圖或尚未公開的章節）。只接受同網站的相對路徑（英數、底線、連字號、斜線，結尾必須是 /）。
+ */
+export function dataBase() {
+  const fallback = new URL('data/', document.baseURI);
+  if (!TEST_MODE) return fallback;
+  try {
+    const raw = new URLSearchParams(window.location.search).get('data');
+    if (raw && /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*\/$/.test(raw)) return new URL(raw, document.baseURI);
+  } catch { /* 參數壞掉就用預設 */ }
+  return fallback;
+}

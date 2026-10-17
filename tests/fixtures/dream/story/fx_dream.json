@@ -1,0 +1,43 @@
+{
+  "id": "fx_dream",
+  "title": "測試用夢境",
+  "end_screen": { "title": "測試　完", "subtitle": "測試用" },
+  "guests": [
+    {
+      "id": "lamp",
+      "name": "測試夢客",
+      "sprite": "white_lamp_man",
+      "scripted": {
+        "greeting": ["你來了。這裡是測試用的夢。"],
+        "fallback": ["霧太濃了，我聽不清楚。"],
+        "quota": ["今天先聊到這裡吧。"],
+        "filtered": ["當我沒說。"],
+        "not_open": ["（啟用雲端存檔後，可以和夢客自由交談。）"]
+      }
+    }
+  ],
+  "dialogues": [
+    { "id": "dlg_fx_pillow", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "一個軟軟的枕頭。", "next": "END" }
+    ] },
+    { "id": "dlg_fx_arrive", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "鐘聲停了。你站在霧裡。", "next": "END" }
+    ] },
+    { "id": "dlg_fx_guest", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": "測試夢客", "text": "要聊聊嗎？", "choices": [
+        { "text": "自由交談", "effects": [{ "open_chat": "lamp" }], "next": "END" },
+        { "text": "不用了", "next": "END" }
+      ] }
+    ] },
+    { "id": "dlg_fx_door", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "要醒來嗎？", "choices": [
+        { "text": "醒來", "next": "n2" },
+        { "text": "再待一會兒", "next": "END" }
+      ] },
+      { "id": "n2", "speaker": null, "text": "你推開門。", "next": "END", "effects": [{ "wake": { "dialogue": "dlg_fx_morning" } }] }
+    ] },
+    { "id": "dlg_fx_morning", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "你醒了過來。", "next": "END" }
+    ] }
+  ]
+}

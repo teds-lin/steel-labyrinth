@@ -4,6 +4,9 @@ import { cloudConfigured } from './cloud/endpoint.js';
 import { session } from './session.js';
 import { createCloudApi } from './cloud/api.js';
 import { createCloudSync, readCloudInfo } from './cloud/sync.js';
+import { createDreamClient } from './cloud/dream.js';
+import { createTurnstileLoader } from './cloud/turnstile.js';
+import { resolveSitekey } from './cloud/turnstile-config.js';
 
 const API_BASE = apiBase();
 
@@ -30,6 +33,17 @@ if (cloud.configured()) {
 }
 
 export const cloudApiBase = () => API_BASE;
+
+/** M4：夢境通行證與夢客對話（通行證只在記憶體）。 */
+export const dream = createDreamClient({ api });
+
+/** M4：Turnstile 腳本載入器與 sitekey（本機頁面用官方測試 sitekey）。 */
+export const turnstile = {
+  loader: createTurnstileLoader(),
+  sitekey: () => {
+    try { return resolveSitekey(window.location.hostname); } catch { return ''; }
+  },
+};
 
 /** 秒 → 「10/17 08:53」（玩家當地時間）；沒有時間回「—」。 */
 export function formatStamp(sec) {

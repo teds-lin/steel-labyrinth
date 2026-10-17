@@ -35,7 +35,7 @@ describe('GET /api/saves', () => {
     expect(slots[0]).toEqual({ slot: 1, empty: true });
     expect(slots[1]).toEqual({
       slot: 2, version: 1, updated_at: expect.any(Number), data_sha256: await sha256Hex(data),
-      summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 77, schema_version: 2 },
+      summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 77, schema_version: CURRENT_VERSION },
     });
     expect(slots[1].data_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(Number.isInteger(slots[1].updated_at)).toBe(true);
@@ -251,7 +251,7 @@ describe('428／409 版本控制', () => {
     const body = await expectError(await putSave(w, p.token, 1, sampleSave()), 409, 'conflict');
     expect(body.current).toEqual({
       version: 1, updated_at: first.updated_at, data_sha256: await sha256Hex(data),
-      summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 11, schema_version: 2 },
+      summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 11, schema_version: CURRENT_VERSION },
     });
   });
 

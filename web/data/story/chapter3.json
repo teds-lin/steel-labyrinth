@@ -1,0 +1,1546 @@
+{
+  "id": "chapter3",
+  "title": "第三章　鐘塔之夢",
+  "end_screen": {
+    "title": "第三章　完",
+    "subtitle": "第四章　製作中"
+  },
+  "guests": [
+    {
+      "id": "three",
+      "name": "三點",
+      "sprite": "guest_three",
+      "scripted": {
+        "greeting": [
+          "……十二點。鐘還在走，你可以多坐一會兒。",
+          "指針又繞了一圈，你也回來了。",
+          "坐吧。在這裡，時間走得比外面慢一點。",
+          "鐘聲剛停。說吧，我聽著。"
+        ],
+        "fallback": [
+          "霧太濃了，我聽不清楚你說什麼。",
+          "齒輪卡了一下。你再說一次？",
+          "鐘聲蓋過了你的聲音。等它停了再說吧。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "發條快鬆了。今天就聊到這裡。",
+          "鐘面上的光暗下來了。下次再說，十二點。"
+        ],
+        "filtered": [
+          "……我好像說錯話了，當我沒說。",
+          "這句話的齒輪不太對，我收回。",
+          "嗯，換個說法……還是算了，當我沒說。"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "三點看著你，像在等你先開口。可是霧太濃，聲音傳不過來。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和三點自由交談。）"
+        ]
+      }
+    },
+    {
+      "id": "nine",
+      "name": "九點",
+      "sprite": "guest_nine",
+      "scripted": {
+        "greeting": [
+          "十二點！來得正好，我正無聊到想數霧有幾片。",
+          "喲，老主顧上門了。今天帶了什麼好消息？",
+          "來啦？坐坐坐，這裡的椅子不收錢。",
+          "十二點！我還以為你被白天的工作綁住了。"
+        ],
+        "fallback": [
+          "咦？霧把你的話吹散了，再說一次嘛。",
+          "剛剛那句我沒聽清楚，算我欠你一次。",
+          "鐘聲太吵了！等一下，等它敲完再說。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "今天的生意做完囉，明天請早。",
+          "我的嘴巴今天營業到這裡。下次見，十二點！"
+        ],
+        "filtered": [
+          "哎呀，剛剛那句不算，當我沒說。",
+          "我收回那句話。做生意的，總要留點退路。",
+          "這句話太貴了，我不賣。換個話題吧？"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "九點朝你比了個手勢，嘴巴動了動，可是你一個字也聽不見。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和九點自由交談。）"
+        ]
+      }
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "dlg_ch3_opening",
+      "start": "o1",
+      "nodes": [
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "傍晚，白燈保全公司。窗外的霧又濃了，街上的煤氣燈一盞一盞亮起來。",
+          "next": "o2"
+        },
+        {
+          "id": "o2",
+          "speaker": "老賀伯",
+          "text": "兩個活著回來，一個沒能帶回來。報告我來寫，你們先坐下。",
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": "艾妲",
+          "text": "{name}，先喝口熱的。你的手又在發抖了。",
+          "next": "o4"
+        },
+        {
+          "id": "o4",
+          "speaker": null,
+          "text": "馬洛脫下大衣，在辦公桌前坐下。他朝你伸出手。",
+          "next": "o5"
+        },
+        {
+          "id": "o5",
+          "speaker": "馬洛",
+          "text": "布條。給我看看。",
+          "next": "o6"
+        },
+        {
+          "id": "o6",
+          "speaker": null,
+          "text": "你把縫著閉口圖案的布條放在桌上。馬洛盯著它看了很久，始終沒有伸手去碰。",
+          "next": "o7"
+        },
+        {
+          "id": "o7",
+          "speaker": "{name}",
+          "text": "隊長，你在倉庫說「回去再說」。現在我們回來了。",
+          "next": "o8"
+        },
+        {
+          "id": "o8",
+          "speaker": "馬洛",
+          "text": "……我見過這個記號。很多年前，在另一個案子裡。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要問他什麼？",
+          "choices": [
+            {
+              "text": "「這是誰的記號？」",
+              "if": {
+                "not_flag": "ch3_q_mark"
+              },
+              "effects": [
+                {
+                  "set_flag": "ch3_q_mark"
+                }
+              ],
+              "next": "q1"
+            },
+            {
+              "text": "「卡爾為什麼會變成那樣？」",
+              "if": {
+                "not_flag": "ch3_q_karl"
+              },
+              "effects": [
+                {
+                  "set_flag": "ch3_q_karl"
+                }
+              ],
+              "next": "q2"
+            },
+            {
+              "text": "「你在擔心什麼？」",
+              "if": {
+                "not_flag": "ch3_q_fear"
+              },
+              "effects": [
+                {
+                  "set_flag": "ch3_q_fear"
+                }
+              ],
+              "next": "q3"
+            },
+            {
+              "text": "「我想知道的，大概就這些。」",
+              "next": "m1"
+            }
+          ]
+        },
+        {
+          "id": "q1",
+          "speaker": "馬洛",
+          "text": "一群人的。他們自己不出聲，也要別人跟著閉上嘴。",
+          "next": "q1b"
+        },
+        {
+          "id": "q1b",
+          "speaker": "馬洛",
+          "text": "名字？那種東西，他們不會留給你。你就當他們是「那些不出聲的人」吧。",
+          "next": "q1c"
+        },
+        {
+          "id": "q1c",
+          "speaker": "老賀伯",
+          "text": "當年那份檔案，現在還壓著蠟封。我寧可它一直壓著。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "馬洛",
+          "text": "有人教他「閉上嘴，就聽不見了」。那不是安慰，是誘餌。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": "老賀伯",
+          "text": "先忘了聲音，再忘了自己。跟沒有靈劑承接的殘響差不多，只是更快。",
+          "next": "q2c"
+        },
+        {
+          "id": "q2c",
+          "speaker": "艾妲",
+          "text": "他最後說「好安靜」……我希望他真的有睡著。",
+          "next": "ask"
+        },
+        {
+          "id": "q3",
+          "speaker": "馬洛",
+          "text": "我擔心的是，他們已經知道碼頭的事是誰搞砸的。",
+          "next": "q3b"
+        },
+        {
+          "id": "q3b",
+          "speaker": "{name}",
+          "text": "……也就是我們。",
+          "next": "q3c"
+        },
+        {
+          "id": "q3c",
+          "speaker": "馬洛",
+          "text": "也就是你。去碼頭之前，他們不認識你。現在不一定了。",
+          "next": "ask"
+        },
+        {
+          "id": "m1",
+          "speaker": "馬洛",
+          "text": "我能說的就這些。在查清楚之前，知道得越多，越容易被盯上。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "{name}",
+          "text": "被那些不出聲的人盯上？",
+          "next": "m3"
+        },
+        {
+          "id": "m3",
+          "speaker": "馬洛",
+          "text": "對。所以今晚別回鐵橋街，睡這裡。沙發雖然舊，至少門口有人守著。",
+          "next": "m4"
+        },
+        {
+          "id": "m4",
+          "speaker": "老賀伯",
+          "text": "毯子在櫃子裡。你要是打呼，我會寫進報告。",
+          "next": "m5"
+        },
+        {
+          "id": "m5",
+          "speaker": "艾妲",
+          "text": "那我先回去囉。保溫瓶留給你，睡不著就喝一點……是安眠茶喔。",
+          "next": "m6"
+        },
+        {
+          "id": "m6",
+          "speaker": null,
+          "text": "艾妲把小小的保溫瓶放在茶几上，朝你揮揮手，推門走進霧裡。",
+          "next": "m7"
+        },
+        {
+          "id": "m7",
+          "speaker": null,
+          "text": "（可以在辦公室裡走走。準備好了，就到沙發上休息。）",
+          "next": "END",
+          "effects": [
+            {
+              "set_flag": "ch3_briefed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_sofa",
+      "start": "s0",
+      "nodes": [
+        {
+          "id": "s0",
+          "speaker": null,
+          "next": "s1",
+          "branches": [
+            {
+              "if": {
+                "flag": "dream_unlocked"
+              },
+              "next": "again"
+            }
+          ]
+        },
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "舊沙發的彈簧有點硬，毯子聞起來有樟腦丸的味道。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": "{name}",
+          "text": "（鐘聲、殘響、閉口的記號……今天的事，夠我夢上好幾晚了。）",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要休息了嗎？",
+          "choices": [
+            {
+              "text": "躺下睡覺",
+              "next": "z1"
+            },
+            {
+              "text": "再等一下",
+              "next": "wait"
+            }
+          ]
+        },
+        {
+          "id": "wait",
+          "speaker": "{name}",
+          "text": "（再走走吧。反正睡意也不會自己跑掉。）",
+          "next": "END"
+        },
+        {
+          "id": "z1",
+          "speaker": null,
+          "text": "你躺了下來。馬洛還站在窗邊，背影被煤氣燈拉得很長。",
+          "next": "z2"
+        },
+        {
+          "id": "z2",
+          "speaker": null,
+          "text": "老賀伯的筆尖沙沙作響。那聲音越來越遠，越來越輕……",
+          "next": "z3"
+        },
+        {
+          "id": "z3",
+          "speaker": null,
+          "text": "——噹。",
+          "next": "z4"
+        },
+        {
+          "id": "z4",
+          "speaker": null,
+          "text": "很遠的地方傳來鐘聲。一下、兩下……你數著數著，就沉了下去。",
+          "next": "END",
+          "effects": [
+            {
+              "set_flag": "ch3_slept"
+            },
+            {
+              "clear_flag": "dream_rested"
+            },
+            {
+              "enter_dream": {
+                "map": "clocktower",
+                "spawn": "center"
+              }
+            }
+          ]
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "沙發上還留著你躺過的凹痕。閉上眼睛，好像又能聽見那陣鐘聲。",
+          "next": "END",
+          "effects": [
+            {
+              "clear_flag": "dream_rested"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_thermos",
+      "start": "t0",
+      "nodes": [
+        {
+          "id": "t0",
+          "speaker": null,
+          "next": "t1",
+          "branches": [
+            {
+              "if": {
+                "flag": "dream_unlocked"
+              },
+              "next": "day"
+            }
+          ]
+        },
+        {
+          "id": "t1",
+          "speaker": null,
+          "text": "艾妲留下的保溫瓶。蓋子一轉開，就飄出淡淡的花香。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": "{name}",
+          "text": "（安眠茶……還是躺下之前再喝吧。）",
+          "next": "END"
+        },
+        {
+          "id": "day",
+          "speaker": null,
+          "text": "保溫瓶裡還剩一點溫溫的安眠茶。喝一口，眼皮就重了起來。",
+          "next": "END",
+          "effects": [
+            {
+              "clear_flag": "dream_rested"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_marlo_night",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": "馬洛",
+          "text": "去睡吧。今晚我守著。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "{name}",
+          "text": "那你呢？不睡嗎？",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "馬洛",
+          "text": "守夜的人，白天再睡。……別擔心，這扇窗看得見整條街。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_herb",
+      "start": "h0",
+      "nodes": [
+        {
+          "id": "h0",
+          "speaker": null,
+          "next": "h1",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch3_woke"
+              },
+              "next": "d1"
+            }
+          ]
+        },
+        {
+          "id": "h1",
+          "speaker": "老賀伯",
+          "text": "報告寫到一半。卡爾那一欄，我寫了三次，還是不知道該怎麼寫。",
+          "next": "h2"
+        },
+        {
+          "id": "h2",
+          "speaker": "老賀伯",
+          "text": "去睡吧，小子。值夜是我們老人家的事。",
+          "next": "END"
+        },
+        {
+          "id": "d1",
+          "speaker": "老賀伯",
+          "text": "早。你昨晚說夢話了，嘴裡一直念著「十二」什麼的。",
+          "next": "d2"
+        },
+        {
+          "id": "d2",
+          "speaker": "老賀伯",
+          "text": "放心，這句我沒寫進報告。……夢話不歸我管。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_ada",
+      "start": "a0",
+      "nodes": [
+        {
+          "id": "a0",
+          "speaker": null,
+          "next": "a1",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch3_ada_talked"
+              },
+              "next": "again"
+            }
+          ]
+        },
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "早安！睡得好嗎？你的臉色比昨天好多了。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "艾妲",
+          "text": "其實……我早上進門時，偷偷看了一下你的夢。別生氣嘛，職業習慣。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "艾妲",
+          "text": "可是我什麼都看不到。只有一層好厚的霧，還有鐘聲。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "「妳偷看我的夢？」",
+              "next": "b1"
+            },
+            {
+              "text": "「鐘聲？」",
+              "next": "b2"
+            }
+          ]
+        },
+        {
+          "id": "b1",
+          "speaker": "艾妲",
+          "text": "所以說了別生氣嘛！而且我也沒看到。你的夢，像是從裡面上了鎖。",
+          "next": "a4"
+        },
+        {
+          "id": "b2",
+          "speaker": "艾妲",
+          "text": "嗯，很遠很遠的鐘聲。我進得去很多人的夢，你的卻進不去。",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": "艾妲",
+          "text": "入夢者也有進不去的夢呢。……下次我會先敲門的。",
+          "next": "END",
+          "effects": [
+            {
+              "set_flag": "ch3_ada_talked"
+            }
+          ]
+        },
+        {
+          "id": "again",
+          "speaker": "艾妲",
+          "text": "安眠茶還有剩喔。我奶奶的配方，連隊長都睡得著。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_door",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "next": "d1",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch3_woke"
+              },
+              "next": "day"
+            }
+          ]
+        },
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "門外的霧濃得看不見對街。隊長說得對，今晚不是出門的時候。",
+          "next": "END"
+        },
+        {
+          "id": "day",
+          "speaker": "馬洛",
+          "text": "還不急著出門。準備好了，到我桌前來。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_notice",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "布告欄上多了一張紙條，是老賀伯的字：「碼頭搬運工案：結案（一死二傷）」。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "紙條底下，有人用鉛筆補了一行小字：「卡爾，願你睡得安穩。」",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "{name}",
+          "text": "（字跡圓圓的。大概是艾妲寫的。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_stairs",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "通往地下練習室的樓梯熄了燈。底下黑漆漆的，只聽得見水管滴水的聲音。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": "{name}",
+          "text": "（今天被打得夠多了。練習，明天再說。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_dream_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "鐘聲停了。你站在一片冰涼的石板地上，四周浮著灰白色的霧。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "北面的牆上嵌著一個巨大的鐘面，大得像一整片天空。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": null,
+          "text": "鐘面上沒有指針。十二個數字在霧裡發著淡淡的光，像遠方的燈塔。",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": null,
+          "text": "鐘面底下，十二張高背椅圍成一圈，排列的位置就像鐘面上的數字。",
+          "next": "a5"
+        },
+        {
+          "id": "a5",
+          "speaker": null,
+          "text": "只有兩張椅子上有人。一個坐在「三」的位置，一個坐在「九」的位置。",
+          "next": "a6"
+        },
+        {
+          "id": "a6",
+          "speaker": "{name}",
+          "text": "（……這是夢吧？我記得自己明明躺在辦公室的沙發上。）",
+          "next": "a7"
+        },
+        {
+          "id": "a7",
+          "speaker": "輕快的聲音",
+          "text": "喔？新面孔！喂，你看，那張空了好久的椅子，總算有人來了。",
+          "next": "a8"
+        },
+        {
+          "id": "a8",
+          "speaker": "沉穩的聲音",
+          "text": "別嚇著人家。鐘聲才剛停，他還沒站穩。",
+          "next": "a9"
+        },
+        {
+          "id": "a9",
+          "speaker": null,
+          "text": "坐在「三」的人慢慢站起來。他穿著長大衣，臉卻像隔著一層起霧的玻璃。",
+          "next": "a10"
+        },
+        {
+          "id": "a10",
+          "speaker": null,
+          "text": "你轉頭看另一個人。一樣看不清。在這裡，好像誰的臉都蒙著霧。",
+          "next": "a11"
+        },
+        {
+          "id": "a11",
+          "speaker": "沉穩的聲音",
+          "text": "歡迎。這裡是鐘塔，做夢的人碰面的地方。",
+          "next": "a12"
+        },
+        {
+          "id": "a12",
+          "speaker": "{name}",
+          "text": "做夢的人……所以你們也在做夢？",
+          "next": "a13"
+        },
+        {
+          "id": "a13",
+          "speaker": "沉穩的聲音",
+          "text": "坐在這裡的每個人，此刻都躺在某張床上。床在哪裡，我們不問。",
+          "next": "a14"
+        },
+        {
+          "id": "a14",
+          "speaker": "輕快的聲音",
+          "text": "規矩很簡單：不問真名、不問住哪裡、不問白天做什麼工作。",
+          "next": "a15"
+        },
+        {
+          "id": "a15",
+          "speaker": "輕快的聲音",
+          "text": "我們用鐘面上的時刻互相稱呼。他是「三點」，我是「九點」。很好記吧？",
+          "next": "a16"
+        },
+        {
+          "id": "a16",
+          "speaker": "{name}",
+          "text": "我叫——",
+          "next": "a17"
+        },
+        {
+          "id": "a17",
+          "speaker": "九點",
+          "text": "噓！剛講完就犯規。真名留在醒著的那一邊，這裡用不到。",
+          "next": "a18"
+        },
+        {
+          "id": "a18",
+          "speaker": "三點",
+          "text": "名字就像錶的機芯。收在錶殼裡，才不會進灰塵。",
+          "next": "a19"
+        },
+        {
+          "id": "a19",
+          "speaker": "{name}",
+          "text": "（錶的比喻……這個人說起話來，像在修錶。）",
+          "next": "a20",
+          "branches": [
+            {
+              "if": {
+                "item": "pocket_watch"
+              },
+              "next": "w1"
+            }
+          ]
+        },
+        {
+          "id": "w1",
+          "speaker": "{name}",
+          "text": "（三點。口袋裡那支懷錶，也停在三點整。……巧合吧？）",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": null,
+          "text": "你下意識摸了摸口袋。霧的另一頭，三點好像微微偏了一下頭。",
+          "next": "a20"
+        },
+        {
+          "id": "a20",
+          "speaker": "九點",
+          "text": "那麼，新來的，你是幾點？",
+          "next": "a21"
+        },
+        {
+          "id": "a21",
+          "speaker": "{name}",
+          "text": "我怎麼會知道？我連自己是怎麼來的都搞不清楚。",
+          "next": "a22"
+        },
+        {
+          "id": "a22",
+          "speaker": "三點",
+          "text": "看看那張椅子。鐘面正下方的那一張。",
+          "next": "a23"
+        },
+        {
+          "id": "a23",
+          "speaker": null,
+          "text": "別的椅子都積著薄薄一層霧，只有那一張乾乾淨淨。椅背上刻著「十二」。",
+          "next": "a24"
+        },
+        {
+          "id": "a24",
+          "speaker": null,
+          "text": "頭頂的大鐘面上，不知何時多了長短兩根指針，一起指著最上方的「十二」。",
+          "next": "a25"
+        },
+        {
+          "id": "a25",
+          "speaker": "九點",
+          "text": "十二點！正中午，也是正半夜。一來就坐最上面的位置，好大的派頭。",
+          "next": "a26"
+        },
+        {
+          "id": "a26",
+          "speaker": "三點",
+          "text": "十二點，是長針和短針重疊的地方。一天從那裡開始，也在那裡結束。",
+          "next": "a27"
+        },
+        {
+          "id": "a27",
+          "speaker": "三點",
+          "text": "鐘塔替你選好了。往後在這裡，你就是「十二點」。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "「十二點……聽起來還不錯。」",
+              "effects": [
+                {
+                  "set_flag": "code_accepted"
+                }
+              ],
+              "next": "r1"
+            },
+            {
+              "text": "「能換一個嗎？」",
+              "effects": [
+                {
+                  "set_flag": "code_asked_change"
+                }
+              ],
+              "next": "r2"
+            },
+            {
+              "text": "「為什麼是我？」",
+              "effects": [
+                {
+                  "set_flag": "code_asked_why"
+                }
+              ],
+              "next": "r3"
+            }
+          ]
+        },
+        {
+          "id": "r1",
+          "speaker": "九點",
+          "text": "有眼光。十二點最好記，連數都不用數。",
+          "next": "b1"
+        },
+        {
+          "id": "r2",
+          "speaker": "九點",
+          "text": "可以啊，你去跟大鐘商量。它上次回我話是……喔，從來沒有過。",
+          "next": "b1"
+        },
+        {
+          "id": "r3",
+          "speaker": "三點",
+          "text": "齒輪不會問自己為什麼被裝進錶裡。……不過，這個問題問得好，記著它。",
+          "next": "b1"
+        },
+        {
+          "id": "b1",
+          "speaker": "九點",
+          "text": "好啦，十二點。新朋友見面禮：這裡什麼都能聊，就是別聊真名。",
+          "next": "b2"
+        },
+        {
+          "id": "b2",
+          "speaker": "九點",
+          "text": "情報可以交換，材料也可以交換。你今天兩手空空，我就先記帳囉。",
+          "next": "b3"
+        },
+        {
+          "id": "b3",
+          "speaker": "{name}",
+          "text": "情報……那我問一件事。你們見過一個圖案嗎？一張被橫線封住的嘴。",
+          "next": "b4"
+        },
+        {
+          "id": "b4",
+          "speaker": null,
+          "text": "九點輕快的語氣，一下子停住了。",
+          "next": "b5"
+        },
+        {
+          "id": "b5",
+          "speaker": "九點",
+          "text": "……見過一次。在碼頭的黑市。帶著那個記號的人買東西從不殺價。",
+          "next": "b6"
+        },
+        {
+          "id": "b6",
+          "speaker": "九點",
+          "text": "因為他們根本不開口。只用手比，比完就走。",
+          "next": "b7"
+        },
+        {
+          "id": "b7",
+          "speaker": "三點",
+          "text": "十二點。有些記號，你盯得太久，它就會回頭看你。",
+          "next": "b8"
+        },
+        {
+          "id": "b8",
+          "speaker": "三點",
+          "text": "你才剛來。先學會在這裡坐穩，再去追那些不出聲的影子。",
+          "next": "b9"
+        },
+        {
+          "id": "b9",
+          "speaker": "九點",
+          "text": "翻譯一下：三點的意思是「小心點」。他說話總要繞錶面三圈。",
+          "next": "b10"
+        },
+        {
+          "id": "b10",
+          "speaker": "三點",
+          "text": "繞完一圈，指針才會回到原處。",
+          "next": "b11"
+        },
+        {
+          "id": "b11",
+          "speaker": "九點",
+          "text": "你看吧。",
+          "next": "b12"
+        },
+        {
+          "id": "b12",
+          "speaker": null,
+          "text": "鐘面上，長針輕輕跳了一格。霧好像淡了一點。",
+          "next": "b13"
+        },
+        {
+          "id": "b13",
+          "speaker": "三點",
+          "text": "夢不會一直開著。想醒的時候，從南邊那扇門出去就好。",
+          "next": "b14"
+        },
+        {
+          "id": "b14",
+          "speaker": "九點",
+          "text": "想再來的話，就找個讓你安心的地方睡著。鐘聲會來接你。",
+          "next": "b15"
+        },
+        {
+          "id": "b15",
+          "speaker": "三點",
+          "text": "累了就去你的椅子坐一坐。醒來的時候，腦袋會清楚一些。",
+          "next": "b16"
+        },
+        {
+          "id": "b16",
+          "speaker": null,
+          "text": "（調查夢客可以交談；在十二點的椅子休息；從南邊的門醒來。鐘塔裡也可以存檔。）",
+          "next": "END",
+          "effects": [
+            {
+              "set_flag": "met_guests"
+            },
+            {
+              "set_flag": "dream_unlocked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dlg_three_look",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": "三點",
+          "text": "十二點。鐘還在走，你可以多坐一會兒。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和三點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "effects": [
+                {
+                  "open_chat": "three"
+                }
+              ],
+              "next": "chat"
+            },
+            {
+              "text": "「鐘塔到底是什麼地方？」",
+              "next": "q1"
+            },
+            {
+              "text": "「你好像很喜歡拿鐘錶打比方。」",
+              "next": "q2"
+            },
+            {
+              "text": "「我的懷錶，也停在三點。」",
+              "if": {
+                "item": "pocket_watch"
+              },
+              "next": "q3"
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "三點",
+          "text": "說吧。我聽著。",
+          "next": "END"
+        },
+        {
+          "id": "q1",
+          "speaker": "三點",
+          "text": "一座只在夢裡報時的塔。誰蓋的、為什麼蓋，我也只知道一半。",
+          "next": "q1b"
+        },
+        {
+          "id": "q1b",
+          "speaker": "三點",
+          "text": "只知道一半的事，最好先別說出口。說錯了，就像把錶撥快了。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "三點",
+          "text": "習慣而已。人跟錶一樣，聲音不對，就是哪裡卡住了。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": "三點",
+          "text": "你剛才說話的聲音，就有一點卡。……累了的話，去坐一下。",
+          "next": "ask"
+        },
+        {
+          "id": "q3",
+          "speaker": null,
+          "text": "三點沉默了一會兒。霧在他的臉前慢慢流動。",
+          "next": "q3b"
+        },
+        {
+          "id": "q3b",
+          "speaker": "三點",
+          "text": "很多錶都停在三點。錶停了，不一定是壞了。",
+          "next": "q3c"
+        },
+        {
+          "id": "q3c",
+          "speaker": "三點",
+          "text": "有時候，它只是在等人替它上發條。",
+          "next": "ask",
+          "effects": [
+            {
+              "set_flag": "told_three_watch"
+            }
+          ]
+        },
+        {
+          "id": "bye",
+          "speaker": "三點",
+          "text": "嗯。鐘聲響的時候，我多半都在。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_nine_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": "九點",
+          "text": "十二點！來得正好，我正無聊到想數霧有幾片。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和九點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "effects": [
+                {
+                  "open_chat": "nine"
+                }
+              ],
+              "next": "chat"
+            },
+            {
+              "text": "「妳是做什麼生意的？」",
+              "next": "q1"
+            },
+            {
+              "text": "「關於那個閉口的記號……」",
+              "next": "q2"
+            },
+            {
+              "text": "「其他椅子的人呢？」",
+              "next": "q3"
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "九點",
+          "text": "好啊，聊什麼都行。先說好，聊天不收錢。",
+          "next": "END"
+        },
+        {
+          "id": "q1",
+          "speaker": "九點",
+          "text": "什麼都做，只要划算。情報、材料、好聽的故事，我都收。",
+          "next": "q1b"
+        },
+        {
+          "id": "q1b",
+          "speaker": "九點",
+          "text": "可惜這裡不收錢，只收交換。所以啦，下次帶點好東西來。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "九點",
+          "text": "我說過了，見過一次就夠了。想知道更多，拿東西來換。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": "九點",
+          "text": "……好吧，這條免費：上城那邊最近晚上很安靜。安靜得不太對勁。",
+          "next": "q2c"
+        },
+        {
+          "id": "q2c",
+          "speaker": "九點",
+          "text": "別問我哪裡不對勁。我只是個做生意的，耳朵比膽子大。",
+          "next": "ask",
+          "effects": [
+            {
+              "set_flag": "heard_uptown_rumor"
+            }
+          ]
+        },
+        {
+          "id": "q3",
+          "speaker": "九點",
+          "text": "有的很久沒來了，有的從來沒來過。椅子會等人，人可不一定。",
+          "next": "q3b"
+        },
+        {
+          "id": "q3b",
+          "speaker": "九點",
+          "text": "你看，十二點的椅子不就等到你了？耐心點，說不定哪天就熱鬧了。",
+          "next": "ask"
+        },
+        {
+          "id": "bye",
+          "speaker": "九點",
+          "text": "慢走！記得，下次來要帶伴手禮——情報也算。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_chair_twelve",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "next": "c1",
+          "branches": [
+            {
+              "if": {
+                "flag": "dream_rested"
+              },
+              "next": "again"
+            }
+          ]
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "你在刻著「十二」的椅子上坐下。霧輕輕裹住肩膀，腦中的雜音一點一點退去。",
+          "next": "c2",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "collapse": -10
+            },
+            {
+              "set_flag": "dream_rested"
+            }
+          ]
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了，崩解下降了。每次入夢可以在這裡休息一次。）",
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "椅子還留著你的溫度。這一趟夢，已經歇夠了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_chair_six",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "椅背上刻著「六」。椅面積著一層薄霧，摸起來冰冰的，像很久沒人坐過。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": "{name}",
+          "text": "（十二張椅子，只有三張有人。其他的人，到哪裡去了？）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_tower_door",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "next": "f1",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch3_woke"
+              },
+              "next": "g1"
+            }
+          ]
+        },
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "南邊的門虛掩著，門縫裡透出灰白色的光。",
+          "next": "fask"
+        },
+        {
+          "id": "fask",
+          "speaker": null,
+          "text": "要醒來嗎？",
+          "choices": [
+            {
+              "text": "推開門，醒來",
+              "next": "f2"
+            },
+            {
+              "text": "再待一會兒",
+              "next": "stay"
+            }
+          ]
+        },
+        {
+          "id": "f2",
+          "speaker": "三點",
+          "text": "下次見，十二點。記得，鐘聲會來接你。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "九點",
+          "text": "下次帶點好東西來！情報也行喔！",
+          "next": "f4"
+        },
+        {
+          "id": "f4",
+          "speaker": null,
+          "text": "你推開門。白光湧了進來，鐘聲在背後輕輕響了一下——",
+          "next": "f5"
+        },
+        {
+          "id": "f5",
+          "speaker": null,
+          "text": "……你睜開眼睛。窗外透進灰白的晨光，毯子滑到了地上。",
+          "next": "END",
+          "effects": [
+            {
+              "set_flag": "ch3_woke"
+            },
+            {
+              "wake": true
+            }
+          ]
+        },
+        {
+          "id": "g1",
+          "speaker": null,
+          "text": "南邊的門虛掩著。門外的光，是醒著的那一邊。",
+          "next": "gask"
+        },
+        {
+          "id": "gask",
+          "speaker": null,
+          "text": "要醒來嗎？",
+          "choices": [
+            {
+              "text": "醒來",
+              "next": "g2"
+            },
+            {
+              "text": "再待一會兒",
+              "next": "stay"
+            }
+          ]
+        },
+        {
+          "id": "g2",
+          "speaker": null,
+          "text": "你推開門。鐘聲在背後響了一下，光把你整個吞了進去。",
+          "next": "END",
+          "effects": [
+            {
+              "wake": true
+            }
+          ]
+        },
+        {
+          "id": "stay",
+          "speaker": null,
+          "text": "你把手從門把上移開。霧在腳邊慢慢流動。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch3_marlo_day",
+      "start": "m0",
+      "nodes": [
+        {
+          "id": "m0",
+          "speaker": null,
+          "next": "m1",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch3_marlo_day"
+              },
+              "next": "ready"
+            }
+          ]
+        },
+        {
+          "id": "m1",
+          "speaker": "馬洛",
+          "text": "早。睡得還好嗎？",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "說實話：「做了一個很怪的夢。」",
+              "effects": [
+                {
+                  "set_flag": "told_marlo_dream"
+                }
+              ],
+              "next": "t1"
+            },
+            {
+              "text": "含糊帶過：「還好。」",
+              "effects": [
+                {
+                  "set_flag": "kept_dream_secret"
+                }
+              ],
+              "next": "k1"
+            },
+            {
+              "text": "說謊：「一個夢都沒做。」",
+              "effects": [
+                {
+                  "set_flag": "lied_marlo_dream"
+                }
+              ],
+              "next": "l1"
+            }
+          ]
+        },
+        {
+          "id": "t1",
+          "speaker": "{name}",
+          "text": "夢裡有一座鐘塔，還有兩個不肯說名字的人。他們叫我「十二點」。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": null,
+          "text": "馬洛端著咖啡的手停了一下。",
+          "next": "t3"
+        },
+        {
+          "id": "t3",
+          "speaker": "馬洛",
+          "text": "夢裡的事，記得越清楚越好。他們要是說了什麼，回來告訴我。",
+          "next": "e1"
+        },
+        {
+          "id": "k1",
+          "speaker": "{name}",
+          "text": "還好。",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": null,
+          "text": "你沒有提起鐘塔的事。這不算說謊……大概。",
+          "next": "e1"
+        },
+        {
+          "id": "l1",
+          "speaker": "{name}",
+          "text": "很好，一個夢都沒做。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": null,
+          "text": "話一出口，耳邊就響起一陣尖細的耳鳴。讀痕者的本性，不喜歡你這樣做。",
+          "next": "e1",
+          "effects": [
+            {
+              "collapse": 2
+            }
+          ]
+        },
+        {
+          "id": "e1",
+          "speaker": "馬洛",
+          "text": "碼頭那條線斷了。可是卡爾不會是最後一個。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": "馬洛",
+          "text": "那個記號，我會去翻老檔案。有人說在上城也看過它。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": "馬洛",
+          "text": "準備好了就跟我說。我們出發。",
+          "next": "ready",
+          "effects": [
+            {
+              "set_flag": "ch3_marlo_day"
+            }
+          ]
+        },
+        {
+          "id": "ready",
+          "speaker": null,
+          "text": "要出發了嗎？",
+          "choices": [
+            {
+              "text": "「走吧。」",
+              "next": "x1"
+            },
+            {
+              "text": "「再等一下。」",
+              "next": "wait"
+            }
+          ]
+        },
+        {
+          "id": "wait",
+          "speaker": "馬洛",
+          "text": "別拖太久。霧不會等人。",
+          "next": "END"
+        },
+        {
+          "id": "x1",
+          "speaker": "{name}",
+          "text": "（閉口的記號、不出聲的人，還有只在夢裡打開的鐘塔。）",
+          "next": "x2"
+        },
+        {
+          "id": "x2",
+          "speaker": "{name}",
+          "text": "（昨天的我，到底把自己捲進了什麼？……只能一格一格看下去了。）",
+          "next": "x3"
+        },
+        {
+          "id": "x3",
+          "speaker": null,
+          "text": "窗外，遠處的鐘樓敲了九下。不多，也不少。",
+          "next": "END",
+          "effects": [
+            {
+              "chapter_end": "chapter3"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -3,7 +3,12 @@
   "title": "第二章　碼頭失蹤案",
   "end_screen": {
     "title": "第二章　完",
-    "subtitle": "第三章　製作中"
+    "subtitle": "第三章　鐘塔之夢",
+    "continue": {
+      "map": "office_ch3",
+      "spawn": "door",
+      "dialogue": "dlg_ch3_opening"
+    }
   },
   "dialogues": [
     {

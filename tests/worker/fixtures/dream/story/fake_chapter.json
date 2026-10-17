@@ -1,0 +1,14 @@
+{
+  "id": "fake_chapter",
+  "title": "測試章節",
+  "guests": [
+    { "id": "lamp", "name": "提燈", "sprite": "guest_lamp",
+      "scripted": {
+        "greeting": ["SCRIPTED_GREETING 又是你。"],
+        "fallback": ["SCRIPTED_FALLBACK 火光太暗，我聽不清楚。"],
+        "quota": ["SCRIPTED_QUOTA 夢境變得模糊了，今天先聊到這裡吧。"],
+        "filtered": ["SCRIPTED_FILTERED 我好像說錯話了，當我沒說。"],
+        "not_open": ["（啟用雲端存檔後，可以和夢客自由交談。）"]
+      } }
+  ]
+}

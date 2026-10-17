@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   startWorker, newPlayer, newSecrets, json, auth, putSave, expectError, sampleSave, d1Rows,
+  tsToken,
 } from './helpers.js';
 import { generateTransferCode } from '../../worker/src/codes.js';
 
@@ -137,7 +138,7 @@ describe('修訂 4b 第 2 節：轉移額度用完後無法以碰撞探測轉移
       await fill(s, 'g:transfer', 120);
       const count = async () => (await s.db.prepare('SELECT COUNT(*) AS n FROM players').first()).n;
       const n0 = await count();
-      const hit = await s.fetch('/api/player', json({ token: newSecrets().token, transfer_code: victim.transfer_code }, { 'cf-connecting-ip': s.nextIp() }));
+      const hit = await s.fetch('/api/player', json({ token: newSecrets().token, transfer_code: victim.transfer_code, turnstile_token: tsToken('create_player') }, { 'cf-connecting-ip': s.nextIp() }));
       const miss = await s.fetch('/api/player', json(newSecrets(), { 'cf-connecting-ip': s.nextIp() }));
       await expectError(hit, 429, 'rate_limited');
       await expectError(miss, 429, 'rate_limited');
@@ -153,7 +154,7 @@ describe('修訂 4b 第 2 節：轉移額度用完後無法以碰撞探測轉移
       const victim = await newPlayer(s);
       const ip = '198.51.100.77';
       expect((await s.fetch('/api/transfer', json({ code: 'ZZZZ-ZZZZ', new_token: newSecrets().token, new_transfer_code: generateTransferCode() }, { 'cf-connecting-ip': ip }))).status).toBe(404);
-      await expectError(await s.fetch('/api/player', json({ token: newSecrets().token, transfer_code: victim.transfer_code }, { 'cf-connecting-ip': ip })), 429, 'rate_limited');
+      await expectError(await s.fetch('/api/player', json({ token: newSecrets().token, transfer_code: victim.transfer_code, turnstile_token: tsToken('create_player') }, { 'cf-connecting-ip': ip })), 429, 'rate_limited');
       await expectError(await s.fetch('/api/player', json(newSecrets(), { 'cf-connecting-ip': ip })), 429, 'rate_limited');
       expect((await s.fetch('/api/player', json(newSecrets(), { 'cf-connecting-ip': s.nextIp() }))).status).toBe(201);
     } finally {

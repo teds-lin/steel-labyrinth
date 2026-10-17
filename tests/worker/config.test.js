@@ -4,6 +4,7 @@ import { readFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { unstable_readConfig } from 'wrangler';
 import { readWranglerConfig, migrationStatements, devVarOverrides, startWorker, CONFIG_PATH, ROOT } from './helpers.js';
 
 describe('wrangler.toml', () => {
@@ -40,7 +41,10 @@ describe('wrangler.toml', () => {
     expect(Number(cfg.vars.MAX_PLAYER_SECONDS)).toBe(36000); // 修訂 4 第 7 節
     expect(Number(cfg.vars.MAX_PLAYERS)).toBe(5000); // 修訂 3
     expect(Number(cfg.vars.STATS_MIN_PLAYERS)).toBe(3);
-    expect(cfg.vars.CHAPTERS).toBe('prologue,chapter1,chapter2');
+    // 章節白名單＝已開放章節（tools/release.json → web/data/manifest.json 的 chapters），開放新章節時兩邊一起改
+    const manifest = JSON.parse(readFileSync(join(ROOT, 'web', 'data', 'manifest.json'), 'utf8'));
+    expect(String(cfg.vars.CHAPTERS).split(',')).toEqual(manifest.chapters);
+    expect(manifest.chapters.length).toBeGreaterThan(0);
     expect(cfg.vars.D1_METRICS).toBeUndefined(); // 只在測試開啟
   });
 
@@ -124,4 +128,113 @@ describe('wrangler 打包（dry-run，不需要登入）', () => {
     expect(bundled).toMatch(/function deserialize\(/);
     expect(bundled).toMatch(/function sanitizeName\(/);
   }, 60000);
+});
+
+describe('M4 鐘塔之夢的設定', () => {
+  const cfg = readWranglerConfig();
+  const raw = readFileSync(CONFIG_PATH, 'utf8');
+
+  it('Workers AI 綁定 AI；模型與參數依模型評測（plans/M4-model-eval.md）', () => {
+    expect(cfg.ai).toMatchObject({ binding: 'AI' });
+    expect(cfg.vars.DREAM_MODEL).toBe('@cf/google/gemma-4-26b-a4b-it');
+    expect(Number(cfg.vars.DREAM_MAX_TOKENS)).toBe(200);
+  });
+
+  it('額度、預算與 neurons 換算', () => {
+    expect(Number(cfg.vars.DREAM_CHATS_PER_DAY)).toBe(20);
+    expect(Number(cfg.vars.DREAM_NEURONS_PER_DAY)).toBe(8000);
+    expect(Number(cfg.vars.DREAM_NEURONS_PER_CALL)).toBe(20);
+    expect(Number(cfg.vars.DREAM_NEURONS_MIN_PER_CALL)).toBeGreaterThan(0);
+    expect(Number(cfg.vars.DREAM_NEURONS_MIN_PER_CALL)).toBeLessThanOrEqual(Number(cfg.vars.DREAM_NEURONS_PER_CALL));
+    // gemma-4-26b-a4b-it：輸入 0.10、輸出 0.30 美元／百萬 tokens；1000 neurons = 0.011 美元
+    expect(Number(cfg.vars.DREAM_NEURONS_PER_M_INPUT)).toBe(Math.round(0.10 / 0.011 * 1000));
+    expect(Number(cfg.vars.DREAM_NEURONS_PER_M_OUTPUT)).toBe(Math.round(0.30 / 0.011 * 1000));
+    expect(Number(cfg.vars.RL_DREAM_PASS_PER_HOUR)).toBe(6);
+    expect(Number(cfg.vars.RL_DREAM_PASS_GLOBAL_PER_HOUR)).toBeGreaterThan(0);
+  });
+
+  it('Turnstile：正式只接受 GitHub Pages 的 hostname；秘密與測試開關不寫進 wrangler.toml', () => {
+    expect(cfg.vars.TURNSTILE_HOSTNAMES).toBe('teds-lin.github.io');
+    for (const k of ['TURNSTILE_SECRET', 'DREAM_PASS_SECRET', 'TURNSTILE_ALLOW_TEST_SECRET']) {
+      expect(cfg.vars[k], k).toBeUndefined();
+      expect(raw).not.toMatch(new RegExp(`^\\s*${k}\\s*=`, 'm'));
+    }
+    expect(raw).not.toMatch(/1x0000000000000000000000000000000AA|2x0000000000000000000000000000000AA/);
+  });
+
+  it('migration 0003 建立 dream_personas、dream_lexicon；0002 沒有被修改', () => {
+    const sql = migrationStatements().join('\n');
+    expect(sql).toMatch(/CREATE TABLE dream_personas\b/);
+    expect(sql).toMatch(/CREATE TABLE dream_lexicon\b/);
+    const files = readdirSync(join(ROOT, 'worker', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
+    expect(files.slice(0, 3)).toEqual(['0001_init.sql', '0002_revision2.sql', '0003_dream.sql']);
+  });
+
+  it('公開 repo 不含人設或詞表：fixtures 之外沒有 dream/personas、lexicon.json；fixtures 的詞表是小型假詞表', () => {
+    const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+      if (['node_modules', '.git', '.wrangler', 'test-results', 'playwright-report'].includes(e.name)) return [];
+      const p = join(d, e.name);
+      return e.isDirectory() ? walk(p) : [p];
+    });
+    const files = walk(ROOT).map((f) => f.slice(ROOT.length + 1).replace(/\\/g, '/'));
+    const leaked = files.filter((f) => (/(^|\/)lexicon\.json$/.test(f) || /(^|\/)personas\//.test(f)) && !f.startsWith('tests/worker/fixtures/dream/'));
+    expect(leaked).toEqual([]);
+    const fake = JSON.parse(readFileSync(join(ROOT, 'tests', 'worker', 'fixtures', 'dream', 'lexicon.json'), 'utf8'));
+    expect(fake.chars.length + fake.words.length).toBeLessThan(50);
+  });
+});
+
+describe('worker/wrangler.e2e.toml（本機 E2E 專用：沒有 AI 綁定、模擬 AI、官方測試金鑰）', () => {
+  const E2E = join(ROOT, 'worker', 'wrangler.e2e.toml');
+  const main = readWranglerConfig();
+  const e2e = unstable_readConfig({ config: E2E }, { hideWarnings: true });
+  const ONLY_E2E = ['DREAM_FAKE_AI', 'TURNSTILE_SECRET', 'TURNSTILE_ALLOW_TEST_SECRET', 'DREAM_PASS_SECRET', 'TRANSFER_PEPPER'];
+
+  it('其餘 vars 與正式設定完全相同；沒有 AI 綁定、沒有 Cron；D1 是假 id、名稱不同（誤部署也綁不到正式資料庫）', () => {
+    const rest = Object.fromEntries(Object.entries(e2e.vars).filter(([k]) => !ONLY_E2E.includes(k)));
+    expect(rest).toEqual(main.vars);
+    expect(e2e.ai).toBeUndefined();
+    expect(e2e.triggers?.crons ?? []).toEqual([]);
+    expect(e2e.d1_databases[0]).toMatchObject({ binding: 'DB', database_name: 'steel-labyrinth', database_id: '00000000-0000-0000-0000-000000000000' });
+    expect(e2e.name).not.toBe(main.name);
+    expect(e2e.main.replace(/\\/g, '/')).toMatch(/worker\/src\/index\.js$/);
+    expect(e2e.vars).toMatchObject({ DREAM_FAKE_AI: '1', TURNSTILE_SECRET: '1x0000000000000000000000000000000AA', TURNSTILE_ALLOW_TEST_SECRET: '1' });
+  });
+
+  it('以 E2E 設定啟動（沒有 AI 綁定）：測試金鑰離線通過、模擬 AI 回覆、#ai_error 改用預寫台詞', async () => {
+    const { loadDreamFixtures, newSecrets, dreamChat, json: j } = await import('./helpers.js');
+    const w = await startWorker({ config: E2E, noAi: true, varsOverride: { ...e2e.vars } });
+    try {
+      const s = { ...newSecrets(), turnstile_token: 'XXXX.DUMMY.TOKEN.XXXX' };
+      const res = await w.fetch('/api/player', j(s, { 'cf-connecting-ip': w.nextIp() }));
+      expect(res.status).toBe(201);
+      expect(w.siteverifyCalls).toHaveLength(0);
+      await loadDreamFixtures(w);
+      const passRes = await w.fetch('/api/dream/pass', j({ turnstile_token: 'XXXX.DUMMY.TOKEN.XXXX' }, { authorization: `Bearer ${s.token}` }));
+      expect(passRes.status).toBe(200);
+      const { pass } = await passRes.json();
+      const ok = await (await dreamChat(w, s.token, { pass, guest: 'lamp', chapter: 'chapter1', input: '你好嗎' })).json();
+      expect(ok).toMatchObject({ source: 'ai', reply: '（模擬夢客）霧裡傳來回聲：你好嗎' });
+      const err = await (await dreamChat(w, s.token, { pass, guest: 'lamp', chapter: 'chapter1', input: '#ai_error' })).json();
+      expect(err).toMatchObject({ source: 'scripted', reason: 'ai_error' });
+      const filtered = await (await dreamChat(w, s.token, { pass, guest: 'lamp', chapter: 'chapter1', input: '这是什么' })).json();
+      expect(filtered).toMatchObject({ source: 'scripted', reason: 'filtered' });
+    } finally {
+      await w.close();
+    }
+  });
+
+  it('正式設定下沒有模擬 AI：沒有 AI 綁定時即使設了 DREAM_FAKE_AI 以外的值也不會假造回覆', async () => {
+    const { loadDreamFixtures, newPlayer, getPass, dreamChat } = await import('./helpers.js');
+    expect(main.vars.DREAM_FAKE_AI).toBeUndefined();
+    const w = await startWorker({ noAi: true });
+    try {
+      await loadDreamFixtures(w);
+      const p = await newPlayer(w);
+      const body = await (await dreamChat(w, p.token, { pass: await getPass(w, p.token), guest: 'lamp', chapter: 'chapter1', input: '你好' })).json();
+      expect(body).toMatchObject({ source: 'scripted', reason: 'ai_error' });
+    } finally {
+      await w.close();
+    }
+  });
 });

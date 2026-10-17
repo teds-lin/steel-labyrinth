@@ -2,6 +2,8 @@
 import { DIRS, objectsAt, isUnlocked } from './grid.js';
 import { ECHO_TAG, hasEcho, spendEcho, echoCharges } from './echo.js';
 import { availableFieldTags, lineageFieldTags } from './state.js';
+import { evalCondition } from './conditions.js';
+import { isDreamMap, dreamTarget } from './dream.js';
 
 export const NO_TRACE_MESSAGE = '沒有殘留痕跡';
 export const NO_CHARGE_MESSAGE = '殘響次數已用盡';
@@ -113,12 +115,22 @@ export function echo(obj, state, data) {
  * - 鎖著：先 look，再嘗試免費解法（譜系標籤、道具）；成功接 on_tag／on_item，失敗接 locked。
  *   locked 只在沒有 look 時代替它（也就是 [locked]）——有 look 時是 [look, locked]。
  * - 物件有 battle（遭遇 id）時回傳值多一個 battle 鍵：畫面播完 dialogues 後開戰。
+ * - 現實地圖的 dream 物件（dream.if 成立）多一個 dream 鍵 { map, spawn }：畫面播完後問「入夢」。
+ * - 夢客物件多一個 guest 鍵（夢客 id）。
  * 注意：回傳的 state 已含解鎖旗標；look 對話若以 lock.flag 分歧，解鎖成功那一輪會看到「已開」分支，
  *   內容請改用 on_tag／on_item 對話自己設的旗標分歧（序章用 door_seen_open）。
  */
 export function investigate(obj, state, data) {
   const out = investigateInner(obj, state, data);
   if (typeof obj?.battle === 'string') out.battle = obj.battle; // 播完 dialogues 後開戰
+  // 鐘塔之夢：現實地圖的 dream 物件（if 成立）→ look 之後多一個「入夢」選項；夢客回傳 guest id
+  if (obj?.dream !== null && typeof obj?.dream === 'object' && !Array.isArray(obj.dream)) {
+    const here = (data?.maps ?? []).find((m) => m?.id === state?.location?.map);
+    const ok = obj.dream.if === undefined || evalCondition(obj.dream.if, out.state);
+    const target = ok && !isDreamMap(here) ? dreamTarget(obj, data) : null;
+    if (target) out.dream = target;
+  }
+  if (typeof obj?.guest === 'string' && obj.guest !== '') out.guest = obj.guest;
   return out;
 }
 

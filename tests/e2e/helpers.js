@@ -1,6 +1,7 @@
 // E2E 共用工具：錯誤蒐集 fixture、遊戲操作（鍵盤／觸控）、依地圖資料自動尋路。
 import { test as base, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { installFakeTurnstile } from './fake-turnstile.js';
 
 /** 遊戲資料的 manifest（新遊戲的殘響次數等以它為準，不在測試寫死）。 */
 export const MANIFEST = JSON.parse(readFileSync(new URL('../../web/data/manifest.json', import.meta.url), 'utf8'));
@@ -20,6 +21,7 @@ export const TEST_URL = './?test=1';
 /** 每個測試都自動蒐集 console error 與 pageerror，測試結束時必須為空（忽略 GL Driver Message）。 */
 export const test = base.extend({
   page: async ({ page }, use) => {
+    await installFakeTurnstile(page); // 不連外網：Turnstile 一律用假的（cloud-live 另外處理）
     const errors = [];
     page.on('console', (m) => {
       if (m.type() === 'error' && !/GL Driver Message/.test(m.text())) errors.push(`[console.error] ${m.text()}`);
@@ -68,7 +70,8 @@ export async function seedSaves(page, slots) {
   }, entries);
 }
 
-export function game(page, { touch = false } = {}) {
+/** data：?data= 測試掛勾的資料位置（例如 '__fixture/dream/'）；尋路讀的地圖資料也從那裡讀。 */
+export function game(page, { touch = false, data = 'data/' } = {}) {
   const st = () => page.evaluate(() => window.__SL.getState());
   const scene = () => page.evaluate(() => window.__SL.currentScene());
   const dlg = () => page.evaluate(() => window.__SL.dialogue());
@@ -120,12 +123,12 @@ export function game(page, { touch = false } = {}) {
   const mapCache = new Map();
   let tilesCache = null;
   async function mapData(id) {
-    if (!mapCache.has(id)) mapCache.set(id, await fetchJson(`data/maps/${id}.json`));
+    if (!mapCache.has(id)) mapCache.set(id, await fetchJson(`${data}maps/${id}.json`));
     return mapCache.get(id);
   }
   async function solidTiles() {
     if (!tilesCache) {
-      const t = await fetchJson('data/tiles.json');
+      const t = await fetchJson(`${data}tiles.json`);
       const list = Array.isArray(t) ? t : t.tiles;
       tilesCache = new Set(list.filter((x) => x.solid === true).map((x) => x.id));
     }
