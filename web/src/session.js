@@ -22,6 +22,8 @@ export const session = {
   /** 目前的遊戲 state；在標題畫面時為 null。 */
   state: null,
   storage: createStorage(backend),
+  /** localStorage（瀏覽器封鎖時為 null）：雲端資訊也存在這裡。 */
+  backend,
   storageAvailable: backend !== null,
   events: new Phaser.Events.EventEmitter(),
   /** 目前畫面（給 E2E 掛勾與除錯用）。 */

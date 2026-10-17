@@ -1,4 +1,4 @@
-// 標題畫面：遊戲名稱、新遊戲、繼續（沒有可讀存檔時停用）、霧氣飄動。
+// 標題畫面：遊戲名稱、新遊戲、繼續（沒有可讀存檔時停用）、用轉移碼接續（雲端存檔）、霧氣飄動。
 import { WIDTH, HEIGHT, COLORS, TEST_MODE } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, ButtonList } from '../ui/widgets.js';
@@ -28,6 +28,10 @@ export class TitleScene extends Phaser.Scene {
         {
           label: '繼續', enabled: hasSave, onSelect: () => this.openLoad(),
           sub: hasSave ? null : (session.storageAvailable ? '目前沒有存檔' : '瀏覽器封鎖了儲存空間'),
+        },
+        {
+          label: '用轉移碼接續', enabled: session.storageAvailable, onSelect: () => this.openTransfer(),
+          sub: session.storageAvailable ? null : '瀏覽器封鎖了儲存空間',
         },
       ],
     });
@@ -72,9 +76,14 @@ export class TitleScene extends Phaser.Scene {
   /** E2E 用的唯讀資訊。 */
   debugInfo() {
     return {
-      items: this.menu.buttons.map((b) => ({ label: b.label.text, enabled: b.enabled, sub: b.sub?.text ?? null })),
+      items: this.menu.buttons.map((b) => ({ label: b.label.text, enabled: b.enabled, sub: b.sub?.text ?? null, x: b.x, y: b.y, w: b.w, h: b.h })),
       landscapeHint: !!this.landscapeHint?.visible,
     };
+  }
+
+  openTransfer() {
+    this.scene.pause();
+    this.scene.launch('Menu', { mode: 'transfer', from: 'Title' });
   }
 
   openLoad() {

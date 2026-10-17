@@ -3,6 +3,7 @@ import { WIDTH, HEIGHT, COLORS, TEST_MODE } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, ButtonList } from '../ui/widgets.js';
 import { enterMap } from '../core/grid.js';
+import { cloud } from '../cloud-client.js';
 
 export class ChapterEndScene extends Phaser.Scene {
   constructor() { super('ChapterEnd'); }
@@ -10,6 +11,24 @@ export class ChapterEndScene extends Phaser.Scene {
   init(data) {
     this.chapter = data?.chapter ?? session.data?.manifest?.chapters?.[0] ?? null;
     this.notices = Array.isArray(data?.notices) ? data.notices : [];
+    // 讀檔回到章節結束畫面（resumed）時不再回報通關
+    this.resumed = data?.resumed === true;
+  }
+
+  /** 已啟用雲端時回報章節完成；失敗只記 console，不打擾玩家。 */
+  reportClear() {
+    if (this.resumed || !cloud.enabled()) return;
+    const s = session.snapshot();
+    if (!s || typeof this.chapter !== 'string') return;
+    const rec = { chapter: this.chapter, ending: null, play_seconds: s.playtime_s ?? 0, collapse: s.collapse ?? 0 };
+    this.clearReport = { status: 'pending', record: rec };
+    cloud.reportClear(rec).then((r) => {
+      this.clearReport = { status: r.ok ? 'ok' : 'failed', record: rec };
+      if (!r.ok) console.warn(`通關紀錄回報失敗（${r.kind}）：${r.message ?? ''}`);
+    }).catch((e) => {
+      this.clearReport = { status: 'failed', record: rec };
+      console.warn('通關紀錄回報失敗', e);
+    });
   }
 
   /** 章節結束畫面的文字：story.end_screen，沒寫時用「<章名>　完」、無副標。 */
@@ -30,6 +49,7 @@ export class ChapterEndScene extends Phaser.Scene {
     if (!this.texts) return null;
     return {
       ...this.texts,
+      clearReport: this.clearReport,
       items: (this.list?.buttons ?? []).map((b, i) => ({
         label: b.label.text, enabled: b.enabled, focused: i === this.list.index, x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h,
       })),
@@ -40,6 +60,8 @@ export class ChapterEndScene extends Phaser.Scene {
     session.scene = 'ChapterEnd';
     this.cameras.main.setBackgroundColor(0x07090c);
     this.list = null;
+    this.clearReport = null;
+    this.reportClear();
     const fade = TEST_MODE ? 150 : 900;
 
     this.texts = this.screenTexts();

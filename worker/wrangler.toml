@@ -1,0 +1,23 @@
+# 《鋼鐵迷都》雲端存檔 Worker（規格：docs/API.md）
+# 本機：npm run worker:dev（wrangler dev --local，不需要登入）
+# 部署步驟見 worker/README.md。密鑰（TRANSFER_PEPPER）用 `wrangler secret put` 設定，不要寫進這個檔案。
+name = "steel-labyrinth"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "steel-labyrinth"
+# 部署前要換成 `wrangler d1 create steel-labyrinth` 回傳的 database_id。
+# 本機（wrangler dev --local、Miniflare 測試）只把它當作識別字串，不會連線到 Cloudflare。
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+ALLOWED_ORIGINS = "https://teds-lin.github.io,http://localhost:8080,http://localhost:8091"
+# 頻率限制（每小時次數，固定時間窗）
+RL_PLAYER_PER_HOUR = "5"     # 建立玩家：同一 IP
+RL_TRANSFER_PER_HOUR = "10"  # 轉移碼嘗試：同一 IP（成功失敗都算）
+RL_WRITE_PER_HOUR = "60"     # 存檔寫入：同一玩家（PUT＋DELETE 合計）
+RL_ROTATE_PER_HOUR = "10"    # 重新產生轉移碼：同一玩家
+RL_CLEAR_PER_HOUR = "30"     # 回報通關：同一玩家

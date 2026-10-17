@@ -9,14 +9,22 @@
     "build:data": "node tools/build-data.mjs",
     "vendor": "node tools/vendor.mjs",
     "serve": "node tools/serve.mjs",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:worker": "vitest run tests/worker",
+    "worker:dev": "npm run worker:migrate:local && wrangler dev --local --config worker/wrangler.toml --port 8787 --var TRANSFER_PEPPER:local-dev-only-pepper",
+    "worker:build": "wrangler deploy --dry-run --config worker/wrangler.toml --outdir node_modules/.cache/steel-labyrinth-worker-build",
+    "worker:migrate:local": "wrangler d1 migrations apply steel-labyrinth --local --config worker/wrangler.toml",
+    "worker:migrate:remote": "wrangler d1 migrations apply steel-labyrinth --remote --config worker/wrangler.toml",
+    "worker:deploy": "wrangler deploy --config worker/wrangler.toml"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
+    "miniflare": "5.20261001.0-alpha",
     "phaser": "3.90.0",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "wrangler": "4.147.0"
   }
 }

@@ -1,0 +1,116 @@
+// 雲端 API 包裝（docs/API.md）：每個端點一個方法，永遠不丟例外。
+// 回傳：{ ok:true, status, body, etag } 或 { ok:false, kind:'network'|'timeout'|'http', status, error, retryAfter, body }。
+// - kind 'network'：fetch 失敗（離線、DNS、CORS 被擋）；'timeout'：超過 timeoutMs（含讀取 body）；'http'：伺服器回非 2xx。
+// - error：伺服器 body 的 error 代碼；沒有時為 http_<status>／network／timeout；不合法的 slot 為 invalid_slot（不送請求）。
+
+export const DEFAULT_TIMEOUT_MS = 5000;
+const SLOT_COUNT = 3;
+
+const validSlot = (s) => Number.isInteger(s) && s >= 1 && s <= SLOT_COUNT;
+
+/** Retry-After：秒數或 HTTP 日期 → 非負整數秒；無法解析回 null。 */
+export function parseRetryAfter(raw, now = Date.now()) {
+  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  const s = raw.trim();
+  if (/^\d{1,9}$/.test(s)) return Number(s);
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.ceil((t - now) / 1000));
+}
+
+const fail = (kind, status, error, extra = {}) => ({ ok: false, kind, status, error, retryAfter: null, body: null, ...extra });
+
+export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  const base = String(baseUrl ?? '').replace(/\/+$/, '');
+  const limit = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
+
+  const token = () => {
+    try {
+      const t = getToken?.();
+      return typeof t === 'string' && t !== '' ? t : null;
+    } catch {
+      return null;
+    }
+  };
+
+  /** 送出請求並整理結果。opts：{ method, body, auth, headers }。 */
+  async function request(path, { method = 'GET', body, auth = true, headers = {} } = {}) {
+    if (typeof fetchFn !== 'function' || base === '') return fail('network', 0, 'network');
+    const h = { ...headers };
+    if (body !== undefined) h['Content-Type'] = 'application/json; charset=utf-8';
+    if (auth) {
+      const t = token();
+      if (t) h.Authorization = `Bearer ${t}`;
+    }
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    let timer = null;
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        try { ctrl?.abort(); } catch { /* 忽略 */ }
+        resolve(fail('timeout', 0, 'timeout'));
+      }, limit);
+    });
+    const run = (async () => {
+      let res;
+      try {
+        const init = { method, headers: h, signal: ctrl?.signal };
+        if (body !== undefined) init.body = JSON.stringify(body);
+        res = await fetchFn(`${base}${path}`, init);
+      } catch (e) {
+        if (e?.name === 'AbortError') return fail('timeout', 0, 'timeout');
+        return fail('network', 0, 'network');
+      }
+      let text;
+      try {
+        text = await res.text();
+      } catch (e) {
+        if (e?.name === 'AbortError') return fail('timeout', 0, 'timeout');
+        return fail('network', 0, 'network');
+      }
+      let parsed = null;
+      if (typeof text === 'string' && text !== '') {
+        try { parsed = JSON.parse(text); } catch { parsed = null; }
+      }
+      const status = Number(res?.status) || 0;
+      const header = (k) => {
+        try { return res.headers?.get?.(k) ?? null; } catch { return null; }
+      };
+      if (status >= 200 && status < 300) return { ok: true, status, body: parsed, etag: header('etag') };
+      const code = parsed && typeof parsed.error === 'string' ? parsed.error : `http_${status}`;
+      return fail('http', status, code, {
+        retryAfter: parseRetryAfter(header('retry-after')),
+        body: parsed && typeof parsed === 'object' ? parsed : null,
+        message: parsed && typeof parsed.message === 'string' ? parsed.message : null,
+      });
+    })();
+    try {
+      return await Promise.race([run, timeout]);
+    } catch {
+      return fail('network', 0, 'network');
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  const slotGuard = (slot, fn) => (validSlot(slot) ? fn() : Promise.resolve(fail('http', 0, 'invalid_slot')));
+  const versionHeaders = (version) => (Number.isInteger(version) && version >= 0
+    ? { 'If-Match': `"${version}"` }
+    : { 'If-None-Match': '*' });
+
+  return {
+    createPlayer: () => request('/api/player', { method: 'POST', body: {}, auth: false }),
+    listSaves: () => request('/api/saves'),
+    getSave: (slot) => slotGuard(slot, () => request(`/api/save/${slot}`)),
+    /** version：本機記得的雲端版本（If-Match）；null／未提供時只在空槽建立（If-None-Match: *）。 */
+    putSave: (slot, data, { version = null } = {}) => slotGuard(slot, () => request(`/api/save/${slot}`, {
+      method: 'PUT', body: { data }, headers: versionHeaders(version),
+    })),
+    deleteSave: (slot, version) => slotGuard(slot, () => request(`/api/save/${slot}`, {
+      method: 'DELETE', headers: { 'If-Match': `"${version}"` },
+    })),
+    transfer: (code) => request('/api/transfer', { method: 'POST', body: { code }, auth: false }),
+    rotateTransfer: () => request('/api/transfer/rotate', { method: 'POST', body: {} }),
+    reportClear: (rec) => request('/api/clear', { method: 'POST', body: rec }),
+    stats: () => request('/api/stats', { auth: false }),
+  };
+}

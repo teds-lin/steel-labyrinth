@@ -1,10 +1,12 @@
-// 選單（疊在其他場景上方）：存檔（3 槽，覆蓋前確認）、讀取、道具、隊伍、回標題。
-// mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）。
+// 選單（疊在其他場景上方）：存檔（3 槽，覆蓋前確認）、讀取、雲端存檔、道具、隊伍、回標題。
+// mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）、'transfer'（標題的「用轉移碼接續」）。
+// 雲端存檔的各頁面在 cloud-pages.js（mixin）。
 import { WIDTH, HEIGHT, COLORS } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
 import { addText, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
 import { fieldItems, useFieldItem } from '../core/items.js';
 import { partyStatus, availableSkills } from '../core/stats.js';
+import { cloudPages } from './cloud-pages.js';
 
 const STAT_LABELS = [['atk', '攻擊'], ['def', '防禦'], ['spd', '速度'], ['will', '意志'], ['eva', '閃避']];
 /** 道具頁一頁最多幾項（再加「下一頁」「返回」）。 */
@@ -33,18 +35,38 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5, 0);
     this.list = null;
     this.extra = [];
+    this.pageSeq = 0;
+    this.pageCleanup = [];
+    this.backAction = null;
+    this.cloudView = null;
+    this.events.once('shutdown', () => this.runPageCleanup());
     this.input.keyboard.on('keydown', (ev) => {
+      // 輸入框（轉移碼）裡的按鍵由輸入框自己處理，不當成選單操作
+      if (typeof HTMLInputElement !== 'undefined' && ev.target instanceof HTMLInputElement) return;
       if (ev.repeat || !claimKey(ev)) return;
       if (ev.code === 'Escape') { this.back(); return; }
       this.list?.handleKey(ev.code);
     });
     if (this.mode === 'load') this.showSlots('load');
     else if (this.mode === 'save') this.showSlots('save');
+    else if (this.mode === 'transfer') this.showTransferInput();
     else this.showMain();
+  }
+
+  runPageCleanup() {
+    const fns = this.pageCleanup ?? [];
+    this.pageCleanup = [];
+    for (const fn of fns) {
+      try { fn(); } catch (e) { console.warn('選單頁面清理失敗', e); }
+    }
   }
 
   setPage(page, title, note, items, { y = 200, h = 52, fontSize = 17, gap = 10, noteAlign = 'center' } = {}) {
     this.page = page;
+    this.pageSeq += 1; // 進行中的雲端請求回來時，用這個判斷頁面是否已經換掉
+    this.backAction = null;
+    this.cloudView = null;
+    this.runPageCleanup();
     this.list?.destroy();
     this.extra.forEach((o) => o.destroy());
     this.extra = [];
@@ -54,6 +76,7 @@ export class MenuScene extends Phaser.Scene {
     else this.note.setAlign('center').setOrigin(0.5, 0).setX(WIDTH / 2).setWordWrapWidth(WIDTH - 72, true);
     this.note.setText(note ?? '');
     const top = this.note.text ? Math.max(y, 136 + this.note.height + 24) : y;
+    this.pageItems = items;
     this.list = new ButtonList(this, { x: WIDTH / 2, y: top + h / 2, w: WIDTH - 72, h, gap, items, align: 'left', fontSize });
     // 副標（名字、損壞原因）太長時以「…」截斷：只截名字／原因的部分
     this.list.buttons.forEach((b, i) => {
@@ -74,9 +97,11 @@ export class MenuScene extends Phaser.Scene {
       note: this.note.text,
       dimmed: this.dim.visible && this.dim.fillAlpha >= 0.5,
       items: (this.list?.buttons ?? []).map((b, i) => ({
+        id: this.pageItems?.[i]?.id ?? null,
         label: b.label.text, sub: b.sub?.text ?? null, enabled: b.enabled, focused: i === this.list.index, x: b.x, y: b.y, w: b.w, h: b.h,
         subWidth: b.sub ? b.sub.displayWidth : 0, room: b.w - 24,
       })),
+      cloud: this.cloudView ?? null,
     };
   }
 
@@ -86,11 +111,12 @@ export class MenuScene extends Phaser.Scene {
     const items = [
       { label: '存檔', enabled: !blocked, onSelect: () => this.showSlots('save') },
       { label: '讀取', enabled: !blocked, onSelect: () => this.showSlots('load') },
+      { label: '雲端存檔', enabled: !blocked, onSelect: () => this.showCloud() },
       { label: '道具', onSelect: () => this.showItems(0) },
     ];
     if (hasParty) items.push({ label: '隊伍', onSelect: () => this.showParty() });
     items.push({ label: '回標題', onSelect: () => this.confirmTitle() }, { label: '返回遊戲', onSelect: () => this.close() });
-    this.setPage('main', '選單', note ?? (blocked ? BLOCKED_MSG : null), items, { y: 176, h: 50, gap: 9 });
+    this.setPage('main', '選單', note ?? (blocked ? BLOCKED_MSG : null), items, { y: 172, h: 46, gap: 8 });
   }
 
   // ---------- 道具 ----------
@@ -233,7 +259,7 @@ export class MenuScene extends Phaser.Scene {
   doSave(slot) {
     session.foldPlaytime();
     const r = session.storage.save(slot, session.snapshot());
-    if (r.ok) this.showSlots('save', `已存檔到存檔 ${slot}`);
+    if (r.ok) this.afterManualSave(slot);
     else this.showSlots('save', `${BLOCKED_MSG}\n（${r.reason}）`);
   }
 
@@ -244,13 +270,19 @@ export class MenuScene extends Phaser.Scene {
       this.showSlots('load', `無法讀取存檔 ${slot}：${r.reason}`);
       return;
     }
+    this.enterGame(r.state, r.warnings);
+  }
+
+  /** 以讀到的 state 進入遊戲（讀檔、雲端「直接讀取」）。 */
+  enterGame(state, warnings = []) {
     session.reset();
-    session.setState(r.state);
+    session.setState(state);
     this.scene.stop('UI');
     if (this.from !== 'Map') this.scene.stop(this.from);
     this.scene.stop('Map');
-    const target = session.resumeTarget(r.state, r.warnings);
-    this.scene.start(target.scene, target.data);
+    const target = session.resumeTarget(state, warnings);
+    // resumed：讀檔回到章節結束畫面時不再回報通關
+    this.scene.start(target.scene, { ...target.data, resumed: true });
   }
 
   confirmTitle() {
@@ -269,6 +301,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   back() {
+    if (this.backAction) { this.backAction(); return; }
     if (this.page === 'confirm') {
       if (this.title.text === '回標題') this.showMain(); else this.showSlots('save');
       return;
@@ -279,6 +312,11 @@ export class MenuScene extends Phaser.Scene {
   }
 
   close() {
+    if (this.mode === 'transfer' && this.from === 'Title') {
+      // 轉移後本機存檔可能變了：重新開始標題畫面（更新「繼續」是否可用）
+      this.scene.start('Title');
+      return;
+    }
     if (this.from === 'Map') {
       this.scene.resume('UI');
       this.scene.resume('Map');
@@ -288,3 +326,5 @@ export class MenuScene extends Phaser.Scene {
     this.scene.stop();
   }
 }
+
+Object.assign(MenuScene.prototype, cloudPages);

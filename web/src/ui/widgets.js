@@ -144,15 +144,16 @@ export class Button extends Phaser.GameObjects.Container {
 
 /**
  * 垂直按鈕清單：滑鼠移過去會聚焦，方向鍵上下移動、Enter/空白鍵確認。
- * items: [{ label, sub?, enabled?, onSelect }]
+ * items: [{ label, sub?, enabled?, onSelect, x?, y?, w?, h?, fontSize?, align? }]
+ * 個別項目可以用 x／y／w／h／fontSize 指定自己的位置與大小（自訂版面，例如雲端存檔頁）；鍵盤仍依清單順序移動。
  */
 export class ButtonList {
   constructor(scene, { x, y, w, h = 48, gap = 10, items, fontSize = 17, align = 'center' }) {
     this.y0 = y;
     this.scene = scene;
     this.buttons = items.map((it, i) => {
-      const b = new Button(scene, x, y + i * (h + gap), w, h, it.label, {
-        sub: it.sub ?? null, fontSize, align, onClick: () => it.onSelect?.(i),
+      const b = new Button(scene, it.x ?? x, it.y ?? y + i * (h + gap), it.w ?? w, it.h ?? h, it.label, {
+        sub: it.sub ?? null, fontSize: it.fontSize ?? fontSize, align: it.align ?? align, onClick: () => it.onSelect?.(i),
       });
       b.setEnabled(it.enabled !== false);
       b.on('hover', () => { if (b.enabled) this.focus(i); });

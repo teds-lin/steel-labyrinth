@@ -23,7 +23,8 @@ const ENEMY_Y = 168;
 const MSG_Y = 308;
 const PARTY = { y0: 340, h: 34, x: 8, w: WIDTH - 16 };
 const RES_Y = 446;
-const CMD = { top: 462, colX: [94, 266], w: 164, h: 54, gapY: 8 };
+/** 指令區：3 列最底到 630，離畫面底邊留 10px 安全區（手機的 Home 指示條、圓角）。 */
+const CMD = { top: 462, colX: [94, 266], w: 164, h: 52, gapY: 6 };
 const LIST = { top: 330, w: WIDTH - 24, h: 50, gap: 6, perPage: 4 };
 /** 技能是否放在第一層指令（資料的 menu: "root"）；其他技能放進「技能」子選單。 */
 const isRootSkill = (id) => (session.data?.skills ?? []).find((s) => s?.id === id)?.menu === 'root';

@@ -437,7 +437,7 @@ test.describe('M2 戰鬥', () => {
         expect(x.x).toBeGreaterThanOrEqual(0);
         expect(x.y).toBeGreaterThanOrEqual(0);
         expect(x.x + x.w).toBeLessThanOrEqual(360);
-        expect(x.y + x.h).toBeLessThanOrEqual(640);
+        expect(x.y + x.h, `${x.label} 距底邊至少 8px（安全區）`).toBeLessThanOrEqual(632);
       }
     };
     check(b);

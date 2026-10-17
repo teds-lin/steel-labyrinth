@@ -11,6 +11,7 @@ import { ChapterEndScene } from './scenes/ChapterEndScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { artReport } from './textures.js';
+import { cloud, cloudApiBase } from './cloud-client.js';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -74,6 +75,8 @@ if (TEST_MODE) {
     choiceRects: () => ro(activeScene('UI')?.dialogue?.choiceRects() ?? []),
     /** 名牌排版：給定名字時名牌實際顯示的文字與寬度。 */
     nameplate: (name) => ro(activeScene('UI')?.dialogue?.nameplateLayout(String(name ?? '')) ?? null),
+    /** 雲端存檔的唯讀狀態（不含權杖）：是否啟用、轉移碼、各槽記住的版本、最後的錯誤、API 位址。 */
+    cloud: () => ro({ ...cloud.status(), apiBase: cloudApiBase() }),
     /** 戰鬥畫面的唯讀摘要：行動者、指令、敵我生命、被揭露的意圖、選單按鈕位置、結果、完整 log。不在戰鬥中時為 null。 */
     battle: () => ro(activeScene('Battle')?.debugInfo()),
     /** Game Over 畫面（標題、按鈕位置）。不在該畫面時為 null。 */

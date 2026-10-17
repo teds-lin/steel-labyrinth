@@ -119,7 +119,7 @@ test.describe('規格補充 3（畫面層）', () => {
       const bt = b.menu.buttons.find((x) => x.label === skills.find((s) => s.id === id).name);
       expect(bt.x).toBeGreaterThanOrEqual(0);
       expect(bt.x + bt.w).toBeLessThanOrEqual(360);
-      expect(bt.y + bt.h).toBeLessThanOrEqual(640);
+      expect(bt.y + bt.h).toBeLessThanOrEqual(632); // 安全區：離底邊至少 8px
     }
     const shot = testInfo.outputPath(`battle-root-${testInfo.project.name}.png`);
     await page.screenshot({ path: shot });

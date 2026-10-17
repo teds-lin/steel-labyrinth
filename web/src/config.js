@@ -1,4 +1,5 @@
-// 畫面層共用常數：邏輯解析度、版面、色盤、字型。
+// 畫面層共用常數：邏輯解析度、版面、色盤、字型、雲端 API 位址。
+import { API_BASE_DEFAULT, resolveApiBase } from './cloud/endpoint.js';
 
 export const WIDTH = 360;
 export const HEIGHT = 640;
@@ -54,4 +55,16 @@ export function battleSeed() {
     } catch { /* 沒有 seed 參數就照一般方式產生 */ }
   }
   return ((Date.now() & 0xffffffff) ^ Math.floor(Math.random() * 0x100000000)) >>> 0;
+}
+
+/**
+ * 雲端 API 的基底網址：預設正式網址（cloud/endpoint.js 的 API_BASE_DEFAULT）；
+ * ?api=<url> 可覆寫（只在本機開發頁面、或目標是本機 Worker 時生效）。
+ */
+export function apiBase() {
+  try {
+    return resolveApiBase(window.location.search, window.location.hostname);
+  } catch {
+    return API_BASE_DEFAULT;
+  }
 }
