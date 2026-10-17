@@ -10,6 +10,10 @@ import { dreamUi, makeSaveV3 } from './dream-ui.js';
 import { createMockCloud, MOCK_API, signReply } from './cloud-mock.js';
 import { installFakeTurnstile, FAKE_TS_TOKEN } from './fake-turnstile.js';
 import { useDreamFixture, useDataDir, DREAM_FIXTURE_PREFIX, DATA_DIR_PREFIX } from './dream-fixture.js';
+import { resolveSitekey } from '../../web/src/cloud/turnstile-config.js';
+
+// 本機頁面用官方測試 sitekey；對線上網站（E2E_BASE_URL）跑時用正式 sitekey。
+const EXPECTED_SITEKEY = resolveSitekey(new URL(process.env.E2E_BASE_URL || 'http://localhost/').hostname);
 
 /** 錯誤蒐集：忽略瀏覽器對模擬 API 非 2xx／中斷自動印的「Failed to load resource」（同 cloud.spec.js）。 */
 const test = base.extend({
@@ -158,7 +162,7 @@ test.describe('M4 鐘塔之夢（客戶端）', () => {
     await u.waitReady();
     // 人機驗證：action dream_pass、本機用官方測試 sitekey；通行證只在記憶體
     const tsLog = await page.evaluate(() => window.__FAKE_TS_LOG);
-    expect(tsLog).toEqual([{ sitekey: '1x00000000000000000000AA', action: 'dream_pass' }]);
+    expect(tsLog).toEqual([{ sitekey: EXPECTED_SITEKEY, action: 'dream_pass' }]);
     expect(mock.calls(/^\/api\/dream\/pass$/, 'POST').map((x) => x.body)).toEqual([{ turnstile_token: FAKE_TS_TOKEN }]);
     c = await u.chat();
     expect(c.remaining).toBe('今日剩餘 3 句'); // 通行證回應的 remaining_today 立即顯示（不再是「—」）
