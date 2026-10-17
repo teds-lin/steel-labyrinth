@@ -1,7 +1,7 @@
 // HTTP 工具：錯誤格式、JSON 回應、CORS、限制大小的 body 讀取。
 
-/** 請求 body 上限 80 KB。 */
-export const BODY_LIMIT = 80 * 1024;
+/** 請求 body 上限 24 KB（修訂 3：16 KB 存檔＋JSON 包裝）。 */
+export const BODY_LIMIT = 24 * 1024;
 
 /** 給玩家看的錯誤訊息（台灣繁體）。 */
 export const MESSAGES = {
@@ -11,6 +11,10 @@ export const MESSAGES = {
   not_found: '找不到資料。',
   transfer_not_found: '轉移碼不正確或已經失效。',
   conflict: '雲端的存檔已經被其他裝置更新。',
+  secret_conflict: '這組轉移碼剛好和別人重複，請重試一次。',
+  unsupported_media_type: '請求的資料格式不正確（必須是 JSON）。',
+  forbidden_origin: '這個網站不能使用雲端存檔。',
+  capacity: '雲端存檔目前額滿，請稍後再試。',
   too_large: '資料太大，無法上傳。',
   precondition_required: '缺少版本資訊，請重新整理後再試。',
   rate_limited: '操作太頻繁，請稍後再試。',
@@ -30,6 +34,13 @@ export class HttpError extends Error {
 }
 
 export const badRequest = () => new HttpError(400, 'bad_request');
+
+const JSON_CT_RE = /^application\/json\s*(?:;.*)?$/i;
+
+/** POST／PUT 的 Content-Type 必須是 application/json（可帶 charset 等參數），否則 415（修訂 2 C）。 */
+export function requireJsonContentType(request) {
+  if (!JSON_CT_RE.test((request.headers.get('content-type') ?? '').trim())) throw new HttpError(415, 'unsupported_media_type');
+}
 
 const JSON_TYPE = 'application/json; charset=utf-8';
 
@@ -98,11 +109,15 @@ const ALLOW_METHODS = 'GET, PUT, POST, DELETE, OPTIONS';
 const ALLOW_HEADERS = 'Authorization, Content-Type, If-Match, If-None-Match';
 const EXPOSE_HEADERS = 'ETag, Retry-After';
 
-export function allowedOrigin(request, env) {
+/**
+ * 檢查 Origin：沒有 Origin（非瀏覽器）→ { origin: null, forbidden: false }；
+ * 在 ALLOWED_ORIGINS 裡 → { origin, forbidden: false }；其他（含字串 "null"）→ forbidden（修訂 2 C：403）。
+ */
+export function checkOrigin(request, env) {
   const origin = request.headers.get('origin');
-  if (!origin) return null;
+  if (origin === null) return { origin: null, forbidden: false };
   const list = String(env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  return list.includes(origin) ? origin : null;
+  return list.includes(origin) ? { origin, forbidden: false } : { origin: null, forbidden: true };
 }
 
 /** 在回應加上 CORS 標頭（來源在允許清單內才加）；一律加 Vary: Origin。 */

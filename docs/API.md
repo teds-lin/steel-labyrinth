@@ -1,6 +1,6 @@
 # 雲端 API（Cloudflare Worker＋D1）
 
-Worker 與客戶端的共同約定。基底網址由 `web/src/config.js` 決定（正式：`https://steel-labyrinth.<帳號>.workers.dev`），測試時可用 `?api=<url>` 覆寫。
+Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js` 決定（正式：`https://steel-labyrinth.<帳號>.workers.dev`），測試時可用 `?api=<url>` 覆寫。
 
 ## 共通規則
 - 所有請求與回應都是 JSON（`content-type: application/json; charset=utf-8`），請求 body 上限 **80 KB**（存檔內容上限 64 KB）。
@@ -148,3 +148,23 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/config.js` 決定�
 - 選單「雲端存檔」在未啟用時也提供「用轉移碼接續」（不只在標題畫面）。
 - 429 的等待時間顯示成「約 N 分鐘」（不足 1 分鐘顯示秒數）。
 - 轉移碼正規化時移除零寬與格式字元（Unicode Cf）。
+
+# 修訂 3（2026-10-17，免費額度的最終上限；與前文衝突時以本節為準）
+實測：新遊戲存檔 316 bytes；悲觀假設 300 個旗標＋40 種道具約 5.5 KB（目前全部劇情只有 36 個旗標）。
+
+| 設定 | 值 | 理由 |
+|---|---|---|
+| 每格存檔上限 | **16 KB**（UTF-8 位元組） | 約悲觀估計的 3 倍；超過回 413 |
+| 請求 body 上限 | **24 KB** | 16 KB 存檔＋JSON 包裝 |
+| `MAX_PLAYERS` | **5000** | 最壞 5000 × 3 × 16 KB ≈ 240 MB，低於 D1 免費 500 MB 的一半 |
+| `RL_PLAYER_GLOBAL_PER_HOUR` | **60** | |
+| `RL_TRANSFER_GLOBAL_PER_HOUR` | **300** | |
+| `RL_WRITE_GLOBAL_PER_HOUR`（新） | **600** | 所有已登入的寫入（PUT、DELETE、clear、rotate）合計的全域上限，超過回 429 |
+
+惡意流量的每日寫入上限估算：建立玩家 60×24×7 ≈ 1.0 萬列＋轉移 300×24×2 ≈ 1.4 萬列＋已登入寫入 600×24×3 ≈ 4.3 萬列 ≈ **6.7 萬列**，低於免費 10 萬列。
+
+## 修訂 3a（2026-10-17，實測後修正）
+實測每請求寫入列數後（已登入寫入 4 列、成功轉移 5 列，另含 last_seen 每日 1 列與 Cron 清理），修訂 3 的值每日最壞為 128,840 列，超過免費額度。改為：
+- `RL_TRANSFER_GLOBAL_PER_HOUR` = **120**
+- `RL_WRITE_GLOBAL_PER_HOUR` = **400**
+最壞每日寫入 ≈ **88,040 列**（約 12% 餘裕），由 `tests/worker/cron-cost.test.js` 以實際 vars 值與實測列數計算並斷言 < 100,000。

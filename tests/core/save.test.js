@@ -409,3 +409,70 @@ describe('sanitizeLoadedState（v2）', () => {
     expect(sanitizeLoadedState(null, data).code).toBe('corrupt');
   });
 });
+
+describe('deserialize 加強（API 修訂 2 F：Worker 與客戶端共用）', () => {
+  const bad = (mut) => { const s = game(); mut(s); return () => deserialize(JSON.stringify(s)); };
+  const codeOf = (fn) => { try { fn(); } catch (e) { return e.code; } return 'no-throw'; };
+
+  it('flags 的值只能是布林或整數', () => {
+    for (const v of [true, false, 0, 3, -2]) expect(bad((s) => { s.flags = { a: v }; }), JSON.stringify(v)).not.toThrow();
+    for (const v of ['x', 1.5, null, [], {}, 'true']) {
+      expect(bad((s) => { s.flags = { a: v }; }), JSON.stringify(v)).toThrow(/flags/);
+      expect(codeOf(bad((s) => { s.flags = { a: v }; }))).toBe('corrupt');
+    }
+  });
+
+  it('flags 的鍵不限格式（遊戲本身就用 enter:attic 這種鍵）', () => {
+    expect(bad((s) => { s.flags = { 'enter:attic': true, 'trigger:x-1': true }; })).not.toThrow();
+  });
+
+  it('items／resonance 的鍵必須是 [a-z0-9_]{1,32}', () => {
+    for (const k of ['attic_key', 'a', 'x'.repeat(32), 'item_2']) {
+      expect(bad((s) => { s.items = { [k]: 1 }; }), k).not.toThrow();
+      expect(bad((s) => { s.resonance = { [k]: 0 }; }), k).not.toThrow();
+    }
+    for (const k of ['', 'Attic', 'a-b', 'a b', 'x'.repeat(33), '鑰匙', '<img>', '__proto__x!']) {
+      expect(bad((s) => { s.items = { [k]: 1 }; }), k).toThrow(/items/);
+      expect(bad((s) => { s.resonance = { [k]: 1 }; }), k).toThrow(/resonance/);
+    }
+  });
+
+  it('JSON 巢狀深度上限 8（根物件算第 1 層），字串裡的括號不算', () => {
+    const nest = (n) => { let v = 1; for (let i = 0; i < n; i++) v = [v]; return v; };
+    // 根(1) → flags 物件(2) 裡不能放陣列（值只能布林／整數），所以用版本較新的存檔測深度：根(1)＋n 層
+    const newer = (n) => JSON.stringify({ schema_version: CURRENT_VERSION + 1, x: nest(n) });
+    expect(codeOf(() => deserialize(newer(7)))).toBe('newer'); // 深度 8：通過格式檢查，只是版本較新
+    expect(codeOf(() => deserialize(newer(8)))).toBe('corrupt'); // 深度 9
+    expect(() => deserialize(newer(8))).toThrow(/巢狀/);
+    const deep = `{"schema_version":${CURRENT_VERSION},"flags":{"x":${'['.repeat(30000)}${']'.repeat(30000)}}}`;
+    expect(codeOf(() => deserialize(deep))).toBe('corrupt');
+    const s = game();
+    s.player.name = '[[[[[[[[[[[[{{{{{{{{{{"\\"[[[[';
+    expect(deserialize(JSON.stringify(s)).player.name).toBe(s.player.name);
+  });
+
+  it('遊戲資料裡所有道具 id 與殘響鍵都符合存檔鍵格式（加強後既有存檔仍可讀）', async () => {
+    const { readFileSync, readdirSync, statSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const root = join(import.meta.dirname, '..', '..', 'web', 'data');
+    const KEY = /^[a-z0-9_]{1,32}$/;
+    const found = { give_item: new Set(), take_item: new Set(), resonance: new Set() };
+    const walk = (v) => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') {
+        for (const [k, x] of Object.entries(v)) {
+          if (Object.hasOwn(found, k) && typeof x === 'string') found[k].add(x);
+          walk(x);
+        }
+      }
+    };
+    const files = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [join(dir, f)]));
+    for (const f of files(root).filter((f) => f.endsWith('.json'))) walk(JSON.parse(readFileSync(f, 'utf8')));
+    const items = JSON.parse(readFileSync(join(root, 'items.json'), 'utf8'));
+    const ids = (Array.isArray(items) ? items : Object.values(items)).map((x) => x.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(found.give_item.size).toBeGreaterThan(0);
+    expect(found.resonance.size).toBeGreaterThan(0);
+    for (const k of [...ids, ...found.give_item, ...found.take_item, ...found.resonance]) expect(k, k).toMatch(KEY);
+  });
+});

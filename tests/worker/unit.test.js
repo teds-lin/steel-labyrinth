@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TRANSFER_ALPHABET, generateTransferCode, normalizeTransferCode, generateToken,
-  sha256Hex, timingSafeEqualHex, ipBucketKey,
+  sha256Hex, timingSafeEqualHex, ipBucketKey, ipBucketSource, isTokenFormat,
 } from '../../worker/src/codes.js';
 import { readBodyText, HttpError, BODY_LIMIT } from '../../worker/src/http.js';
 import { buildSummary, DATA_LIMIT } from '../../worker/src/summary.js';
@@ -50,6 +50,37 @@ describe('轉移碼', () => {
   });
 });
 
+describe('修訂 2：客戶端秘密格式、零寬字元、IPv6 /64', () => {
+  it('isTokenFormat：43 字元 base64url', () => {
+    expect(isTokenFormat(generateToken())).toBe(true);
+    expect(isTokenFormat('A'.repeat(43))).toBe(true);
+    for (const bad of ['A'.repeat(42), 'A'.repeat(44), `${'A'.repeat(42)}+`, `${'A'.repeat(42)}/`, `${'A'.repeat(42)}=`, ` ${'A'.repeat(42)}`, null, 43, undefined]) {
+      expect(isTokenFormat(bad), String(bad)).toBe(false);
+    }
+  });
+
+  it('正規化轉移碼時移除零寬與格式字元（Unicode Cf）', () => {
+    expect(normalizeTransferCode('\u200bABCD\u200c-\u200dEFGH\u2060\ufeff')).toBe('ABCDEFGH');
+    expect(normalizeTransferCode('AB\u00adCD-EFGH')).toBe('ABCDEFGH'); // 軟連字號也是 Cf
+  });
+
+  it('ipBucketSource：IPv4 照舊；IPv6 取前 64 位元（/64）；IPv4 對映位址當 IPv4', () => {
+    expect(ipBucketSource('203.0.113.7')).toBe('203.0.113.7');
+    const a = ipBucketSource('2001:db8::1');
+    expect(a).toBe('2001:db8:0:0::/64');
+    for (const same of ['2001:db8::ffff', '2001:DB8:0:0:1:2:3:4', '2001:0db8:0000:0000::abcd', '2001:db8:0:0:ffff::']) {
+      expect(ipBucketSource(same), same).toBe(a);
+    }
+    expect(ipBucketSource('2001:db8:0:1::1')).not.toBe(a);
+    expect(ipBucketSource('::1')).toBe('0:0:0:0::/64');
+    expect(ipBucketSource('::ffff:198.51.100.9')).toBe('198.51.100.9');
+    expect(ipBucketSource('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
+    // 解析不了的字串原樣使用（不會讓請求失敗）
+    expect(ipBucketSource('unknown')).toBe('unknown');
+    expect(ipBucketSource('1:2:3')).toBe('1:2:3');
+  });
+});
+
 describe('權杖與雜湊', () => {
   it('權杖是 32 bytes 的 base64url（43 字元、無補位）', () => {
     const t = generateToken();
@@ -88,7 +119,7 @@ describe('readBodyText：不信任 content-length', () => {
   });
   const fakeReq = (headers, body) => ({ headers: new Headers(headers), body });
 
-  it('上限是 80 KB', () => expect(BODY_LIMIT).toBe(80 * 1024));
+  it('上限是 24 KB（修訂 3）', () => expect(BODY_LIMIT).toBe(24 * 1024));
 
   it('content-length 超過上限就直接 413，不讀 body', async () => {
     let pulled = false;
@@ -125,7 +156,7 @@ describe('readBodyText：不信任 content-length', () => {
 });
 
 describe('buildSummary：用共用的 deserialize 驗證並算出摘要', () => {
-  it('存檔內容上限 64 KB', () => expect(DATA_LIMIT).toBe(64 * 1024));
+  it('存檔內容上限 16 KB（修訂 3）', () => expect(DATA_LIMIT).toBe(16 * 1024));
 
   it('正常存檔 → 摘要五個欄位', () => {
     const r = buildSummary(sampleSave());
@@ -146,9 +177,26 @@ describe('buildSummary：用共用的 deserialize 驗證並算出摘要', () => 
   });
 
   it('版本較新的存檔照樣接受，摘要盡量取得', () => {
-    const r = buildSummary(JSON.stringify({ ...sampleState(), schema_version: 99, newField: 1 }));
+    const r = buildSummary(JSON.stringify({ ...sampleState(), schema_version: 7, newField: 1 }));
     expect(r.ok).toBe(true);
-    expect(r.summary).toEqual({ name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 120, schema_version: 99 });
+    expect(r.summary).toEqual({ name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 120, schema_version: 7 });
+  });
+
+  it('版本較新但 schema_version > CURRENT_VERSION＋5 → 不通過（修訂 2 F）', () => {
+    expect(buildSummary(JSON.stringify({ ...sampleState(), schema_version: 8 })).ok).toBe(false);
+    expect(buildSummary(JSON.stringify({ schema_version: 1e300 })).ok).toBe(false);
+    expect(buildSummary(JSON.stringify({ schema_version: Number.MAX_SAFE_INTEGER })).ok).toBe(false);
+  });
+
+  it('map／chapter 必須符合 [a-z0-9_]{1,32}，否則摘要為 null（修訂 2 F）', () => {
+    const bad = ['M'.repeat(33), 'Hall', '<img>', '大廳', '', 'a-b'];
+    for (const v of bad) {
+      expect(buildSummary(sampleSave({ location: { map: v, x: 0, y: 0, dir: 'down' }, chapter: v })).summary, v)
+        .toMatchObject({ map: null, chapter: null });
+      expect(buildSummary(JSON.stringify({ schema_version: 3, location: { map: v }, chapter: v })).summary, v)
+        .toMatchObject({ map: null, chapter: null });
+    }
+    expect(buildSummary(sampleSave({ chapter: null })).summary.chapter).toBeNull();
   });
 
   it('版本較新但欄位格式怪異 → 仍接受，摘要欄位改成 null', () => {

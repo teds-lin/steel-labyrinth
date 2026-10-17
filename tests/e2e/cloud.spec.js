@@ -204,7 +204,9 @@ test.describe('M3 雲端存檔（客戶端，模擬 API）', () => {
     await uB.waitCloud('transfer-slots');
     const slots = (await uB.menu()).cloud.slots;
     expect(slots[0]).toMatchObject({ slot: 1, empty: false, summary: { name: '雲端艾琳' } });
-    expect(mock.calls(/\/api\/transfer$/).at(-1).body).toEqual({ code });
+    // 修訂 2 A：新權杖與新轉移碼由客戶端產生後送出
+    const tbody = mock.calls(/\/api\/transfer$/).at(-1).body;
+    expect(tbody).toMatchObject({ code, new_token: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/), new_transfer_code: expect.stringMatching(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/) });
     await uB.pick('cloud1');
     await uB.waitCloud('transfer-target');
     await uB.pick('to2'); // 本機第 2 格是空的：不用確認
@@ -213,6 +215,9 @@ test.describe('M3 雲端存檔（客戶端，模擬 API）', () => {
     const stB = await b.page.evaluate(() => window.__SL.cloud());
     expect(stB.enabled).toBe(true);
     expect(stB.transferCode).not.toBe(code); // 用過就換新碼
+    expect(stB.transferCode).toBe(tbody.new_transfer_code);
+    expect(await b.page.evaluate((k) => JSON.parse(localStorage.getItem(k)).token, CLOUD_KEY)).toBe(tbody.new_token);
+    expect(await b.page.evaluate(() => localStorage.getItem('steel-labyrinth:cloud-pending'))).toBeNull();
     await uB.pick('play');
     await gB.waitScene('Map');
     let sB = await gB.st();
@@ -223,6 +228,10 @@ test.describe('M3 雲端存檔（客戶端，模擬 API）', () => {
     expect(sB.location).toMatchObject({ map: 'attic', x: 3, y: 3 });
     expect(b.errors).toEqual([]);
     await b.ctx.close();
+    // 修訂 2 C：所有 POST／PUT 都帶 application/json
+    for (const c of mock.log.filter((l) => l.method === 'POST' || l.method === 'PUT')) {
+      expect(c.headers['content-type'], `${c.method} ${c.path}`).toMatch(/^application\/json/);
+    }
 
     // 原裝置：權杖已被轉移作廢 → 提示並清除本機雲端資訊
     await u.pick('back');
@@ -366,13 +375,13 @@ test.describe('M3 雲端存檔（客戶端，模擬 API）', () => {
     expect(await noteOf()).toBe(`已存檔到存檔 2。\n${UNAVAILABLE}`);
     expect((await u.localSlot(2)).player.name).toBe('存檔測試');
 
-    // 429：顯示需要等待的秒數
+    // 429：顯示需要等待的時間（修訂 2 G：1 分鐘以上顯示「約 N 分鐘」）
     await u.saveTo(3, false);
     await u.waitCloud('ask-upload');
     mock.fail(({ method }) => method === 'PUT', { status: 429, headers: { 'Retry-After': '120' }, body: { error: 'rate_limited', message: '太頻繁' } });
     await u.pick('ask-upload');
-    await page.waitForFunction(() => window.__SL.menu()?.page === 'save' && /秒/.test(window.__SL.menu()?.note ?? ''));
-    expect(await noteOf()).toBe('已存檔到存檔 3。\n雲端暫時無法使用，請等 120 秒後再試');
+    await page.waitForFunction(() => window.__SL.menu()?.page === 'save' && /分鐘/.test(window.__SL.menu()?.note ?? ''));
+    expect(await noteOf()).toBe('已存檔到存檔 3。\n雲端暫時無法使用，請等約 2 分鐘後再試');
     expect(await u.localSlot(3)).not.toBeNull();
 
     // 「不用」：不上傳
@@ -419,7 +428,7 @@ test.describe('M3 雲端存檔（客戶端，模擬 API）', () => {
     const touch = isTouch(testInfo);
     const mock = createMockCloud();
     await mock.attach(page);
-    await seedCloud(page, { player_id: 'p-old', token: 'revoked-token', transfer_code: 'ABCD-EFGH' });
+    await seedCloud(page, { player_id: 'p-old', token: 'r'.repeat(43), transfer_code: 'ABCD-EFGH' }); // 格式正確但已作廢
     await seedSaves(page, { 1: makeSave() });
     const g = game(page, { touch });
     const u = cloudUi(page, g);
@@ -543,5 +552,372 @@ test.describe('M3 雲端存檔（客戶端，模擬 API）', () => {
     await u.saveTo(2, false);
     await page.waitForFunction(() => window.__SL.menu()?.page === 'save' && window.__SL.menu()?.note === '已存檔到存檔 2');
     expect(mock.log.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 修訂 2（M3 第一輪對抗審查的客戶端修正）
+const PENDING_KEY = 'steel-labyrinth:cloud-pending';
+const lsGet = (p, k) => p.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), k);
+const isPost = (re) => ({ method, path }) => method === 'POST' && re.test(path);
+
+test.describe('M3 雲端存檔：修訂 2（秘密由客戶端產生、雜湊判定、上傳前驗證、未開放）', () => {
+  test('A：轉移回應延遲 5.1 秒 → 逾時後用新權杖確認，最終接續成功；舊裝置失效、新裝置可用', async ({ page, browser }, testInfo) => {
+    test.setTimeout(150_000);
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const p = mock.seedPlayer({ saves: { 1: { version: 3, data: JSON.stringify(makeSave({ player: { name: '舊裝置' }, playtime_s: 400 })) } } });
+    await seedCloud(page, p);
+    await seedSaves(page, { 1: makeSave({ player: { name: '舊裝置' } }) });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+
+    const b = await otherDevice(browser, testInfo);
+    await mock.attach(b.page);
+    const gB = game(b.page, { touch });
+    const uB = cloudUi(b.page, gB);
+    await b.page.goto(CLOUD_URL);
+    await uB.titlePick('用轉移碼接續');
+    await uB.waitCloud('transfer-input');
+    await uB.typeCode(b.page, p.transfer_code, touch);
+    mock.fail(isPost(/^\/api\/transfer$/), { delay: 5100 }); // 伺服器做完了，但回應比 5 秒逾時晚到
+    const t0 = Date.now();
+    await uB.pick('transfer-go');
+    await uB.waitCloud('transfer-slots', 20_000);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(5_000);
+    const sent = mock.calls(/^\/api\/transfer$/, 'POST')[0];
+    expect(sent.fault).toEqual({ delay: 5100 });
+    // 逾時後用 new_token 呼叫 GET /api/saves 確認成功
+    expect(mock.calls(/^\/api\/saves$/, 'GET').some((c) => c.headers.authorization === `Bearer ${sent.body.new_token}`)).toBe(true);
+    const infoB = await lsGet(b.page, CLOUD_KEY);
+    expect(infoB.token).toBe(sent.body.new_token);
+    expect(infoB.token).toBe(mock.players[0].token);
+    expect(infoB.transfer_code).toBe(sent.body.new_transfer_code);
+    expect(await lsGet(b.page, PENDING_KEY)).toBeNull();
+    expect((await uB.menu()).cloud.slots[0]).toMatchObject({ slot: 1, empty: false, summary: { name: '舊裝置' } });
+    await shot(b.page, testInfo, 'rev2-transfer-timeout-recovered');
+    // 新裝置可用：下載 → 開始遊玩
+    await uB.pick('cloud1');
+    await uB.waitCloud('transfer-target');
+    await uB.pick('to1');
+    await uB.waitCloud('transfer-done');
+    await uB.pick('play');
+    await gB.waitScene('Map');
+    expect((await gB.st()).player.name).toBe('舊裝置');
+    expect(b.errors).toEqual([]);
+    await b.ctx.close();
+    // 舊裝置失效
+    await u.openCloudMenu();
+    await u.waitCloud('relink');
+    expect((await u.state()).enabled).toBe(false);
+  });
+
+  test('A：轉移送出後馬上重新整理 → 重新載入時用待確認區的新權杖恢復成已接續', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const p = mock.seedPlayer();
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.titlePick('用轉移碼接續');
+    await u.waitCloud('transfer-input');
+    await u.typeCode(page, p.transfer_code, touch);
+    mock.fail(isPost(/^\/api\/transfer$/), { delay: 3000 });
+    await u.pick('transfer-go');
+    await expect.poll(() => mock.calls(/^\/api\/transfer$/, 'POST').length).toBe(1);
+    // 秘密在送出前已經寫進待確認區
+    const sent = mock.calls(/^\/api\/transfer$/, 'POST')[0].body;
+    expect(await lsGet(page, PENDING_KEY)).toMatchObject({ op: 'transfer', new_token: sent.new_token, new_transfer_code: sent.new_transfer_code });
+    await page.reload();
+    await g.waitScene('Title', 15_000);
+    await page.waitForFunction(() => window.__SL.cloud().enabled === true, null, { timeout: 10_000 });
+    expect((await lsGet(page, CLOUD_KEY)).token).toBe(mock.players[0].token);
+    expect((await u.state()).transferCode).toBe(sent.new_transfer_code);
+    expect(await lsGet(page, PENDING_KEY)).toBeNull();
+  });
+
+  test('A：建立玩家逾時 → 再按啟用用同一組秘密重送，不會多建帳號', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    await seedSaves(page, { 1: makeSave() });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('intro');
+    mock.fail(isPost(/^\/api\/player$/), { delay: 5100 });
+    await u.pick('enable');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'intro' && !!window.__SL.menu()?.cloud?.status, null, { timeout: 15_000 });
+    expect((await u.menu()).cloud.status).toBe(UNAVAILABLE);
+    expect(mock.players.length).toBe(1); // 伺服器其實建好了
+    await u.pick('enable');
+    await u.waitCloud('cloud');
+    expect((await u.menu()).cloud.status).toBe('已啟用雲端存檔');
+    const bodies = mock.calls(/^\/api\/player$/, 'POST').map((c) => c.body);
+    expect(bodies.length).toBe(2);
+    expect(bodies[1]).toEqual(bodies[0]);
+    expect(mock.players.length).toBe(1);
+    expect((await lsGet(page, CLOUD_KEY)).token).toBe(mock.players[0].token);
+  });
+
+  test('B：上傳回應延遲 5.1 秒 → 再上傳不出現衝突畫面（雲端總覽與存檔後上傳兩種路徑）', async ({ page }, testInfo) => {
+    test.setTimeout(150_000);
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const p = mock.seedPlayer();
+    await seedCloud(page, p);
+    await seedSaves(page, { 1: makeSave({ player: { name: '逾時上傳' } }) });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    const putSlot = (n) => ({ method, path }) => method === 'PUT' && path === `/api/save/${n}`;
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+
+    // (1) 存檔後詢問上傳：PUT 回應晚 5.1 秒 → 逾時；伺服器其實寫進去了
+    await g.act('menu');
+    await g.waitScene('Menu');
+    await u.saveTo(2, false);
+    await u.waitCloud('ask-upload');
+    mock.fail(putSlot(2), { delay: 5100 });
+    await u.pick('ask-upload');
+    await page.waitForFunction(() => window.__SL.menu()?.page === 'save' && /雲端/.test(window.__SL.menu()?.note ?? ''), null, { timeout: 15_000 });
+    expect((await u.menu()).note).toBe(`已存檔到存檔 2。\n${UNAVAILABLE}`);
+    expect(mock.players[0].saves[2].version).toBe(1);
+    expect((await u.state()).slots[2].pending_sha256).toMatch(/^[0-9a-f]{64}$/); // 送出前記下的內容雜湊
+    // 再存一次同一格並上傳：先刷新列表（雜湊相符 → 採用版本 1），不出現衝突
+    await u.saveTo(2, true);
+    await u.waitCloud('ask-upload');
+    await u.pick('ask-upload');
+    await page.waitForFunction(() => window.__SL.menu()?.page === 'save' && /並已上傳/.test(window.__SL.menu()?.note ?? ''), null, { timeout: 12_000 });
+    expect((await u.menu()).note).toBe('已存檔到存檔 2，並已上傳到雲端');
+    const lastGets = mock.log.filter((l) => l.method === 'GET' && l.path === '/api/saves');
+    expect(lastGets.length).toBeGreaterThanOrEqual(1);
+    expect((await u.state()).slots[2].version).toBeGreaterThanOrEqual(1);
+    expect((await u.state()).slots[2].pending_sha256).toBeUndefined();
+
+    // (2) 雲端總覽：上傳逾時 → 總覽重新讀取時以雜湊認出已寫入 → 再上傳也不衝突
+    await g.key('Escape');
+    await page.waitForFunction(() => window.__SL.menu()?.page === 'main');
+    await g.pickMenu('雲端存檔');
+    await u.waitCloud('cloud');
+    mock.fail(putSlot(1), { delay: 5100 });
+    await u.pick('up1');
+    await page.waitForFunction((x) => window.__SL.menu()?.cloud?.page === 'cloud' && window.__SL.menu()?.cloud?.status === x, UNAVAILABLE, { timeout: 15_000 });
+    await shot(page, testInfo, 'rev2-upload-timeout');
+    expect(mock.players[0].saves[1].version).toBe(1);
+    expect((await u.state()).slots[1]).toEqual({ version: 1, updated_at: expect.any(Number) });
+    await u.pick('up1');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'cloud' && /已上傳/.test(window.__SL.menu()?.cloud?.status ?? ''), null, { timeout: 12_000 });
+    expect((await u.menu()).cloud.status).toBe('已上傳存檔 1');
+    expect(mock.calls(/\/api\/save\/1$/, 'PUT').at(-1).headers['if-match']).toBe('"1"');
+    expect(mock.log.some((l) => l.method === 'PUT' && l.fault === undefined && l.headers['if-none-match'] === '*' && l.path === '/api/save/1')).toBe(false);
+  });
+
+  test('B：上傳中途重新整理 → 之後再上傳（內容也變了）不出現衝突畫面', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const p = mock.seedPlayer({ saves: { 1: { version: 4, data: JSON.stringify(makeSave({ player: { name: '雲端舊版' } })) } } });
+    await seedCloud(page, { ...p, slots: { 1: { version: 4, updated_at: 1_760_000_000 } } });
+    await seedSaves(page, { 1: makeSave({ player: { name: '重新整理' }, playtime_s: 10 }) });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('cloud');
+    mock.fail(({ method, path }) => method === 'PUT' && path === '/api/save/1', { delay: 3000 });
+    await u.pick('up1');
+    await expect.poll(() => mock.calls(/\/api\/save\/1$/, 'PUT').length).toBe(1);
+    await page.reload(); // 回應還沒到就重新整理
+    await expect.poll(() => mock.players[0].saves[1].version).toBe(5);
+    // 本機存檔又變了（再玩一下存檔）
+    await page.evaluate(() => {
+      const k = 'steel-labyrinth:save:1';
+      const o = JSON.parse(localStorage.getItem(k));
+      o.playtime_s = 999;
+      localStorage.setItem(k, JSON.stringify(o));
+    });
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('cloud');
+    await u.pick('up1');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'cloud' && /已上傳/.test(window.__SL.menu()?.cloud?.status ?? ''), null, { timeout: 12_000 });
+    expect((await u.menu()).cloud.status).toBe('已上傳存檔 1');
+    const puts = mock.calls(/\/api\/save\/1$/, 'PUT');
+    expect(puts.at(-1).headers['if-match']).toBe('"5"');
+    expect(mock.players[0].saves[1].version).toBe(6);
+    expect(JSON.parse(mock.players[0].saves[1].data).playtime_s).toBeGreaterThanOrEqual(999);
+  });
+
+  test('A：重新產生轉移碼逾時 → 標示「新轉移碼尚未確認」，重試用同一個碼；重新整理後自動重送', async ({ page }, testInfo) => {
+    test.setTimeout(150_000);
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const p = mock.seedPlayer();
+    await seedCloud(page, p);
+    await seedSaves(page, { 1: makeSave() });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('cloud');
+    await u.pick('code');
+    await u.waitCloud('code');
+    mock.fail(isPost(/^\/api\/transfer\/rotate$/), { delay: 5100 });
+    await u.pick('rotate');
+    await u.waitCloud('confirm-rotate');
+    await u.pick('confirm-rotate');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'code' && !!window.__SL.menu()?.cloud?.status, null, { timeout: 15_000 });
+    let v = (await u.menu()).cloud;
+    expect(v).toMatchObject({ confirmed: false, warning: '新轉移碼尚未確認', previousCode: p.transfer_code, status: UNAVAILABLE });
+    const newCode = v.pendingCode;
+    expect(v.code).toBe(newCode);
+    expect(newCode).not.toBe(p.transfer_code);
+    expect(mock.players[0].code).toBe(newCode); // 伺服器已經換成這個碼（顯示的不是死碼）
+    expect((await u.state()).transferCode).toBe(p.transfer_code);
+    await shot(page, testInfo, 'rev2-rotate-unconfirmed');
+    await u.pick('rotate-retry');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'code' && window.__SL.menu()?.cloud?.status === '已產生新的轉移碼', null, { timeout: 12_000 });
+    v = (await u.menu()).cloud;
+    expect(v).toMatchObject({ confirmed: true, code: newCode, pendingCode: null, warning: '轉移碼等同密碼，請勿分享' });
+    expect(mock.calls(/^\/api\/transfer\/rotate$/, 'POST').map((c) => c.body)).toEqual([{ new_transfer_code: newCode }, { new_transfer_code: newCode }]);
+
+    // 網路斷掉 → 尚未確認 → 重新整理後開機時自動用同一個碼重送
+    mock.fail(isPost(/^\/api\/transfer\/rotate$/), 'abort');
+    await u.pick('rotate');
+    await u.waitCloud('confirm-rotate');
+    await u.pick('confirm-rotate');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'code' && !!window.__SL.menu()?.cloud?.status, null, { timeout: 12_000 });
+    const third = (await u.menu()).cloud.pendingCode;
+    expect(third).toMatch(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+    await page.reload();
+    await page.waitForFunction((c) => window.__SL.cloud().transferCode === c && window.__SL.cloud().pendingTransferCode === null, third, { timeout: 10_000 });
+    expect(mock.players[0].code).toBe(third);
+  });
+
+  test('B：語意壞掉的本機存檔不能上傳：按鈕停用並顯示原因', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const p = mock.seedPlayer();
+    await seedCloud(page, p);
+    await seedSaves(page, {
+      1: makeSave(),
+      2: makeSave({ player: { name: '壞檔' }, location: { map: 'nowhere', x: 99, y: 99, dir: 'down' } }),
+    });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('cloud');
+    const m = await u.menu();
+    expect(m.items.find((x) => x.id === 'up1').enabled).toBe(true);
+    expect(m.items.find((x) => x.id === 'up2').enabled).toBe(false);
+    expect(m.cloud.slots[1].local).toMatchObject({ empty: false, broken: true, uploadable: false });
+    expect(m.cloud.slots[1].local.reason).toContain('nowhere');
+    expect(m.cloud.status).toBe('存檔 2 無法上傳：存檔所在的地圖「nowhere」不存在');
+    await shot(page, testInfo, 'rev2-upload-disabled-reason');
+    expect(mock.calls(/\/api\/save\//, 'PUT').length).toBe(0);
+  });
+
+  test('修訂 3：超過 16 KB 的本機存檔不能上傳並說明；伺服器 413 也有友善說明', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const p = mock.seedPlayer();
+    await seedCloud(page, p);
+    const flags = Object.fromEntries(Array.from({ length: 600 }, (_, i) => [`flag_${i}_長長的旗標名稱`, true]));
+    await seedSaves(page, { 1: makeSave(), 3: makeSave({ flags: { ...makeSave().flags, ...flags } }) });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('cloud');
+    let m = await u.menu();
+    expect(m.items.find((x) => x.id === 'up3').enabled).toBe(false);
+    expect(m.cloud.status).toMatch(/^存檔 3 無法上傳：存檔大小 \d+\.\d KB，超過雲端上限 16 KB$/);
+    await shot(page, testInfo, 'rev3-upload-too-large');
+    // 伺服器端仍回 413（例如上限調低）→ 友善說明
+    mock.fail(({ method }) => method === 'PUT', { status: 413, body: { error: 'too_large', message: 'x' } });
+    await u.pick('up1');
+    await page.waitForFunction(() => window.__SL.menu()?.cloud?.page === 'cloud' && /16 KB/.test(window.__SL.menu()?.cloud?.status ?? ''));
+    m = await u.menu();
+    expect(m.cloud.status).toBe('存檔太大，超過雲端每格 16 KB 的上限，無法上傳');
+  });
+
+  test('G：沒有 API 位址＝雲端存檔尚未開放（選單與標題都顯示），不送任何雲端請求', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const external = [];
+    page.on('request', (r) => { if (!/^https?:\/\/(localhost:8091|fonts\.(googleapis|gstatic)\.com)\//.test(r.url())) external.push(r.url()); });
+    // 即使本機留著雲端資訊，也視為未啟用
+    await seedCloud(page, { player_id: 'p-x', token: 'x'.repeat(43), transfer_code: 'ABCD-EFGH' });
+    await seedSaves(page, { 1: makeSave() });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto('./?test=1');
+    expect(await u.state()).toMatchObject({ apiBase: '', configured: false, enabled: false });
+    await u.titlePick('用轉移碼接續');
+    await u.waitCloud('closed');
+    expect((await u.menu()).note).toBe('雲端存檔尚未開放');
+    await shot(page, testInfo, 'rev2-cloud-not-open');
+    await u.pick('back');
+    await g.waitScene('Title', 10_000);
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('closed');
+    await u.pick('back');
+    await page.waitForFunction(() => window.__SL.menu()?.page === 'main');
+    await u.saveTo(2, false);
+    await page.waitForFunction(() => window.__SL.menu()?.page === 'save' && window.__SL.menu()?.note === '已存檔到存檔 2'); // 不詢問上傳
+    expect(external).toEqual([]);
+  });
+
+  test('G：401 後在遊戲內選單用轉移碼接續（碼含零寬字元也可以）；未啟用時總覽也能用轉移碼接續', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    const target = mock.seedPlayer({ saves: { 1: { version: 2, data: JSON.stringify(makeSave({ player: { name: '接續目標' } })) } } });
+    await seedCloud(page, { player_id: 'p-old', token: 'r'.repeat(43), transfer_code: 'ABCD-EFGH' });
+    await seedSaves(page, { 1: makeSave() });
+    const g = game(page, { touch });
+    const u = cloudUi(page, g);
+    await page.goto(CLOUD_URL);
+    await u.loadFromTitle(1);
+    await u.openCloudMenu();
+    await u.waitCloud('relink');
+    expect((await u.menu()).items.map((x) => x.id)).toEqual(['relink-transfer', 'relink-ok']);
+    await u.pick('relink-transfer');
+    await u.waitCloud('transfer-input');
+    const zw = `${target.transfer_code.slice(0, 2)}​${target.transfer_code.slice(2)}﻿`;
+    await u.typeCode(page, zw, touch);
+    await u.pick('transfer-go');
+    await u.waitCloud('transfer-slots');
+    expect(mock.calls(/^\/api\/transfer$/, 'POST')[0].body.code).toBe(target.transfer_code);
+    await u.pick('done');
+    await u.waitCloud('cloud'); // 遊戲中進來的：完成後回雲端總覽
+    expect((await u.menu()).cloud.slots[0].cloud).toMatchObject({ empty: false, summary: { name: '接續目標' } });
+    // 停用 → 總覽（未啟用）也有「用轉移碼接續」；返回回到總覽
+    await u.pick('settings');
+    await u.waitCloud('settings');
+    await u.pick('disable');
+    await u.waitCloud('confirm-disable');
+    await u.pick('confirm-disable');
+    await u.waitCloud('intro');
+    await u.pick('transfer');
+    await u.waitCloud('transfer-input');
+    await u.pick('transfer-back');
+    await u.waitCloud('intro');
   });
 });

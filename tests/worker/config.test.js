@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readWranglerConfig, migrationStatements, CONFIG_PATH, ROOT } from './helpers.js';
+import { createHash } from 'node:crypto';
+import { readWranglerConfig, migrationStatements, devVarOverrides, startWorker, CONFIG_PATH, ROOT } from './helpers.js';
 
 describe('wrangler.toml', () => {
   const cfg = readWranglerConfig();
@@ -22,8 +23,32 @@ describe('wrangler.toml', () => {
     expect(cfg.d1_databases[0].migrations_dir ?? 'migrations').toBe('migrations');
   });
 
-  it('vars：允許來源與限流值', () => {
-    expect(String(cfg.vars.ALLOWED_ORIGINS).split(',')).toEqual(['https://teds-lin.github.io', 'http://localhost:8080', 'http://localhost:8091']);
+  it('正式的 ALLOWED_ORIGINS 只有 GitHub Pages；本機來源只由 worker:dev 的 --var 覆寫（修訂 2 C）', () => {
+    expect(cfg.vars.ALLOWED_ORIGINS).toBe('https://teds-lin.github.io');
+    expect(raw).not.toMatch(/localhost/);
+    const dev = devVarOverrides();
+    expect(dev.ALLOWED_ORIGINS.split(',')).toEqual(['https://teds-lin.github.io', 'http://localhost:8080', 'http://localhost:8091']);
+    expect(dev.TRANSFER_PEPPER).toBeTruthy();
+  });
+
+  it('vars：修訂 2 的全域上限、容量、統計門檻、章節白名單', () => {
+    expect(Number(cfg.vars.RL_PLAYER_GLOBAL_PER_HOUR)).toBe(60); // 修訂 3
+    expect(Number(cfg.vars.RL_TRANSFER_GLOBAL_PER_HOUR)).toBe(120); // 修訂 3a
+    expect(Number(cfg.vars.RL_WRITE_GLOBAL_PER_HOUR)).toBe(400); // 修訂 3a
+    expect(Number(cfg.vars.MAX_PLAYERS)).toBe(5000); // 修訂 3
+    expect(Number(cfg.vars.STATS_MIN_PLAYERS)).toBe(3);
+    expect(cfg.vars.CHAPTERS).toBe('prologue,chapter1,chapter2');
+    expect(cfg.vars.D1_METRICS).toBeUndefined(); // 只在測試開啟
+  });
+
+  it('Cron Trigger：每天一次（修訂 2 D）', () => {
+    expect(cfg.triggers.crons).toHaveLength(1);
+    const [min, hour, dom, mon, dow] = cfg.triggers.crons[0].split(' ');
+    expect(/^\d+$/.test(min) && /^\d+$/.test(hour)).toBe(true);
+    expect([dom, mon, dow]).toEqual(['*', '*', '*']);
+  });
+
+  it('vars：限流值', () => {
     expect(Number(cfg.vars.RL_PLAYER_PER_HOUR)).toBe(5);
     expect(Number(cfg.vars.RL_TRANSFER_PER_HOUR)).toBe(10);
     expect(Number(cfg.vars.RL_WRITE_PER_HOUR)).toBe(60);
@@ -49,6 +74,26 @@ describe('migration', () => {
     for (const t of ['players', 'saves', 'clears', 'rate_limits']) expect(sql).toMatch(new RegExp(`CREATE TABLE ${t}\\b`));
     expect(sql).toMatch(/CREATE INDEX/);
     expect(existsSync(join(ROOT, 'worker', 'migrations', '0001_init.sql'))).toBe(true);
+  });
+
+  it('0001 沒有被修改（已套用的 migration 不可改，修正放 0002）', () => {
+    const buf = readFileSync(join(ROOT, 'worker', 'migrations', '0001_init.sql'));
+    expect(createHash('sha256').update(buf).digest('hex')).toBe('9ab1734e6a5595eaf6e8cbad9afdc94778827a70eac08c5877aecd736ccc0d50');
+    const files = readdirSync(join(ROOT, 'worker', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
+    expect(files[0]).toBe('0001_init.sql');
+    expect(files[1]).toMatch(/^0002_[a-z0-9_]+\.sql$/);
+  });
+
+  it('套用全部 migration 後：rate_limits 沒有 reset_at 索引、saves 有 data_sha256 欄位', async () => {
+    const w = await startWorker();
+    try {
+      const idx = await w.db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'rate_limits' AND sql IS NOT NULL").all();
+      expect(idx.results).toEqual([]);
+      const cols = await w.db.prepare("SELECT name FROM pragma_table_info('saves')").all();
+      expect(cols.results.map((c) => c.name)).toContain('data_sha256');
+    } finally {
+      await w.close();
+    }
   });
 });
 

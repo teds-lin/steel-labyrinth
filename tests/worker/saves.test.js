@@ -1,6 +1,10 @@
 // GET /api/saves、GET／PUT／DELETE /api/save/:slot：成功路徑、400、413、428、409（含並行）、404、SQL 注入字串。
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { startWorker, newPlayer, auth, putSave, expectError, sampleSave, sampleState } from './helpers.js';
+import { sha256Hex } from '../../worker/src/codes.js';
+import { CURRENT_VERSION } from '../../web/src/core/save.js';
+
+const JSON_CT = { 'content-type': 'application/json' };
 
 let w;
 beforeAll(async () => { w = await startWorker(); });
@@ -24,14 +28,16 @@ describe('GET /api/saves', () => {
     const other = await newPlayer(w);
     await putSave(w, other.token, 1, sampleSave({ player: { name: '別人' } }));
     const before = Math.floor(Date.now() / 1000);
-    expect((await putSave(w, p.token, 2, sampleSave({ playtime_s: 77 }))).status).toBe(200);
+    const data = sampleSave({ playtime_s: 77, player: { name: '雷恩' } });
+    expect((await putSave(w, p.token, 2, data)).status).toBe(200);
     const { slots } = await (await w.fetch('/api/saves', { headers: auth(p.token) })).json();
     expect(slots).toHaveLength(3);
     expect(slots[0]).toEqual({ slot: 1, empty: true });
     expect(slots[1]).toEqual({
-      slot: 2, version: 1, updated_at: expect.any(Number),
+      slot: 2, version: 1, updated_at: expect.any(Number), data_sha256: await sha256Hex(data),
       summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 77, schema_version: 2 },
     });
+    expect(slots[1].data_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(Number.isInteger(slots[1].updated_at)).toBe(true);
     expect(slots[1].updated_at).toBeGreaterThanOrEqual(before - 1);
     expect(slots[2]).toEqual({ slot: 3, empty: true });
@@ -69,18 +75,52 @@ describe('PUT /api/save/:slot 成功路徑', () => {
   it('If-Match 也接受不帶引號與弱 ETag（W/"n"）', async () => {
     const p = await newPlayer(w);
     await putSave(w, p.token, 1, sampleSave());
-    const h = (m) => ({ method: 'PUT', headers: auth(p.token, { 'if-match': m }), body: JSON.stringify({ data: sampleSave() }) });
+    const h = (m) => ({ method: 'PUT', headers: auth(p.token, { 'if-match': m, ...JSON_CT }), body: JSON.stringify({ data: sampleSave() }) });
     expect((await w.fetch('/api/save/1', h('1'))).status).toBe(200);
     expect((await w.fetch('/api/save/1', h('W/"2"'))).status).toBe(200);
   });
 
-  it('版本較新的存檔（schema_version 比伺服器新）照樣接受', async () => {
+  it('版本較新的存檔（schema_version ≤ CURRENT+5）照樣接受', async () => {
     const p = await newPlayer(w);
-    const data = JSON.stringify({ ...sampleState(), schema_version: 99, future: { x: 1 } });
+    const data = JSON.stringify({ ...sampleState(), schema_version: CURRENT_VERSION + 5, future: { x: 1 } });
     const res = await putSave(w, p.token, 1, data);
     expect(res.status).toBe(200);
     const { slots } = await (await w.fetch('/api/saves', { headers: auth(p.token) })).json();
-    expect(slots[0].summary.schema_version).toBe(99);
+    expect(slots[0].summary.schema_version).toBe(CURRENT_VERSION + 5);
+  });
+
+  it('版本較新但 schema_version > CURRENT+5（99、1e300）→ 400 invalid_save（修訂 2 F）', async () => {
+    const p = await newPlayer(w);
+    for (const v of [CURRENT_VERSION + 6, 99, 1e300]) {
+      await expectError(await putSave(w, p.token, 1, JSON.stringify({ ...sampleState(), schema_version: v })), 400, 'invalid_save');
+    }
+    await expectError(await putSave(w, p.token, 1, JSON.stringify({ schema_version: 99, chapter: '<img src=x onerror=alert(1)>' })), 400, 'invalid_save');
+  });
+
+  it('summary 的 map／chapter 不符合 [a-z0-9_]{1,32} → null（目前版本與較新版本都是，修訂 2 F）', async () => {
+    const p = await newPlayer(w);
+    await putSave(w, p.token, 1, sampleSave({ location: { map: 'M'.repeat(15000), x: 0, y: 0, dir: 'down' }, chapter: '<img src=x onerror=alert(1)>' }));
+    await putSave(w, p.token, 2, JSON.stringify({ schema_version: CURRENT_VERSION + 1, location: { map: 'a'.repeat(33) }, chapter: 'x'.repeat(5000) }));
+    await putSave(w, p.token, 3, JSON.stringify({ schema_version: CURRENT_VERSION + 1, location: { map: 'dock_2' }, chapter: 'chapter2' }));
+    const res = await w.fetch('/api/saves', { headers: auth(p.token) });
+    const { slots } = await res.json();
+    expect(slots[0].summary).toMatchObject({ map: null, chapter: null, name: '雷恩' });
+    expect(slots[1].summary).toMatchObject({ map: null, chapter: null });
+    expect(slots[2].summary).toMatchObject({ map: 'dock_2', chapter: 'chapter2' });
+  });
+
+  it('巢狀超過 8 層（例如 flags 裡 7000 層陣列，仍在 16 KB 內）→ 400 invalid_save', async () => {
+    const p = await newPlayer(w);
+    const deep = sampleSave().replace('"flags":{}', `"flags":{"x":${'['.repeat(7000)}${']'.repeat(7000)}}`);
+    await expectError(await putSave(w, p.token, 1, deep), 400, 'invalid_save');
+    const newerDeep = JSON.stringify({ schema_version: CURRENT_VERSION + 1, a: [[[[[[[[1]]]]]]]] });
+    await expectError(await putSave(w, p.token, 1, newerDeep), 400, 'invalid_save');
+  });
+
+  it('flags 的值不是布林／整數、items 的鍵格式不對 → 400 invalid_save', async () => {
+    const p = await newPlayer(w);
+    await expectError(await putSave(w, p.token, 1, sampleSave({ flags: { pad: 'x' } })), 400, 'invalid_save');
+    await expectError(await putSave(w, p.token, 1, sampleSave({ items: { 'Bad Key': 1 } })), 400, 'invalid_save');
   });
 
   it('摘要的名字最多 8 字', async () => {
@@ -97,7 +137,7 @@ describe('PUT /api/save/:slot 成功路徑', () => {
     expect((await putSave(w, p.token, 1, data)).status).toBe(200);
     expect((await (await getSave(p.token, 1)).json()).data).toBe(data);
     const { slots } = await (await w.fetch('/api/saves', { headers: auth(p.token) })).json();
-    expect(slots[0].summary.map).toBe(evil);
+    expect(slots[0].summary.map).toBeNull(); // 不符合 [a-z0-9_]{1,32}（修訂 2 F）；原始字串仍原樣保存在 data
     const t = await w.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='saves'").first();
     expect(t?.name).toBe('saves');
   });
@@ -114,14 +154,14 @@ describe('400 bad_request／invalid_save', () => {
   });
 
   it('壞 JSON body → 400', async () => {
-    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, { 'if-none-match': '*' }), body: '{"data":' });
+    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, { 'if-none-match': '*', ...JSON_CT }), body: '{"data":' });
     await expectError(res, 400, 'bad_request');
   });
 
   it.each([
     ['缺 data', {}], ['data 不是字串', { data: { a: 1 } }], ['data 是數字', { data: 5 }], ['body 是陣列', [1]], ['body 是 null', null],
   ])('%s → 400 bad_request', async (_, body) => {
-    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, { 'if-none-match': '*' }), body: JSON.stringify(body) });
+    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, { 'if-none-match': '*', ...JSON_CT }), body: JSON.stringify(body) });
     await expectError(res, 400, 'bad_request');
   });
 
@@ -143,71 +183,90 @@ describe('400 bad_request／invalid_save', () => {
   });
 
   it('同時帶 If-Match 與 If-None-Match、或 If-Match 不是版本號 → 400', async () => {
-    const mk = (h) => w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, h), body: JSON.stringify({ data: sampleSave() }) });
+    const mk = (h) => w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, { ...h, ...JSON_CT }), body: JSON.stringify({ data: sampleSave() }) });
     await expectError(await mk({ 'if-match': '"1"', 'if-none-match': '*' }), 400, 'bad_request');
     for (const m of ['"abc"', '*', '"0"', '"-1"', '"1.5"', '"1", "2"']) await expectError(await mk({ 'if-match': m }), 400, 'bad_request');
     await expectError(await mk({ 'if-none-match': '"1"' }), 400, 'bad_request');
   });
 });
 
+// flags 的值只能是布林／整數（修訂 2 F），所以用 flags 的「鍵」把存檔墊大。
+const padSave = (pad) => sampleSave({ flags: { [`pad${pad}`]: true } });
+
 describe('413 too_large', () => {
   let p;
   beforeAll(async () => { p = await newPlayer(w); });
 
-  it('存檔內容超過 64 KB → 413（body 還在 80 KB 內）', async () => {
-    const data = sampleSave({ flags: { pad: 'x'.repeat(65 * 1024) } });
+  it('存檔內容超過 16 KB → 413（body 還在 24 KB 內，修訂 3）', async () => {
+    const data = padSave('x'.repeat(17 * 1024));
+    expect(new TextEncoder().encode(JSON.stringify({ data })).length).toBeLessThan(24 * 1024);
     await expectError(await putSave(w, p.token, 1, data), 413, 'too_large');
   });
 
-  it('存檔剛好 64 KB 內 → 接受', async () => {
-    const base = sampleSave({ flags: { pad: '' } });
-    const data = sampleSave({ flags: { pad: 'x'.repeat(64 * 1024 - new TextEncoder().encode(base).length) } });
-    expect(new TextEncoder().encode(data).length).toBe(64 * 1024);
+  it('存檔剛好 16 KB → 接受；多 1 位元組 → 413', async () => {
+    const base = padSave('');
+    const data = padSave('x'.repeat(16 * 1024 - new TextEncoder().encode(base).length));
+    expect(new TextEncoder().encode(data).length).toBe(16 * 1024);
     expect((await putSave(w, p.token, 2, data)).status).toBe(200);
-    const over = sampleSave({ flags: { pad: 'x'.repeat(64 * 1024 - new TextEncoder().encode(base).length + 1) } });
+    const over = padSave('x'.repeat(16 * 1024 - new TextEncoder().encode(base).length + 1));
     await expectError(await putSave(w, p.token, 3, over), 413, 'too_large');
   });
 
   it('存檔以 UTF-8 位元組計算（中文 3 bytes）', async () => {
-    const data = sampleSave({ flags: { pad: '鋼'.repeat(22 * 1024) } }); // 字元數 < 64K，但位元組 > 64 KB
-    expect(data.length).toBeLessThan(64 * 1024);
+    const data = padSave('鋼'.repeat(6 * 1024)); // 字元數 < 16K，但位元組 > 16 KB
+    expect(data.length).toBeLessThan(16 * 1024);
     await expectError(await putSave(w, p.token, 3, data), 413, 'too_large');
   });
 
-  it('body 超過 80 KB（有正確 content-length）→ 413', async () => {
-    await expectError(await putSave(w, p.token, 1, 'x'.repeat(100 * 1024)), 413, 'too_large');
+  it('body 超過 24 KB（有正確 content-length）→ 413', async () => {
+    await expectError(await putSave(w, p.token, 1, 'x'.repeat(25 * 1024)), 413, 'too_large');
   });
 
-  it('body 超過 80 KB 且沒有 content-length（串流 chunked）→ 413', async () => {
-    const big = new TextEncoder().encode(JSON.stringify({ data: 'y'.repeat(300 * 1024) }));
+  it('body 超過 24 KB 且沒有 content-length（串流 chunked）→ 413', async () => {
+    const big = new TextEncoder().encode(JSON.stringify({ data: 'y'.repeat(30 * 1024) }));
     const body = new ReadableStream({ start(c) { for (let i = 0; i < big.length; i += 8192) c.enqueue(big.slice(i, i + 8192)); c.close(); } });
-    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, { 'if-none-match': '*' }), body, duplex: 'half' });
+    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, { 'if-none-match': '*', ...JSON_CT }), body, duplex: 'half' });
     await expectError(res, 413, 'too_large');
   });
 
   it('超大 body 打 POST /api/player、/api/clear、/api/transfer 也是 413', async () => {
-    const big = JSON.stringify({ pad: 'z'.repeat(90 * 1024) });
-    await expectError(await w.fetch('/api/player', { method: 'POST', headers: { 'cf-connecting-ip': w.nextIp() }, body: big }), 413, 'too_large');
-    await expectError(await w.fetch('/api/clear', { method: 'POST', headers: auth(p.token), body: big }), 413, 'too_large');
-    await expectError(await w.fetch('/api/transfer', { method: 'POST', headers: { 'cf-connecting-ip': w.nextIp() }, body: big }), 413, 'too_large');
+    const big = JSON.stringify({ pad: 'z'.repeat(25 * 1024) });
+    await expectError(await w.fetch('/api/player', { method: 'POST', headers: { 'cf-connecting-ip': w.nextIp(), ...JSON_CT }, body: big }), 413, 'too_large');
+    await expectError(await w.fetch('/api/clear', { method: 'POST', headers: auth(p.token, JSON_CT), body: big }), 413, 'too_large');
+    await expectError(await w.fetch('/api/transfer', { method: 'POST', headers: { 'cf-connecting-ip': w.nextIp(), ...JSON_CT }, body: big }), 413, 'too_large');
   });
 });
 
 describe('428／409 版本控制', () => {
   it('PUT 沒有 If-Match 也沒有 If-None-Match → 428', async () => {
     const p = await newPlayer(w);
-    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token), body: JSON.stringify({ data: sampleSave() }) });
+    const res = await w.fetch('/api/save/1', { method: 'PUT', headers: auth(p.token, JSON_CT), body: JSON.stringify({ data: sampleSave() }) });
     await expectError(res, 428, 'precondition_required');
   });
 
   it('If-None-Match: * 但槽已有存檔 → 409 附 current', async () => {
     const p = await newPlayer(w);
-    const first = await (await putSave(w, p.token, 1, sampleSave({ playtime_s: 11 }))).json();
+    const data = sampleSave({ playtime_s: 11 });
+    const first = await (await putSave(w, p.token, 1, data)).json();
     const body = await expectError(await putSave(w, p.token, 1, sampleSave()), 409, 'conflict');
     expect(body.current).toEqual({
-      version: 1, updated_at: first.updated_at,
+      version: 1, updated_at: first.updated_at, data_sha256: await sha256Hex(data),
       summary: { name: '雷恩', map: 'prologue_hall', chapter: 'chapter1', playtime_s: 11, schema_version: 2 },
     });
+  });
+
+  it('逾時重送：409 的 current.data_sha256 等於本機內容的雜湊 → 客戶端可視為已上傳（修訂 2 B）', async () => {
+    const p = await newPlayer(w);
+    const data = sampleSave({ playtime_s: 31 });
+    await putSave(w, p.token, 2, data); // 第一次其實成功了，只是客戶端逾時
+    const body = await expectError(await putSave(w, p.token, 2, data), 409, 'conflict');
+    expect(body.current.data_sha256).toBe(await sha256Hex(data));
+    expect(body.current.version).toBe(1);
+    // 中文內容以 UTF-8 計算雜湊
+    const zh = sampleSave({ player: { name: '鋼鐵迷都' } });
+    const r = await (await putSave(w, p.token, 3, zh)).json();
+    const again = await expectError(await putSave(w, p.token, 3, zh, { match: r.version + 5 }), 409, 'conflict');
+    expect(again.current.data_sha256).toBe(await sha256Hex(zh));
   });
 
   it('If-Match 版本不符 → 409 附 current，資料不變', async () => {

@@ -1,5 +1,6 @@
 // 雲端存檔的畫面層入口：把 cloud/api.js 與 cloud/sync.js 接上瀏覽器（fetch、localStorage、目前的內容資料）。
 import { apiBase } from './config.js';
+import { cloudConfigured } from './cloud/endpoint.js';
 import { session } from './session.js';
 import { createCloudApi } from './cloud/api.js';
 import { createCloudSync, readCloudInfo } from './cloud/sync.js';
@@ -18,7 +19,15 @@ export const cloud = createCloudSync({
   saveStore: session.storage,
   getData: () => session.data,
   api,
+  // 修訂 2 G：API 位址是空字串＝雲端存檔尚未開放
+  configured: () => cloudConfigured(API_BASE),
 });
+
+// 重新整理（或上次關閉時請求還在路上）後：確認待確認的權杖是否已生效、用同一個新轉移碼重送（修訂 2 A）。
+// 沒有待確認的東西時不送任何請求；失敗只記 console，不影響遊戲。
+if (cloud.configured()) {
+  cloud.recover().catch((e) => console.warn('雲端待確認項目恢復失敗', e));
+}
 
 export const cloudApiBase = () => API_BASE;
 

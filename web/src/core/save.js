@@ -37,6 +37,33 @@ const intIn = (lo, hi) => (v) => Number.isInteger(v) && v >= lo && v <= hi;
 const isPosInt = (v) => Number.isInteger(v) && v > 0;
 const isCount = (v) => Number.isInteger(v) && v >= 0;
 const valuesOk = (pred) => (v) => isObj(v) && Object.values(v).every(pred);
+/** items／resonance 的鍵格式（API 修訂 2 F）。 */
+export const SAVE_KEY_RE = /^[a-z0-9_]{1,32}$/;
+const keyedCounts = (pred) => (v) => isObj(v) && Object.entries(v).every(([k, n]) => SAVE_KEY_RE.test(k) && pred(n));
+/** flags 的值只能是布林或整數（鍵不限格式：遊戲本身用 enter:attic 這類鍵）。 */
+const isFlagValue = (v) => typeof v === 'boolean' || Number.isInteger(v);
+/** 整份存檔 JSON 的巢狀深度上限（根物件算第 1 層）。 */
+export const MAX_JSON_DEPTH = 8;
+
+/** 不解析、只掃描字串，回傳 JSON 文字的最大巢狀深度（字串內的括號不算）；超過 limit 就提早停止。 */
+function jsonDepthExceeds(str, limit) {
+  let depth = 0;
+  let inStr = false;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    if (inStr) {
+      if (c === 92) i++; // 反斜線：跳過下一個字元
+      else if (c === 34) inStr = false;
+    } else if (c === 34) {
+      inStr = true;
+    } else if (c === 123 || c === 91) {
+      if (++depth > limit) return true;
+    } else if (c === 125 || c === 93) {
+      depth--;
+    }
+  }
+  return false;
+}
 
 export const MAX_ECHO_CHARGES = 99;
 
@@ -84,12 +111,12 @@ const REQUIRED = [
   ['lineage', (v) => v === null || (isObj(v) && typeof v.id === 'string' && Number.isInteger(v.rank))],
   ['location', isObj],
   ['location.map', (v) => typeof v === 'string'],
-  ['flags', isObj],
-  ['items', valuesOk(isPosInt)],        // 道具數量為正整數
+  ['flags', valuesOk(isFlagValue)],     // 值只能是布林或整數
+  ['items', keyedCounts(isPosInt)],     // 鍵 [a-z0-9_]{1,32}；道具數量為正整數
   ['echo', isObj],
   ['echo.charges', intIn(0, MAX_ECHO_CHARGES)],
   ['collapse', intIn(0, 100)],
-  ['resonance', valuesOk(isCount)],
+  ['resonance', keyedCounts(isCount)],
   ['chapter', (v) => v === null || typeof v === 'string'],
   ['chapter_done', (v) => Array.isArray(v) && v.every((x) => typeof x === 'string')],
   ['playtime_s', (v) => isNum(v) && v >= 0],
@@ -118,6 +145,9 @@ function assertShape(obj) {
 
 /** 從字串還原 state；損壞、未來版本、缺欄位都丟出明確錯誤。 */
 export function deserialize(str) {
+  if (typeof str === 'string' && jsonDepthExceeds(str, MAX_JSON_DEPTH)) {
+    throw codedError('corrupt', `存檔損壞：JSON 巢狀超過 ${MAX_JSON_DEPTH} 層`);
+  }
   let obj;
   try {
     obj = JSON.parse(str);

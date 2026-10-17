@@ -24,16 +24,39 @@ const make = (fetch, opts = {}) => createCloudApi({ baseUrl: BASE, fetch, getTok
 afterEach(() => { vi.useRealTimers(); });
 
 describe('createCloudApi：請求格式', () => {
-  it('POST /api/player：body {}、不帶權杖、JSON 標頭', async () => {
-    const f = fakeFetch(json(201, { player_id: 'p1', token: 't', transfer_code: 'ABCD-EFGH' }));
-    const r = await make(f).createPlayer();
-    expect(r).toEqual({ ok: true, status: 201, body: { player_id: 'p1', token: 't', transfer_code: 'ABCD-EFGH' }, etag: null });
+  it('POST /api/player：body 帶客戶端產生的 token 與 transfer_code、不帶 Authorization、JSON 標頭（修訂 2 A）', async () => {
+    const f = fakeFetch(json(201, { player_id: 'p1' }));
+    const r = await make(f).createPlayer({ token: 'T'.repeat(43), transfer_code: 'ABCD-EFGH' });
+    expect(r).toEqual({ ok: true, status: 201, body: { player_id: 'p1' }, etag: null });
     const c = f.calls[0];
     expect(c.url).toBe(`${BASE}/api/player`);
     expect(c.init.method).toBe('POST');
-    expect(c.body).toEqual({});
-    expect(c.headers.get('content-type')).toMatch(/application\/json/);
+    expect(c.body).toEqual({ token: 'T'.repeat(43), transfer_code: 'ABCD-EFGH' });
+    expect(c.headers.get('content-type')).toMatch(/^application\/json/);
     expect(c.headers.get('authorization')).toBeNull();
+  });
+
+  it('所有 POST／PUT 都帶 Content-Type: application/json（修訂 2 C：否則 415）', async () => {
+    const f = fakeFetch(json(200, {}));
+    const api = make(f);
+    await api.createPlayer({ token: 'T'.repeat(43), transfer_code: 'ABCD-EFGH' });
+    await api.transfer({ code: 'ABCD-EFGH', new_token: 'N'.repeat(43), new_transfer_code: 'WXYZ-2345' });
+    await api.rotateTransfer('WXYZ-2345');
+    await api.reportClear({ chapter: 'prologue', ending: null, play_seconds: 1, collapse: 0 });
+    await api.putSave(1, 'D', { version: 2 });
+    await api.putSave(2, 'D');
+    const writes = f.calls.filter((c) => c.init.method === 'POST' || c.init.method === 'PUT');
+    expect(writes.length).toBe(6);
+    for (const c of writes) {
+      expect(c.headers.get('content-type'), `${c.init.method} ${c.url}`).toBe('application/json; charset=utf-8');
+      expect(typeof c.init.body, `${c.init.method} ${c.url}`).toBe('string');
+    }
+  });
+
+  it('listSaves 可以指定權杖（轉移／建立逾時後用新權杖確認，修訂 2 A）', async () => {
+    const f = fakeFetch(json(200, { slots: [] }));
+    await make(f).listSaves({ token: 'N'.repeat(43) });
+    expect(f.calls[0].headers.get('authorization')).toBe(`Bearer ${'N'.repeat(43)}`);
   });
 
   it('基底網址結尾的斜線會被去掉', async () => {
@@ -86,8 +109,8 @@ describe('createCloudApi：請求格式', () => {
   it('POST /api/transfer 不帶權杖；rotate、clear 帶權杖；stats 不帶', async () => {
     const f = fakeFetch(json(200, {}));
     const api = make(f);
-    await api.transfer('ABCD-EFGH');
-    await api.rotateTransfer();
+    await api.transfer({ code: 'ABCD-EFGH', new_token: 'N'.repeat(43), new_transfer_code: 'WXYZ-2345' });
+    await api.rotateTransfer('MNPQ-RSTU');
     await api.reportClear({ chapter: 'prologue', ending: null, play_seconds: 10, collapse: 0 });
     await api.stats();
     expect(f.calls.map((c) => [c.init.method, c.url.slice(BASE.length), c.headers.get('authorization')])).toEqual([
@@ -96,7 +119,8 @@ describe('createCloudApi：請求格式', () => {
       ['POST', '/api/clear', 'Bearer tok123'],
       ['GET', '/api/stats', null],
     ]);
-    expect(f.calls[0].body).toEqual({ code: 'ABCD-EFGH' });
+    expect(f.calls[0].body).toEqual({ code: 'ABCD-EFGH', new_token: 'N'.repeat(43), new_transfer_code: 'WXYZ-2345' });
+    expect(f.calls[1].body).toEqual({ new_transfer_code: 'MNPQ-RSTU' });
     expect(f.calls[2].body).toEqual({ chapter: 'prologue', ending: null, play_seconds: 10, collapse: 0 });
   });
 

@@ -38,8 +38,13 @@ export default defineConfig({
       command: `npx wrangler d1 migrations apply steel-labyrinth --local ${WRANGLER} --persist-to ${STATE}`
         + ` && npx wrangler dev --local ${WRANGLER} --port ${WORKER_PORT} --inspector-port 9239 --persist-to ${STATE}`
         + ' --var TRANSFER_PEPPER:e2e-only-pepper RL_PLAYER_PER_HOUR:1000 RL_TRANSFER_PER_HOUR:1000'
-        + ' RL_WRITE_PER_HOUR:1000 RL_ROTATE_PER_HOUR:1000 RL_CLEAR_PER_HOUR:1000',
-      url: `http://localhost:${WORKER_PORT}/api/stats`,
+        + ' RL_WRITE_PER_HOUR:1000 RL_ROTATE_PER_HOUR:1000 RL_CLEAR_PER_HOUR:1000'
+        // 全域上限調高（修訂 2 D／3a）；統計門檻 1 人；本機來源加進 CORS 白名單（正式 toml 只剩 github.io，修訂 2 C）
+        + ' RL_PLAYER_GLOBAL_PER_HOUR:100000 RL_TRANSFER_GLOBAL_PER_HOUR:100000 RL_WRITE_GLOBAL_PER_HOUR:100000'
+        + ' STATS_MIN_PLAYERS:1 ALLOWED_ORIGINS:http://localhost:8091',
+      // 不用 /api/stats 當健康檢查：它有 60 秒快取（修訂 2 E），會讓第一個統計測試讀到啟動時的空結果。
+      // /api/saves 未帶權杖回 401，Playwright 視為伺服器已就緒。
+      url: `http://localhost:${WORKER_PORT}/api/saves`,
       reuseExistingServer: false,
       timeout: 90_000,
       stdout: 'pipe',

@@ -314,6 +314,48 @@ test.describe('M3 雲端存檔（整合，真的本機 Worker）', () => {
     expect((await apiCall(request, 'GET', '/api/saves', { token: (await A.cloudInfo()).token })).status()).toBe(200);
   });
 
+  test('修訂 2 A：真的 Worker 的轉移回應延遲 5.1 秒 → 用新權杖確認後接續成功；舊權杖 401、新權杖 200', async ({ page, browser, request }, testInfo) => {
+    const touch = isTouch(testInfo);
+    await seedSaves(page, { 1: makeSave({ player: { name: '延遲轉移' } }) });
+    const A = ui(page, touch);
+    await page.goto(urlFor(API));
+    await A.loadFromTitle(1);
+    await A.openCloudMenu();
+    await A.waitCloud('intro');
+    await A.pick('enable');
+    await A.waitCloud('cloud');
+    await A.pick('up1');
+    await A.waitCloud('cloud');
+    const tokenA = (await A.cloudInfo()).token;
+    await A.pick('code');
+    await A.waitCloud('code');
+    const code = (await A.menu()).cloud.code;
+
+    const b = await otherDevice(browser, testInfo);
+    // 轉移請求照常送到 Worker（伺服器做完），但回應晚 5.1 秒才交給頁面
+    await b.page.route(`${API}/api/transfer`, async (route) => {
+      if (route.request().method() !== 'POST') { await route.continue(); return; }
+      const res = await route.fetch();
+      await new Promise((r) => setTimeout(r, 5100));
+      try { await route.fulfill({ response: res }); } catch { /* 頁面已經放棄這個請求 */ }
+    });
+    const B = ui(b.page, touch);
+    await b.page.goto(urlFor(API));
+    await B.titlePick('用轉移碼接續');
+    await B.waitCloud('transfer-input');
+    await B.typeCode(b.page, code);
+    await B.pick('transfer-go');
+    await B.waitCloud('transfer-slots', 20_000);
+    expect((await B.menu()).cloud.slots[0]).toMatchObject({ slot: 1, empty: false, summary: { name: '延遲轉移' } });
+    const infoB = await B.cloudInfo();
+    expect(infoB.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(await b.page.evaluate(() => localStorage.getItem('steel-labyrinth:cloud-pending'))).toBeNull();
+    expect((await apiCall(request, 'GET', '/api/saves', { token: tokenA })).status()).toBe(401);
+    expect((await apiCall(request, 'GET', '/api/saves', { token: infoB.token })).status()).toBe(200);
+    expect(b.errors).toEqual([]);
+    await b.ctx.close();
+  });
+
   test('章節完成通關回報：GET /api/stats 看得到該章人數', async ({ page, request }, testInfo) => {
     const touch = isTouch(testInfo);
     const nearEnd = makeSave({

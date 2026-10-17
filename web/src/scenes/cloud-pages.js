@@ -23,7 +23,7 @@ const timeLabel = (s) => (Number.isFinite(s) ? formatPlaytime(s) : '—');
 /** 本機摘要 → 顯示用的 3 行。 */
 function localLines(ls) {
   if (ls.empty) return ['（空）'];
-  if (ls.broken) return ['無法讀取'];
+  if (ls.broken) return ['無法上傳（存檔有誤）', ls.reason ?? ''];
   return [mapLabel(ls.map), `${nameLabel(ls.name)}　${timeLabel(ls.playtime_s)}`, `存檔 ${formatStamp(ls.updated_at)}`];
 }
 /** 雲端槽 → 顯示用的 3 行；slot 為 null 表示讀不到雲端。 */
@@ -63,18 +63,39 @@ export const cloudPages = {
   },
 
   showRelink(done) {
-    this.setPage('cloud-relink', '雲端存檔', MSG.relink, [{ id: 'relink-ok', label: '確定', onSelect: () => done(null) }], { y: 260 });
+    // 修訂 2 G：遊戲內也能直接用轉移碼重新接續（不必回標題）
+    this.setPage('cloud-relink', '雲端存檔', MSG.relink, [
+      { id: 'relink-transfer', label: '用轉移碼接續', onSelect: () => this.showTransferInput() },
+      { id: 'relink-ok', label: '確定', onSelect: () => done(null) },
+    ], { y: 260 });
+    this.list.focus(1);
     this.backAction = () => done(null);
     this.cloudView = { page: 'relink', message: MSG.relink };
   },
 
+  /** 修訂 2 G：API 位址是空字串＝雲端存檔尚未開放。 */
+  showCloudClosed() {
+    const back = () => (this.mode === 'transfer' ? this.close() : this.showMain());
+    this.setPage('cloud-closed', '雲端存檔', MSG.notOpen, [{ id: 'back', label: '返回', onSelect: back }], { y: 240 });
+    this.backAction = back;
+    this.cloudView = { page: 'closed', message: MSG.notOpen };
+  },
+
+  /** 轉移碼頁面「返回」：標題畫面進來的關掉選單，遊戲中進來的回雲端存檔。 */
+  leaveTransfer() {
+    if (this.mode === 'transfer') this.close();
+    else this.showCloud();
+  },
+
   // ---------- 雲端總覽 ----------
   showCloud(note = null) {
+    if (!cloud.configured()) { this.showCloudClosed(); return; }
     if (!cloud.enabled()) {
       this.setPage('cloud-intro', '雲端存檔', note ? `${note}\n\n${INTRO}` : INTRO, [
         { id: 'enable', label: '啟用雲端存檔', onSelect: () => this.enableCloud() },
+        { id: 'transfer', label: '用轉移碼接續', sub: '已經在別台裝置用過雲端存檔', onSelect: () => this.showTransferInput() },
         { id: 'back', label: '返回', onSelect: () => this.showMain() },
-      ], { y: 330 });
+      ], { y: 316, h: 56, gap: 8 });
       this.backAction = () => this.showMain();
       this.cloudView = { page: 'intro', enabled: false, status: note };
       return;
@@ -105,7 +126,7 @@ export const cloudPages = {
       const cs = slots ? slots[i] : null;
       items.push({
         id: `up${slot}`, label: '上傳', x: 226, y: top + 26, w: 66, h: 44, fontSize: 15,
-        enabled: !ls.empty && !ls.broken, onSelect: () => this.cloudUpload(slot),
+        enabled: ls.uploadable === true, onSelect: () => this.cloudUpload(slot),
       });
       items.push({
         id: `down${slot}`, label: '下載', x: 300, y: top + 26, w: 66, h: 44, fontSize: 15,
@@ -119,7 +140,10 @@ export const cloudPages = {
       { id: 'settings', label: '其他設定', x: 180, y: by, w: 100, h: 44, fontSize: 14, onSelect: () => this.showCloudSettings() },
       { id: 'back', label: '返回', x: 284, y: by, w: 100, h: 44, fontSize: 14, onSelect: () => this.showMain() },
     );
-    const statusText = status ?? (slots ? '' : MSG.unavailable);
+    // 上傳停用的原因（修訂 2 B：語意壞掉的本機存檔不可上傳）：沒有其他訊息時顯示在狀態列
+    const blocked = locals.find((ls) => ls.broken);
+    const blockedNote = blocked ? `存檔 ${blocked.slot} 無法上傳：${blocked.reason || '存檔有誤'}` : '';
+    const statusText = status ?? (slots ? blockedNote : MSG.unavailable);
     this.setPage('cloud', '雲端存檔', '', items);
     this.list.buttons.forEach((b) => b.setDepth(3));
     const st = this.keep(addText(this, WIDTH / 2, 130, '', { fontSize: '12px', color: '#ffe2b0' }).setOrigin(0.5));
@@ -221,24 +245,44 @@ export const cloudPages = {
 
   // ---------- 轉移碼 ----------
   showCode(note = null) {
-    const code = cloud.transferCode() ?? '—';
-    this.setPage('cloud-code', '轉移碼', '', [
-      { id: 'rotate', label: '重新產生轉移碼', onSelect: () => this.confirmRotate() },
-      { id: 'back', label: '返回', onSelect: () => this.showCloud() },
-    ], { y: 420 });
-    this.list.focus(1);
-    this.keep(addText(this, WIDTH / 2, 196, code, { fontSize: '36px', fontStyle: 'bold', color: '#ffe2b0', letterSpacing: 2 }).setOrigin(0.5));
-    this.keep(addText(this, WIDTH / 2, 254, '轉移碼等同密碼，請勿分享', { fontSize: '16px', fontStyle: 'bold', color: COLORS.textGas }).setOrigin(0.5));
-    this.keep(addText(this, WIDTH / 2, 282,
-      '在新裝置的標題畫面選「用轉移碼接續」並輸入這組碼。\n接續後會換成新的轉移碼，這台裝置的雲端連結也會失效。', {
-        fontSize: '12px', color: COLORS.textDim, align: 'center', wordWrap: { width: WIDTH - 72, useAdvancedWrap: true }, lineSpacing: 4,
-      }).setOrigin(0.5, 0));
+    const confirmed = cloud.transferCode();
+    const pending = cloud.pendingTransferCode();
+    // 修訂 2 A：新碼送出後還沒收到伺服器確認時，標示「新轉移碼尚未確認」，重試用同一個碼
+    const code = pending ?? confirmed ?? '—';
+    const items = pending
+      ? [
+        { id: 'rotate-retry', label: '重試確認新轉移碼', onSelect: () => this.doRotate() },
+        { id: 'back', label: '返回', onSelect: () => this.showCloud() },
+      ]
+      : [
+        { id: 'rotate', label: '重新產生轉移碼', onSelect: () => this.confirmRotate() },
+        { id: 'back', label: '返回', onSelect: () => this.showCloud() },
+      ];
+    this.setPage('cloud-code', '轉移碼', '', items, { y: 420 });
+    this.list.focus(pending ? 0 : 1);
+    this.keep(addText(this, WIDTH / 2, 196, code, {
+      fontSize: '36px', fontStyle: 'bold', color: pending ? COLORS.textDim : '#ffe2b0', letterSpacing: 2,
+    }).setOrigin(0.5));
+    const warning = '轉移碼等同密碼，請勿分享';
+    const pendingLabel = '新轉移碼尚未確認';
+    this.keep(addText(this, WIDTH / 2, 254, pending ? pendingLabel : warning, {
+      fontSize: '16px', fontStyle: 'bold', color: pending ? '#ffb08a' : COLORS.textGas,
+    }).setOrigin(0.5));
+    const explain = pending
+      ? `新的轉移碼還沒有收到伺服器確認，請按「重試確認新轉移碼」。\n確認前請不要使用這組碼；原本的 ${confirmed ?? '—'} 可能仍然有效。`
+      : '在新裝置的標題畫面選「用轉移碼接續」並輸入這組碼。\n接續後會換成新的轉移碼，這台裝置的雲端連結也會失效。';
+    this.keep(addText(this, WIDTH / 2, 282, explain, {
+      fontSize: '12px', color: COLORS.textDim, align: 'center', wordWrap: { width: WIDTH - 72, useAdvancedWrap: true }, lineSpacing: 4,
+    }).setOrigin(0.5, 0));
     if (note) {
       const n = this.keep(addText(this, WIDTH / 2, 368, '', { fontSize: '13px', color: '#ffe2b0' }).setOrigin(0.5));
       fitText(n, note, WIDTH - 56);
     }
     this.backAction = () => this.showCloud();
-    this.cloudView = { page: 'code', code, warning: '轉移碼等同密碼，請勿分享', status: note };
+    this.cloudView = {
+      page: 'code', code, confirmed: !pending, pendingCode: pending, previousCode: pending ? confirmed : null,
+      warning: pending ? pendingLabel : warning, status: note,
+    };
   },
 
   confirmRotate() {
@@ -324,10 +368,11 @@ export const cloudPages = {
 
   // ---------- 標題畫面：用轉移碼接續 ----------
   showTransferInput(error = null, value = '') {
+    if (!cloud.configured()) { this.showCloudClosed(); return; }
     const warn = cloud.enabled() ? '\n這台裝置目前連著一個雲端帳號，接續後會改連到新的帳號。' : '';
     this.setPage('transfer-input', '用轉移碼接續', `輸入原本裝置上「選單 → 雲端存檔 → 查看轉移碼」顯示的 8 碼轉移碼。${warn}`, [
       { id: 'transfer-go', label: '接續', onSelect: () => this.submitTransfer() },
-      { id: 'transfer-back', label: '返回', onSelect: () => this.close() },
+      { id: 'transfer-back', label: '返回', onSelect: () => this.leaveTransfer() },
     ], { y: 330 });
     const inputY = Math.max(236, 136 + this.note.height + 40);
     const listY = inputY + 110;
@@ -353,7 +398,7 @@ export const cloudPages = {
     });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); this.submitTransfer(); }
-      if (e.key === 'Escape') { e.preventDefault(); this.close(); }
+      if (e.key === 'Escape') { e.preventDefault(); this.leaveTransfer(); }
     });
     this.codeInput = input;
     this.keep(this.add.dom(WIDTH / 2, inputY, input));
@@ -368,7 +413,7 @@ export const cloudPages = {
     }).setOrigin(0.5, 0));
     this.codeError.setText(error ?? '');
     if (!this.sys.game.device.input.touch) setTimeout(() => { if (this.codeInput === input) input.focus(); }, 50);
-    this.backAction = () => this.close();
+    this.backAction = () => this.leaveTransfer();
     this.cloudView = { page: 'transfer-input', error };
   },
 
@@ -396,9 +441,9 @@ export const cloudPages = {
       if (!r.ok) {
         this.setPage('transfer-error', '雲端存檔', r.message, [
           { id: 'retry', label: '重試', onSelect: () => this.showTransferSlots(note) },
-          { id: 'back', label: '返回標題', onSelect: () => this.close() },
+          { id: 'back', label: this.mode === 'transfer' ? '返回標題' : '返回', onSelect: () => this.leaveTransfer() },
         ], { y: 260 });
-        this.backAction = () => this.close();
+        this.backAction = () => this.leaveTransfer();
         this.cloudView = { page: 'transfer-error', message: r.message };
         return;
       }
@@ -419,10 +464,10 @@ export const cloudPages = {
         onSelect: () => this.showTransferTarget(cs),
       };
     });
-    items.push({ id: 'done', label: '完成', onSelect: () => this.close() });
+    items.push({ id: 'done', label: '完成', onSelect: () => this.leaveTransfer() });
     const anything = slots.some((s) => !s.empty);
     this.setPage('transfer-slots', '雲端存檔', note ?? (anything ? '選擇要使用的雲端存檔' : '雲端上還沒有存檔'), items, { h: 58, fontSize: 15 });
-    this.backAction = () => this.close();
+    this.backAction = () => this.leaveTransfer();
     this.cloudView = { page: 'transfer-slots', slots };
   },
 

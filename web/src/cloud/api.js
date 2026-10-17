@@ -33,13 +33,18 @@ export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null,
     }
   };
 
-  /** 送出請求並整理結果。opts：{ method, body, auth, headers }。 */
-  async function request(path, { method = 'GET', body, auth = true, headers = {} } = {}) {
+  /**
+   * 送出請求並整理結果。opts：{ method, body, auth, headers, token }。
+   * token：指定這次要用的權杖（轉移／建立玩家逾時後，用待確認的新權杖確認結果）；未指定時用 getToken()。
+   * 修訂 2 C：所有 POST／PUT 一律帶 body 與 Content-Type: application/json（否則伺服器回 415）。
+   */
+  async function request(path, { method = 'GET', body, auth = true, headers = {}, token: override } = {}) {
     if (typeof fetchFn !== 'function' || base === '') return fail('network', 0, 'network');
     const h = { ...headers };
+    if (body === undefined && (method === 'POST' || method === 'PUT')) body = {};
     if (body !== undefined) h['Content-Type'] = 'application/json; charset=utf-8';
     if (auth) {
-      const t = token();
+      const t = typeof override === 'string' && override !== '' ? override : token();
       if (t) h.Authorization = `Bearer ${t}`;
     }
     const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -98,8 +103,12 @@ export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null,
     : { 'If-None-Match': '*' });
 
   return {
-    createPlayer: () => request('/api/player', { method: 'POST', body: {}, auth: false }),
-    listSaves: () => request('/api/saves'),
+    /** 修訂 2 A：權杖與轉移碼由客戶端產生後送出；回應只有 player_id。 */
+    createPlayer: ({ token: t, transfer_code: code } = {}) => request('/api/player', {
+      method: 'POST', body: { token: t, transfer_code: code }, auth: false,
+    }),
+    /** opts.token：用指定的權杖列表（確認待確認的權杖是否已生效）。 */
+    listSaves: ({ token: t } = {}) => request('/api/saves', { token: t }),
     getSave: (slot) => slotGuard(slot, () => request(`/api/save/${slot}`)),
     /** version：本機記得的雲端版本（If-Match）；null／未提供時只在空槽建立（If-None-Match: *）。 */
     putSave: (slot, data, { version = null } = {}) => slotGuard(slot, () => request(`/api/save/${slot}`, {
@@ -108,8 +117,12 @@ export function createCloudApi({ baseUrl, fetch: fetchFn, getToken = () => null,
     deleteSave: (slot, version) => slotGuard(slot, () => request(`/api/save/${slot}`, {
       method: 'DELETE', headers: { 'If-Match': `"${version}"` },
     })),
-    transfer: (code) => request('/api/transfer', { method: 'POST', body: { code }, auth: false }),
-    rotateTransfer: () => request('/api/transfer/rotate', { method: 'POST', body: {} }),
+    /** 修訂 2 A：{ code, new_token, new_transfer_code }；回應只有 player_id。 */
+    transfer: ({ code, new_token: nt, new_transfer_code: nc } = {}) => request('/api/transfer', {
+      method: 'POST', body: { code, new_token: nt, new_transfer_code: nc }, auth: false,
+    }),
+    /** 修訂 2 A：新碼由客戶端產生；重送同一個碼是安全的。 */
+    rotateTransfer: (newCode) => request('/api/transfer/rotate', { method: 'POST', body: { new_transfer_code: newCode } }),
     reportClear: (rec) => request('/api/clear', { method: 'POST', body: rec }),
     stats: () => request('/api/stats', { auth: false }),
   };

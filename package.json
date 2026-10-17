@@ -12,7 +12,7 @@
     "e2e": "playwright test",
     "e2e:cloud": "playwright test --config playwright.cloud.config.js",
     "test:worker": "vitest run tests/worker",
-    "worker:dev": "npm run worker:migrate:local && wrangler dev --local --config worker/wrangler.toml --port 8787 --var TRANSFER_PEPPER:local-dev-only-pepper",
+    "worker:dev": "npm run worker:migrate:local && wrangler dev --local --config worker/wrangler.toml --port 8787 --var TRANSFER_PEPPER:local-dev-only-pepper ALLOWED_ORIGINS:https://teds-lin.github.io,http://localhost:8080,http://localhost:8091",
     "worker:build": "wrangler deploy --dry-run --config worker/wrangler.toml --outdir node_modules/.cache/steel-labyrinth-worker-build",
     "worker:migrate:local": "wrangler d1 migrations apply steel-labyrinth --local --config worker/wrangler.toml",
     "worker:migrate:remote": "wrangler d1 migrations apply steel-labyrinth --remote --config worker/wrangler.toml",

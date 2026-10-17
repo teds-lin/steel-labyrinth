@@ -1,12 +1,14 @@
-// API 位址解析（web/src/cloud/endpoint.js）：預設正式網址；?api= 只在本機開發時生效，避免連結把權杖送到別的伺服器。
+// API 位址解析（web/src/cloud/endpoint.js）：預設空字串＝雲端停用（修訂 2 G 節）；?api= 只在本機開發時生效，避免連結把權杖送到別的伺服器。
 import { describe, it, expect } from 'vitest';
-import { API_BASE_DEFAULT, resolveApiBase } from '../../web/src/cloud/endpoint.js';
+import { API_BASE_DEFAULT, resolveApiBase, cloudConfigured } from '../../web/src/cloud/endpoint.js';
 
 describe('resolveApiBase', () => {
-  it('預設是正式網址', () => {
-    expect(API_BASE_DEFAULT).toBe('https://steel-labyrinth.workers.dev');
-    expect(resolveApiBase('', 'teds-lin.github.io')).toBe(API_BASE_DEFAULT);
-    expect(resolveApiBase('?test=1', 'localhost')).toBe(API_BASE_DEFAULT);
+  it('預設是空字串（雲端存檔尚未開放）', () => {
+    expect(API_BASE_DEFAULT).toBe('');
+    expect(resolveApiBase('', 'teds-lin.github.io')).toBe('');
+    expect(resolveApiBase('?test=1', 'localhost')).toBe('');
+    expect(cloudConfigured('')).toBe(false);
+    expect(cloudConfigured('http://localhost:8787')).toBe(true);
   });
   it('頁面在本機時 ?api= 可覆寫（去掉結尾斜線）', () => {
     expect(resolveApiBase('?api=http://localhost:8787/', 'localhost')).toBe('http://localhost:8787');

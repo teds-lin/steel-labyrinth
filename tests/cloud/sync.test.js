@@ -65,15 +65,24 @@ function fakeApi(handlers = {}) {
 }
 const ok = (status, body, etag = null) => ({ ok: true, status, body, etag });
 const httpErr = (status, error, extra = {}) => ({ ok: false, kind: 'http', status, error, retryAfter: null, body: { error, message: 'x' }, ...extra });
-const INFO = { player_id: 'p1', token: 'tok', transfer_code: 'ABCD-EFGH' };
+const TOK = `tok_${'x'.repeat(39)}`; // 43 字元 base64url（修訂 2 G：格式不對的權杖視為未啟用）
+const INFO = { player_id: 'p1', token: TOK, transfer_code: 'ABCD-EFGH' };
+/** 可預測的「客戶端產生秘密」：權杖 01TTT…、02TTT…；轉移碼依序取用。 */
+function seqRandom() {
+  let t = 0;
+  let c = 0;
+  const codes = ['WXYZ-2345', 'MNPQ-RSTU', 'HJKM-NPQR', 'STUV-WXYZ'];
+  return { token: () => `${String(++t).padStart(2, '0')}${'T'.repeat(41)}`, code: () => codes[c++ % codes.length] };
+}
+const GEN_TOKEN = (n) => `${String(n).padStart(2, '0')}${'T'.repeat(41)}`;
 
-function setup({ info = INFO, handlers = {}, saves = {}, backend } = {}) {
+function setup({ info = INFO, handlers = {}, saves = {}, backend, random = seqRandom(), now = () => 1_760_000_000_000 } = {}) {
   const b = backend ?? memoryBackend();
   if (info && !backend) b.setItem(CLOUD_KEY, JSON.stringify(info));
   for (const [slot, st] of Object.entries(saves)) b.setItem(`${KEY_PREFIX}${slot}`, typeof st === 'string' ? st : serialize(st));
   const api = fakeApi(handlers);
   const saveStore = createStorage(b);
-  const sync = createCloudSync({ backend: b, saveStore, getData: () => DATA, api, now: () => 1_760_000_000_000 });
+  const sync = createCloudSync({ backend: b, saveStore, getData: () => DATA, api, now, random });
   return { b, api, sync, saveStore, info: () => readCloudInfo(b) };
 }
 
@@ -110,14 +119,14 @@ describe('雲端資訊（localStorage steel-labyrinth:cloud）', () => {
   it('補上預設值；不合法的槽版本被丟掉', () => {
     const b = memoryBackend({ [CLOUD_KEY]: JSON.stringify({ ...INFO, slots: { 1: { version: 3, updated_at: 9 }, 2: { version: 'x' }, 9: { version: 1 } } }) });
     const i = readCloudInfo(b);
-    expect(i).toMatchObject({ player_id: 'p1', token: 'tok', transfer_code: 'ABCD-EFGH', auto_upload: false });
+    expect(i).toMatchObject({ player_id: 'p1', token: TOK, transfer_code: 'ABCD-EFGH', auto_upload: false });
     expect(i.slots).toEqual({ 1: { version: 3, updated_at: 9 } });
     expect(i.local_saved_at).toEqual({});
   });
   it('寫入與清除；存取失敗回 false 不丟錯', () => {
     const b = memoryBackend();
     expect(writeCloudInfo(b, INFO)).toBe(true);
-    expect(readCloudInfo(b).token).toBe('tok');
+    expect(readCloudInfo(b).token).toBe(TOK);
     expect(clearCloudInfo(b)).toBe(true);
     expect(b.m.has(CLOUD_KEY)).toBe(false);
     expect(writeCloudInfo(throwingBackend(), INFO)).toBe(false);
@@ -132,6 +141,10 @@ describe('錯誤訊息', () => {
     expect(cloudErrorMessage({ ok: false, kind: 'timeout' })).toBe(MSG.unavailable);
     expect(cloudErrorMessage({ ok: false, kind: 'http', status: 503 })).toBe(MSG.unavailable);
     expect(cloudErrorMessage({ ok: false, kind: 'http', status: 429, retryAfter: 37 })).toBe('雲端暫時無法使用，請等 37 秒後再試');
+    // 修訂 2 G：1 分鐘以上顯示「約 N 分鐘」（無條件進位）
+    expect(cloudErrorMessage({ ok: false, kind: 'http', status: 429, retryAfter: 60 })).toBe('雲端暫時無法使用，請等約 1 分鐘後再試');
+    expect(cloudErrorMessage({ ok: false, kind: 'http', status: 429, retryAfter: 61 })).toBe('雲端暫時無法使用，請等約 2 分鐘後再試');
+    expect(cloudErrorMessage({ ok: false, kind: 'http', status: 429, retryAfter: 3600 })).toBe('雲端暫時無法使用，請等約 60 分鐘後再試');
     expect(cloudErrorMessage({ ok: false, kind: 'http', status: 429, retryAfter: null })).toBe(MSG.unavailable);
     expect(cloudErrorMessage({ ok: false, kind: 'http', status: 401 })).toBe(MSG.relink);
     expect(MSG.relink).toBe('此裝置的雲端連結已失效，請重新用轉移碼接續');
@@ -146,14 +159,14 @@ describe('summarizeState', () => {
 });
 
 describe('啟用與轉移', () => {
-  it('enable：建立玩家並存下 player_id、token、轉移碼', async () => {
-    const { sync, info, api } = setup({ info: null, handlers: { createPlayer: ok(201, { player_id: 'p9', token: 'T9', transfer_code: 'WXYZ-2345' }) } });
+  it('enable：權杖與轉移碼由客戶端產生並送出；成功後存下 player_id、token、轉移碼（修訂 2 A）', async () => {
+    const { sync, info, api } = setup({ info: null, handlers: { createPlayer: ok(201, { player_id: 'p9' }) } });
     expect(sync.enabled()).toBe(false);
     const r = await sync.enable();
     expect(r).toMatchObject({ ok: true, transferCode: 'WXYZ-2345' });
-    expect(info()).toMatchObject({ player_id: 'p9', token: 'T9', transfer_code: 'WXYZ-2345', slots: {}, auto_upload: false });
+    expect(api.calls).toEqual([{ name: 'createPlayer', args: [{ token: GEN_TOKEN(1), transfer_code: 'WXYZ-2345' }] }]);
+    expect(info()).toMatchObject({ player_id: 'p9', token: GEN_TOKEN(1), transfer_code: 'WXYZ-2345', slots: {}, auto_upload: false });
     expect(sync.enabled()).toBe(true);
-    expect(api.calls.map((c) => c.name)).toEqual(['createPlayer']);
   });
   it('enable：已啟用時不重複建立', async () => {
     const { sync, api } = setup();
@@ -161,55 +174,63 @@ describe('啟用與轉移', () => {
     expect(r.ok).toBe(true);
     expect(api.calls.length).toBe(0);
   });
-  it('enable：網路錯誤、回應缺欄位都不寫入', async () => {
+  it('enable：網路錯誤、回應缺欄位都不寫入雲端資訊', async () => {
     let s = setup({ info: null });
     let r = await s.sync.enable();
     expect(r).toMatchObject({ ok: false, message: MSG.unavailable });
     expect(s.info()).toBeNull();
-    s = setup({ info: null, handlers: { createPlayer: ok(201, { player_id: 'p9' }) } });
+    s = setup({ info: null, handlers: { createPlayer: ok(201, {}) } });
     r = await s.sync.enable();
     expect(r.ok).toBe(false);
     expect(s.info()).toBeNull();
   });
-  it('enable：429 顯示等待秒數', async () => {
+  it('enable：429 顯示「約 N 分鐘」', async () => {
     const { sync } = setup({ info: null, handlers: { createPlayer: httpErr(429, 'rate_limited', { retryAfter: 1200 }) } });
     const r = await sync.enable();
-    expect(r.message).toBe('雲端暫時無法使用，請等 1200 秒後再試');
+    expect(r.message).toBe('雲端暫時無法使用，請等約 20 分鐘後再試');
   });
-  it('enable：儲存空間被封鎖 → 失敗並說明', async () => {
-    const api = fakeApi({ createPlayer: ok(201, { player_id: 'p9', token: 'T9', transfer_code: 'WXYZ-2345' }) });
-    const sync = createCloudSync({ backend: throwingBackend(), saveStore: createStorage(throwingBackend()), getData: () => DATA, api });
+  it('enable：503 capacity → 額滿訊息', async () => {
+    const { sync } = setup({ info: null, handlers: { createPlayer: httpErr(503, 'capacity') } });
+    expect((await sync.enable()).message).toBe(MSG.capacity);
+  });
+  it('enable：儲存空間被封鎖 → 失敗並說明，不送請求', async () => {
+    const api = fakeApi({ createPlayer: ok(201, { player_id: 'p9' }) });
+    const sync = createCloudSync({ backend: throwingBackend(), saveStore: createStorage(throwingBackend()), getData: () => DATA, api, random: seqRandom() });
     const r = await sync.enable();
     expect(r.ok).toBe(false);
     expect(r.message).toContain('儲存空間');
+    expect(api.calls.length).toBe(0);
   });
-  it('connect：格式不對不送請求；成功換掉整份雲端資訊（版本紀錄清空）', async () => {
+  it('connect：格式不對不送請求；成功後換成客戶端產生的新權杖與新轉移碼（版本紀錄清空）', async () => {
     const { sync, api, info } = setup({
       info: { ...INFO, slots: { 1: { version: 5, updated_at: 1 } } },
-      handlers: { transfer: ok(200, { player_id: 'p2', token: 'T2', transfer_code: 'MNPQ-RSTU' }) },
+      handlers: { transfer: ok(200, { player_id: 'p2' }) },
     });
     let r = await sync.connect('ABC');
     expect(r).toMatchObject({ ok: false, kind: 'not_found' });
     expect(api.calls.length).toBe(0);
     r = await sync.connect(' mnpq rstu ');
-    expect(api.calls[0]).toEqual({ name: 'transfer', args: ['MNPQ-RSTU'] });
-    expect(r).toMatchObject({ ok: true, transferCode: 'MNPQ-RSTU' });
-    expect(info()).toMatchObject({ player_id: 'p2', token: 'T2', transfer_code: 'MNPQ-RSTU', slots: {} });
+    expect(api.calls[0]).toEqual({ name: 'transfer', args: [{ code: 'MNPQ-RSTU', new_token: GEN_TOKEN(1), new_transfer_code: 'WXYZ-2345' }] });
+    expect(r).toMatchObject({ ok: true, transferCode: 'WXYZ-2345' });
+    expect(info()).toMatchObject({ player_id: 'p2', token: GEN_TOKEN(1), transfer_code: 'WXYZ-2345', slots: {} });
   });
-  it('connect：404 → 轉移碼不正確；網路錯誤 → 暫時無法使用；原本的資訊不變', async () => {
-    let s = setup({ handlers: { transfer: httpErr(404, 'not_found') } });
+  it('connect：404 且新權杖確認是 401 → 轉移碼不正確；網路錯誤 → 暫時無法使用；原本的資訊不變', async () => {
+    let s = setup({ handlers: { transfer: httpErr(404, 'not_found'), listSaves: httpErr(401, 'unauthorized') } });
     let r = await s.sync.connect('MNPQ-RSTU');
     expect(r).toMatchObject({ ok: false, kind: 'not_found', message: MSG.badCode });
-    expect(s.info().token).toBe('tok');
-    s = setup({ handlers: { transfer: { ok: false, kind: 'timeout', status: 0, error: 'timeout' } } });
+    expect(s.info().token).toBe(TOK);
+    s = setup({ handlers: { transfer: { ok: false, kind: 'timeout', status: 0, error: 'timeout' }, listSaves: httpErr(401, 'unauthorized') } });
     r = await s.sync.connect('MNPQ-RSTU');
     expect(r.message).toBe(MSG.unavailable);
+    expect(s.info().token).toBe(TOK);
   });
-  it('rotate：更新本機記住的轉移碼', async () => {
-    const { sync, info } = setup({ handlers: { rotateTransfer: ok(200, { transfer_code: 'WXYZ-2345' }) } });
+  it('rotate：新碼由客戶端產生並送出，成功後才換掉本機記住的轉移碼', async () => {
+    const { sync, info, api } = setup({ handlers: { rotateTransfer: ok(200, {}) } });
     const r = await sync.rotate();
+    expect(api.calls[0]).toEqual({ name: 'rotateTransfer', args: ['WXYZ-2345'] });
     expect(r).toMatchObject({ ok: true, transferCode: 'WXYZ-2345' });
     expect(info().transfer_code).toBe('WXYZ-2345');
+    expect(info().pending_transfer_code).toBeNull();
   });
   it('disable：只清本機資訊，不呼叫 API', async () => {
     const { sync, api, info } = setup();
@@ -399,7 +420,7 @@ describe('上傳', () => {
       expect(r.ok).toBe(false);
       expect(r.message).toBe(res.status === 429 ? '雲端暫時無法使用，請等 12 秒後再試' : MSG.unavailable);
       expect(saveStore.load(1).ok).toBe(true);
-      expect(info().token).toBe('tok');
+      expect(info().token).toBe(TOK);
       expect(sync.status().lastError).toMatchObject({ op: 'upload', kind: res.kind });
     }
   });
@@ -511,7 +532,7 @@ describe('status（給 __SL.cloud 的唯讀狀態）', () => {
     const { sync } = setup({ info: { ...INFO, auto_upload: true } });
     const st = sync.status();
     expect(st).toMatchObject({ enabled: true, playerId: 'p1', transferCode: 'ABCD-EFGH', autoUpload: true });
-    expect(JSON.stringify(st)).not.toContain('tok');
+    expect(JSON.stringify(st)).not.toContain(TOK);
   });
   it('未啟用', () => {
     const { sync } = setup({ info: null });

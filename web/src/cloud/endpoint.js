@@ -1,7 +1,10 @@
 // 雲端 API 的基底網址（純函式，config.js 的 apiBase() 呼叫它）。
-// 部署時把 API_BASE_DEFAULT 改成實際的 Worker 網址。
+// 修訂 2 G 節：預設是空字串＝雲端功能停用（介面顯示「雲端存檔尚未開放」）；Worker 部署後才把實際網址填進 API_BASE_DEFAULT。
 
-export const API_BASE_DEFAULT = 'https://steel-labyrinth.workers.dev';
+export const API_BASE_DEFAULT = '';
+
+/** 有 API 位址才算開放雲端存檔。 */
+export const cloudConfigured = (base) => typeof base === 'string' && base !== '';
 
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const isLoopback = (host) => typeof host === 'string' && LOOPBACK.has(host.toLowerCase());
