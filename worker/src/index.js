@@ -1,22 +1,25 @@
-// 《鋼鐵迷都》雲端存檔 Worker（Cloudflare Worker＋D1）。規格：docs/API.md（與前文衝突時以「修訂 2」為準）。
-// 安全重點：SQL 一律參數綁定；權杖與轉移碼由客戶端產生、伺服器只存雜湊；權杖用常數時間比較；
-// IP 只以「每日鹽＋IP（IPv6 取 /64）」雜湊當限流 key；不在允許清單的 Origin 一律 403；POST／PUT 必須是 JSON（415）；
+// 《鋼鐵迷都》雲端存檔 Worker（Cloudflare Worker＋D1）。規格：docs/API.md（與前文衝突時以最後的修訂為準，目前是「修訂 4a」）。
+// 安全重點：SQL 一律參數綁定；權杖與轉移碼由客戶端產生、伺服器只存雜湊、低熵秘密拒收；權杖用常數時間比較；
+// IP 只以「每日鹽＋IP（IPv6 取 /64，另加 /48 一層）」雜湊當限流 key；已登入寫入有每位玩家的保留通道；不在允許清單的 Origin 一律 403；POST／PUT 必須是 JSON（415）；
 // 超過限流不寫入 D1；錯誤回應不含內部細節；body 先看 content-length、讀取時再實際限制大小。
 import {
   HttpError, badRequest, jsonResponse, errorResponse, internalError, readJson, isPlainObject,
   checkOrigin, withCors, requireJsonContentType, MESSAGES,
 } from './http.js';
 import {
-  normalizeTransferCode, isTokenFormat, sha256Hex, timingSafeEqualHex, transferHash, ipBucketKey,
+  normalizeTransferCode, isTokenFormat, sha256Hex, timingSafeEqualHex, transferHash, ipBucketKey, isIpv6Source,
+  isAcceptableToken, isAcceptableTransferCode,
 } from './codes.js';
-import { hitWithGlobal, limitOf, purgeExpired } from './ratelimit.js';
+import {
+  hit, hitAll, below, isRateLimited, dayWindow, limitOf, purgeExpired,
+} from './ratelimit.js';
 import { buildSummary, DATA_LIMIT } from './summary.js';
 import { MeteredDb } from './db.js';
 
 const SLOT_COUNT = 3;
-const MAX_PLAY_SECONDS = 1e7;
 const LAST_SEEN_GRANULARITY = 86400; // last_seen 一天最多更新一次，省 D1 寫入額度
 const INACTIVE_SEC = 180 * 86400; // Cron：超過 180 天未登入的玩家連同資料刪除
+const EMPTY_ACCOUNT_SEC = 7 * 86400; // Cron：建立超過 7 天、沒有存檔也沒有通關紀錄的玩家刪除（修訂 4 第 2 節）
 const STATS_TTL = 60;
 
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -68,28 +71,95 @@ function parseIfMatch(value) {
   return Number(m[1] ?? m[2]);
 }
 
-/** 已登入寫入（PUT、DELETE、clear、rotate）：同一玩家的限制＋全部玩家合計的全域上限（修訂 3）。 */
-const hitWrite = (env, bucket, name, fallback, now) => hitWithGlobal(env.DB,
-  { bucket, limit: limitOf(env, name, fallback) },
-  { bucket: 'g:write', limit: limitOf(env, 'RL_WRITE_GLOBAL_PER_HOUR', 600) }, now);
+/**
+ * 已登入寫入（PUT、DELETE、clear、rotate）的限流（修訂 3、修訂 4 第 1 節）：
+ * - 一律先受同一玩家的端點限制（RL_WRITE／RL_CLEAR／RL_ROTATE_PER_HOUR）。
+ * - 保留通道：同一玩家每小時的前 RL_RESERVED_PER_HOUR 次寫入（四種合計）不受全域每小時上限，
+ *   改計入全域每日預算 RL_WRITE_GLOBAL_PER_DAY——攻擊者灌滿全域每小時上限時，正常玩家仍能寫入。
+ * - 保留通道用完（或全域每日預算用完）→ 受全域每小時上限 RL_WRITE_GLOBAL_PER_HOUR 限制。
+ * 任何一個限制滿了都回 429 且不寫入（先只讀檢查再計數）。
+ */
+async function hitWrite(env, playerId, { kind, name, fallback }, now) {
+  const db = env.DB;
+  const local = { bucket: `pl:${kind}:${playerId}`, limit: limitOf(env, name, fallback) };
+  const reserved = { bucket: `pl:rsv:${playerId}`, limit: limitOf(env, 'RL_RESERVED_PER_HOUR', 3) };
+  const day = { ...dayWindow(now), limit: limitOf(env, 'RL_WRITE_GLOBAL_PER_DAY', 4000) };
+  const hourly = { bucket: 'g:write', limit: limitOf(env, 'RL_WRITE_GLOBAL_PER_HOUR', 100) };
+  if (await below(db, reserved, now) && await below(db, day, now)) {
+    await hitAll(db, [local], now);
+    try {
+      await hit(db, day.bucket, day.limit, now, day.resetAt);
+      await hit(db, reserved.bucket, reserved.limit, now);
+      return;
+    } catch (e) {
+      if (!isRateLimited(e)) throw e;
+      // 並行請求剛好用完保留通道：這一次改計入全域每小時上限（端點限制已經計過）
+    }
+    await hitAll(db, [hourly], now);
+    return;
+  }
+  await hitAll(db, [local, hourly], now);
+}
 
-const ipKey = async (request, env, kind, now) => {
-  const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
-  return `ip:${kind}:${await ipBucketKey(requirePepper(env), ip, now)}`;
+/** 玩家的限流 bucket 前綴（pl:<kind>:<player_id>）；Cron 刪除玩家時一起刪（purgeExpired 不刪它們）。 */
+const PLAYER_BUCKET_PREFIXES = JSON.stringify(['write', 'clear', 'rotate', 'rsv', 'transfer'].map((k) => `pl:${k}:`));
+
+const WRITE_LIMITS = {
+  write: { kind: 'write', name: 'RL_WRITE_PER_HOUR', fallback: 20 },
+  clear: { kind: 'clear', name: 'RL_CLEAR_PER_HOUR', fallback: 10 },
+  rotate: { kind: 'rotate', name: 'RL_ROTATE_PER_HOUR', fallback: 3 },
 };
+
+const clientIp = (request) => request.headers.get('cf-connecting-ip');
+
+/** IP 限流的 bucket：IPv4 一層；IPv6 兩層（/64 與 /48，修訂 4 第 1 節）。 */
+async function ipBuckets(request, env, kind, now, { name, fallback, name48, fallback48 }) {
+  const pepper = requirePepper(env);
+  const ip = clientIp(request) ?? 'unknown';
+  const out = [{ bucket: `ip:${kind}:${await ipBucketKey(pepper, ip, now)}`, limit: limitOf(env, name, fallback) }];
+  if (isIpv6Source(ip)) {
+    out.push({ bucket: `ip:${kind}48:${await ipBucketKey(pepper, ip, now, 48)}`, limit: limitOf(env, name48, fallback48) });
+  }
+  return out;
+}
+
+const PLAYER_IP_LIMITS = { name: 'RL_PLAYER_PER_HOUR', fallback: 5, name48: 'RL_PLAYER_PER_HOUR_V6_48', fallback48: 10 };
+const TRANSFER_IP_LIMITS = { name: 'RL_TRANSFER_PER_HOUR', fallback: 10, name48: 'RL_TRANSFER_PER_HOUR_V6_48', fallback48: 20 };
+const globalTransfer = (env) => ({ bucket: 'g:transfer', limit: limitOf(env, 'RL_TRANSFER_GLOBAL_PER_HOUR', 120) });
+
+/**
+ * 計入轉移額度（ip:transfer〔IPv6 另加 /48〕＋g:transfer）。轉移嘗試本身，以及 POST /api/player 與 rotate
+ * 因轉移碼雜湊碰撞回 409 時（修訂 4 第 5 節：碰撞等於猜中別人的轉移碼，要和猜碼共用同一份額度）。
+ * rotate 沒有 IP 資訊時改以玩家計入。
+ */
+async function hitTransfer(request, env, now, playerId = null) {
+  const local = playerId !== null && clientIp(request) === null
+    ? [{ bucket: `pl:transfer:${playerId}`, limit: limitOf(env, 'RL_TRANSFER_PER_HOUR', 10) }]
+    : await ipBuckets(request, env, 'transfer', now, TRANSFER_IP_LIMITS);
+  await hitAll(env.DB, [...local, globalTransfer(env)], now);
+}
+
+/** 秘密碰撞 → 先計入轉移額度（額度用完則 429），再回 409。 */
+async function collision(request, env, now, playerId = null) {
+  await hitTransfer(request, env, now, playerId);
+  return secretConflict();
+}
 
 // ---------- 端點 ----------
 
 async function createPlayer(request, env, now) {
   requireJsonContentType(request);
   const pepper = requirePepper(env);
-  await hitWithGlobal(env.DB,
-    { bucket: await ipKey(request, env, 'player', now), limit: limitOf(env, 'RL_PLAYER_PER_HOUR', 5) },
-    { bucket: 'g:player', limit: limitOf(env, 'RL_PLAYER_GLOBAL_PER_HOUR', 300) }, now);
+  await hitAll(env.DB, [
+    ...await ipBuckets(request, env, 'player', now, PLAYER_IP_LIMITS),
+    { bucket: 'g:player', limit: limitOf(env, 'RL_PLAYER_GLOBAL_PER_HOUR', 60) },
+  ], now);
   const body = await readJson(request);
   if (!isPlainObject(body) || !isTokenFormat(body.token)) throw badRequest();
   const code = codeField(body.transfer_code);
   if (!code) throw badRequest();
+  // 修訂 4 第 5 節：低熵秘密 400（官方客戶端用同一套判斷產生，不會被誤殺）
+  if (!isAcceptableToken(body.token) || !isAcceptableTransferCode(code)) throw badRequest();
   const tokenHash = await sha256Hex(body.token);
   const existing = () => env.DB.prepare('SELECT player_id FROM players WHERE token_hash = ?').bind(tokenHash).first();
   // 冪等：權杖已經建立過（例如上一次請求逾時）→ 回同一個玩家。持有權杖即擁有帳號。
@@ -109,7 +179,7 @@ async function createPlayer(request, env, now) {
       const again = await existing();
       if (again) return jsonResponse({ player_id: again.player_id }, 200);
     }
-    if (col) throw secretConflict();
+    if (col) throw await collision(request, env, now);
     throw e;
   }
   if (!row) throw new HttpError(503, 'capacity');
@@ -120,13 +190,12 @@ async function transfer(request, env, now) {
   requireJsonContentType(request);
   const pepper = requirePepper(env);
   // 先計次（成功、失敗、壞 JSON 都算），再處理內容。
-  await hitWithGlobal(env.DB,
-    { bucket: await ipKey(request, env, 'transfer', now), limit: limitOf(env, 'RL_TRANSFER_PER_HOUR', 10) },
-    { bucket: 'g:transfer', limit: limitOf(env, 'RL_TRANSFER_GLOBAL_PER_HOUR', 600) }, now);
+  await hitTransfer(request, env, now);
   const body = await readJson(request);
   if (!isPlainObject(body) || typeof body.code !== 'string' || !isTokenFormat(body.new_token)) throw badRequest();
   const newCode = codeField(body.new_transfer_code);
   if (!newCode) throw badRequest();
+  if (!isAcceptableToken(body.new_token) || !isAcceptableTransferCode(newCode)) throw badRequest(); // 修訂 4 第 5 節
   const notFound = () => new HttpError(404, 'not_found', { message: MESSAGES.transfer_not_found });
   const normalized = normalizeTransferCode(body.code);
   if (!normalized) throw notFound();
@@ -149,18 +218,20 @@ async function rotate(request, env, now) {
   requireJsonContentType(request);
   const pepper = requirePepper(env);
   const player = await authenticate(request, env, now);
-  await hitWrite(env, `pl:rotate:${player.player_id}`, 'RL_ROTATE_PER_HOUR', 10, now);
+  // 修訂 4 第 3 節：先讀 body、比對雜湊；重送「已經生效的新碼」直接 200，不計入任何限流
+  // （否則回應遺失後的重送會被 429 擋下，客戶端以為沒換成功，畫面顯示已經失效的舊碼）。
   const body = await readJson(request);
   if (!isPlainObject(body)) throw badRequest();
   const code = codeField(body.new_transfer_code);
   if (!code) throw badRequest();
   const hash = await transferHash(pepper, code);
-  // 冪等：目前的轉移碼已經是這個新碼（上一次請求其實成功了）→ 200，不再寫入。
   if (timingSafeEqualHex(player.transfer_hash, hash)) return jsonResponse({});
+  if (!isAcceptableTransferCode(code)) throw badRequest(); // 修訂 4 第 5 節
+  await hitWrite(env, player.player_id, WRITE_LIMITS.rotate, now);
   try {
     await env.DB.prepare('UPDATE players SET transfer_hash = ? WHERE player_id = ?').bind(hash, player.player_id).run();
   } catch (e) {
-    if (uniqueViolation(e)) throw secretConflict();
+    if (uniqueViolation(e)) throw await collision(request, env, now, player.player_id);
     throw e;
   }
   return jsonResponse({});
@@ -217,7 +288,7 @@ async function putSave(request, env, now, rawSlot) {
   if (ifNoneMatch !== null && ifNoneMatch.trim() !== '*') throw badRequest();
   const expected = ifMatch !== null ? parseIfMatch(ifMatch) : null;
 
-  await hitWrite(env, `pl:write:${playerId}`, 'RL_WRITE_PER_HOUR', 60, now);
+  await hitWrite(env, playerId, WRITE_LIMITS.write, now);
 
   const body = await readJson(request);
   if (!isPlainObject(body) || typeof body.data !== 'string') throw badRequest();
@@ -258,7 +329,7 @@ async function deleteSave(request, env, now, rawSlot) {
   const ifMatch = request.headers.get('if-match');
   if (ifMatch === null) throw new HttpError(428, 'precondition_required');
   const expected = parseIfMatch(ifMatch);
-  await hitWrite(env, `pl:write:${playerId}`, 'RL_WRITE_PER_HOUR', 60, now);
+  await hitWrite(env, playerId, WRITE_LIMITS.write, now);
   // 刪除＝清空 data 並遞增版本（保留版本號，避免之後新建的存檔版本倒退）。
   const res = await env.DB.prepare(`
     UPDATE saves SET data = NULL, data_sha256 = NULL, summary = NULL, version = version + 1, updated_at = ?
@@ -273,12 +344,13 @@ async function deleteSave(request, env, now, rawSlot) {
 /** vars 的 CHAPTERS（逗號分隔）：允許回報的章節白名單，必須等於 web/data/manifest.json 的 chapters（測試把關）。 */
 const chaptersOf = (env) => String(env.CHAPTERS ?? '').split(',').map((c) => c.trim()).filter(Boolean);
 
-function validClear(body, chapters) {
+/** maxSeconds：MAX_PLAYER_SECONDS（修訂 4 第 7 節：10 小時，超過 400）。 */
+function validClear(body, chapters, maxSeconds) {
   if (!isPlainObject(body)) return false;
   const { chapter, play_seconds: ps, collapse } = body;
   if (typeof chapter !== 'string' || !chapters.includes(chapter)) return false;
   if (Object.hasOwn(body, 'ending') && body.ending !== null) return false; // 修訂 2 E：ending 目前一律 null
-  if (typeof ps !== 'number' || !Number.isFinite(ps) || ps < 0 || ps > MAX_PLAY_SECONDS) return false;
+  if (typeof ps !== 'number' || !Number.isFinite(ps) || ps < 0 || ps > maxSeconds) return false;
   if (!Number.isInteger(collapse) || collapse < 0 || collapse > 100) return false;
   return true;
 }
@@ -286,9 +358,9 @@ function validClear(body, chapters) {
 async function reportClear(request, env, now) {
   requireJsonContentType(request);
   const { player_id: playerId } = await authenticate(request, env, now);
-  await hitWrite(env, `pl:clear:${playerId}`, 'RL_CLEAR_PER_HOUR', 30, now);
+  await hitWrite(env, playerId, WRITE_LIMITS.clear, now);
   const body = await readJson(request);
-  if (!validClear(body, chaptersOf(env))) throw badRequest();
+  if (!validClear(body, chaptersOf(env), limitOf(env, 'MAX_PLAYER_SECONDS', 36000))) throw badRequest();
   const playSeconds = Math.round(body.play_seconds);
   // chapter_stats 由 clears 的 trigger 同步更新（新紀錄＋1 人；改善成績調整總時間）。
   const [, best] = await env.DB.batch([
@@ -330,16 +402,37 @@ async function stats(request, env, now, ctx) {
   return response;
 }
 
-/** Cron（每天一次）：刪除超過 180 天未登入的玩家及其存檔、通關紀錄；刪除過期的限流紀錄。 */
-export async function purge(db, now) {
-  const cutoff = now - INACTIVE_SEC;
-  const stale = 'SELECT player_id FROM players WHERE last_seen < ?';
-  await db.batch([
-    db.prepare(`DELETE FROM saves WHERE player_id IN (${stale})`).bind(cutoff),
-    db.prepare(`DELETE FROM clears WHERE player_id IN (${stale})`).bind(cutoff),
-    db.prepare('DELETE FROM players WHERE last_seen < ?').bind(cutoff),
-    purgeExpired(db, now),
-  ]);
+// Cron 要刪的玩家：超過 180 天未登入（?1），或建立超過 7 天（?2）而且沒有任何存檔（已刪除的空槽不算）也沒有通關紀錄。
+const PURGE_WHERE = `(p.last_seen < ?1 OR (p.created_at < ?2
+  AND NOT EXISTS (SELECT 1 FROM saves s WHERE s.player_id = p.player_id AND s.data IS NOT NULL)
+  AND NOT EXISTS (SELECT 1 FROM clears c WHERE c.player_id = p.player_id)))`;
+// 刪除時把條件再判斷一次：在「選出名單」與「刪除」之間剛上傳存檔的玩家不會被誤刪。
+const PURGE_TARGETS = `SELECT p.player_id FROM players p JOIN json_each(?3) j ON j.value = p.player_id WHERE ${PURGE_WHERE}`;
+
+/**
+ * Cron（每天一次）：刪除超過 180 天未登入的玩家，以及建立超過 7 天的空帳號（修訂 4 第 2 節），連同其存檔、通關紀錄；
+ * 每次最多 batch（PURGE_BATCH）人，避免單次寫入暴增，剩下的下一次再刪。另外刪除過期的限流紀錄。
+ * 回傳這次刪除的玩家數。
+ */
+export async function purge(db, now, { batch = 500 } = {}) {
+  const stale = now - INACTIVE_SEC;
+  const empty = now - EMPTY_ACCOUNT_SEC;
+  const { results } = await db.prepare(`SELECT p.player_id FROM players p WHERE ${PURGE_WHERE} ORDER BY p.player_id LIMIT ?3`)
+    .bind(stale, empty, batch).all();
+  let deleted = 0;
+  if (results.length > 0) {
+    const ids = JSON.stringify(results.map((r) => r.player_id));
+    const rs = await db.batch([
+      db.prepare(`DELETE FROM saves WHERE player_id IN (${PURGE_TARGETS})`).bind(stale, empty, ids),
+      db.prepare(`DELETE FROM clears WHERE player_id IN (${PURGE_TARGETS})`).bind(stale, empty, ids),
+      db.prepare(`DELETE FROM rate_limits WHERE bucket IN (SELECT k.value || t.player_id FROM (${PURGE_TARGETS}) t, json_each(?4) k)`)
+        .bind(stale, empty, ids, PLAYER_BUCKET_PREFIXES),
+      db.prepare(`DELETE FROM players WHERE player_id IN (${PURGE_TARGETS}) RETURNING player_id`).bind(stale, empty, ids),
+    ]);
+    deleted = rs[3]?.results?.length ?? 0;
+  }
+  await db.batch([purgeExpired(db, now)]);
+  return deleted;
 }
 
 // ---------- 路由 ----------
@@ -397,7 +490,7 @@ export default {
 
   async scheduled(controller, env, ctx) {
     const now = Math.floor((controller?.scheduledTime ?? Date.now()) / 1000);
-    const job = purge(env.DB, now);
+    const job = purge(env.DB, now, { batch: limitOf(env, 'PURGE_BATCH', 500) });
     if (ctx?.waitUntil) ctx.waitUntil(job.catch(() => {}));
     await job;
   },

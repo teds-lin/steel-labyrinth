@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
-  randomToken, randomTransferCode, isToken, sha256Hex, TOKEN_RE,
+  randomToken, randomTransferCode, isToken, sha256Hex, TOKEN_RE, encodeToken,
 } from '../../web/src/cloud/secrets.js';
 import { TRANSFER_ALPHABET, normalizeTransferCode } from '../../web/src/cloud/sync.js';
 
@@ -34,9 +34,9 @@ describe('randomToken', () => {
     expect(rv.calls).toEqual([32]);
     expect(t).toBe(Buffer.from(bytes).toString('base64url'));
   });
-  it('全 0xff 也不會出現 + / =', () => {
-    const t = randomToken(scripted([0xff]));
-    expect(t).toBe(`${'_'.repeat(42)}8`);
+  it('全 0xff 也不會出現 + / =（編碼本身；這種低熵結果 randomToken 會重抽，修訂 4 第 5 節）', () => {
+    expect(encodeToken(new Uint8Array(32).fill(0xff))).toBe(`${'_'.repeat(42)}8`);
+    expect(() => randomToken(scripted([0xff]))).toThrow();
   });
   it('每次都不同', () => {
     const set = new Set(Array.from({ length: 100 }, () => randomToken()));

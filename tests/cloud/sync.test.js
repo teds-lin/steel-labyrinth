@@ -515,7 +515,7 @@ describe('通關回報', () => {
   it('數值超出範圍時夾到合法範圍；ending 不合法時改 null', async () => {
     const { sync, api } = setup({ handlers: { reportClear: ok(200, {}) } });
     await sync.reportClear({ chapter: 'chapter2', ending: 'Bad Ending!', play_seconds: 1e9, collapse: 150 });
-    expect(api.calls[0].args[0]).toEqual({ chapter: 'chapter2', ending: null, play_seconds: 10_000_000, collapse: 100 });
+    expect(api.calls[0].args[0]).toEqual({ chapter: 'chapter2', ending: null, play_seconds: 36000, collapse: 100 }); // 修訂 4 第 7 節
   });
   it('章節 id 不合法或未啟用 → 不送', async () => {
     let s = setup();

@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TRANSFER_ALPHABET, generateTransferCode, normalizeTransferCode, generateToken,
-  sha256Hex, timingSafeEqualHex, ipBucketKey, ipBucketSource, isTokenFormat,
+  sha256Hex, timingSafeEqualHex, ipBucketKey, ipBucketSource, isTokenFormat, isIpv6Source,
 } from '../../worker/src/codes.js';
 import { readBodyText, HttpError, BODY_LIMIT } from '../../worker/src/http.js';
 import { buildSummary, DATA_LIMIT } from '../../worker/src/summary.js';
@@ -62,6 +62,17 @@ describe('修訂 2：客戶端秘密格式、零寬字元、IPv6 /64', () => {
   it('正規化轉移碼時移除零寬與格式字元（Unicode Cf）', () => {
     expect(normalizeTransferCode('\u200bABCD\u200c-\u200dEFGH\u2060\ufeff')).toBe('ABCDEFGH');
     expect(normalizeTransferCode('AB\u00adCD-EFGH')).toBe('ABCDEFGH'); // 軟連字號也是 Cf
+  });
+
+  it('ipBucketSource(ip, 48)：IPv6 取前 48 位元（修訂 4）；IPv4 與對映位址照舊；isIpv6Source', () => {
+    expect(ipBucketSource('2001:db8:77:1::1', 48)).toBe('2001:db8:77::/48');
+    expect(ipBucketSource('2001:db8:77:ffff:1:2:3:4', 48)).toBe('2001:db8:77::/48');
+    expect(ipBucketSource('2001:db8:78::1', 48)).not.toBe(ipBucketSource('2001:db8:77::1', 48));
+    expect(ipBucketSource('203.0.113.7', 48)).toBe('203.0.113.7');
+    expect(ipBucketSource('::ffff:198.51.100.9', 48)).toBe('198.51.100.9');
+    expect(isIpv6Source('2001:db8::1')).toBe(true);
+    expect(isIpv6Source('::1')).toBe(true);
+    for (const x of ['203.0.113.7', '::ffff:198.51.100.9', 'unknown', '1:2:3']) expect(isIpv6Source(x), x).toBe(false);
   });
 
   it('ipBucketSource：IPv4 照舊；IPv6 取前 64 位元（/64）；IPv4 對映位址當 IPv4', () => {

@@ -1,10 +1,12 @@
-// 修訂 2 D：Cron Trigger 定期清理；一般請求不再順便清理；每種請求的 D1 讀寫列數上限（用 x-d1-rows 實測）。
+// 修訂 2 D／修訂 4：Cron Trigger 定期清理；一般請求不再順便清理；每種請求的 D1 讀寫列數上限（用 x-d1-rows 實測）；
+// 惡意流量的每日寫入上限依修訂 4 第 6 節的算式重算。
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import {
   startWorker, newPlayer, newSecrets, doTransfer, doRotate, json, auth, putSave, sampleSave, d1Rows, readWranglerConfig, ROOT,
 } from './helpers.js';
+import { purge } from '../../worker/src/index.js';
 
 const DAY = 86400;
 
@@ -65,164 +67,319 @@ async function expectStatus(res, status) {
   await res.arrayBuffer();
 }
 
-// 實測上限（2026-10-17，修訂 3 之後）。改變寫入路徑時這張表會擋下來，連帶重算每日寫入上限。
+// 實測上限（2026-10-17，修訂 4 之後）。改變寫入路徑時這張表會擋下來，連帶重算每日寫入上限。
+// 已登入寫入分兩種通道量測：［保留］＝每位玩家每小時前 3 次（計入全域每日預算）；［每小時］＝其餘（計入全域每小時上限）。
 const MAX_ROWS = {
-  'POST /api/player（新建）': { read: 6, written: 7 },
+  'POST /api/player（新建，IPv4）': { read: 7, written: 7 },
+  'POST /api/player（新建，IPv6）': { read: 8, written: 8 },
   'POST /api/player（冪等重送）': { read: 4, written: 2 },
+  'POST /api/player（轉移碼碰撞 409，IPv6）': { read: 8, written: 6 },
   'GET /api/saves': { read: 1, written: 0 },
   'GET /api/saves（當天第一次，更新 last_seen）': { read: 2, written: 1 },
-  'PUT（新建）': { read: 4, written: 4 },
-  'PUT（覆蓋）': { read: 6, written: 3 },
-  'PUT（409）': { read: 7, written: 2 },
   'GET /api/save/1': { read: 2, written: 0 },
-  'DELETE': { read: 5, written: 3 },
-  'PUT（刪除後重建）': { read: 6, written: 3 },
-  'POST /api/clear（新紀錄）': { read: 5, written: 5 },
-  'POST /api/clear（改善成績）': { read: 7, written: 4 },
-  'POST /api/clear（沒有改善）': { read: 6, written: 2 },
-  'POST /api/transfer/rotate': { read: 5, written: 4 },
-  'POST /api/transfer（成功）': { read: 4, written: 5 },
-  'POST /api/transfer（碼錯）': { read: 4, written: 2 },
+  'POST /api/transfer（成功，IPv6）': { read: 6, written: 6 },
+  'POST /api/transfer（碼錯，IPv6）': { read: 5, written: 3 },
+  'POST /api/transfer/rotate（重送已生效的碼）': { read: 1, written: 0 },
   'GET /api/stats（未快取）': { read: 1, written: 0 },
   'GET /api/stats（快取）': { read: 0, written: 0 },
   '401（錯誤權杖）': { read: 0, written: 0 },
 };
+const WRITE_KINDS = ['PUT（新建）', 'PUT（覆蓋）', 'PUT（409）', 'DELETE', 'PUT（刪除後重建）',
+  'POST /api/clear（新紀錄）', 'POST /api/clear（改善成績）', 'POST /api/clear（沒有改善）', 'POST /api/transfer/rotate',
+  'POST /api/transfer/rotate（碰撞 409，IPv6）'];
+const LANE_ROWS = {
+  保留: {
+    'PUT（新建）': { read: 6, written: 5 }, 'PUT（覆蓋）': { read: 9, written: 4 }, 'PUT（409）': { read: 10, written: 3 },
+    DELETE: { read: 6, written: 4 }, 'PUT（刪除後重建）': { read: 9, written: 4 },
+    'POST /api/clear（新紀錄）': { read: 6, written: 6 }, 'POST /api/clear（改善成績）': { read: 10, written: 5 }, 'POST /api/clear（沒有改善）': { read: 9, written: 3 },
+    'POST /api/transfer/rotate': { read: 6, written: 5 }, 'POST /api/transfer/rotate（碰撞 409，IPv6）': { read: 9, written: 6 },
+  },
+  每小時: {
+    'PUT（新建）': { read: 6, written: 4 }, 'PUT（覆蓋）': { read: 7, written: 3 }, 'PUT（409）': { read: 9, written: 2 },
+    DELETE: { read: 6, written: 3 }, 'PUT（刪除後重建）': { read: 8, written: 3 },
+    'POST /api/clear（新紀錄）': { read: 6, written: 5 }, 'POST /api/clear（改善成績）': { read: 9, written: 4 }, 'POST /api/clear（沒有改善）': { read: 8, written: 2 },
+    'POST /api/transfer/rotate': { read: 6, written: 4 }, 'POST /api/transfer/rotate（碰撞 409，IPv6）': { read: 9, written: 5 },
+  },
+};
+const OUT = join(ROOT, 'test-results', 'cron-cost.txt');
 
-describe('每種請求的 D1 讀寫列數（x-d1-rows 實測；上限是回歸防線）', () => {
-  let w;
-  const measured = {};
-  beforeAll(async () => { w = await startWorker({ varsOverride: { STATS_MIN_PLAYERS: '1' } }); });
-  afterAll(async () => {
-    console.log(`D1 讀寫列數實測：\n${Object.entries(measured).map(([k, r]) => `  ${k.padEnd(36)} read=${r.read} written=${r.written}`).join('\n')}`);
-    await w?.close();
-  });
-  const record = (name, res) => {
-    const rows = d1Rows(res);
-    measured[name] = rows;
-    expect(rows.read, `${name} read`).toBeLessThanOrEqual(MAX_ROWS[name].read);
-    expect(rows.written, `${name} written`).toBeLessThanOrEqual(MAX_ROWS[name].written);
-    return rows;
+/**
+ * 依序量測每種請求（lane：'保留'｜'每小時'｜null＝不量已登入寫入）。回傳 { 名稱: { read, written, newBuckets } }；
+ * newBuckets＝這個請求在 rate_limits 新增了幾列（之後 Cron 刪除時各要再寫 1 列）。
+ */
+async function measureAll(w, lane) {
+  const out = {};
+  const rlRows = async () => (await w.db.prepare('SELECT COUNT(*) AS n FROM rate_limits').first()).n;
+  const rec = async (name, call) => {
+    const before = await rlRows();
+    const res = await call();
+    out[name] = { ...d1Rows(res), newBuckets: (await rlRows()) - before, status: res.status };
+    await res.arrayBuffer();
+    return res;
+  };
+  // 讓全域 bucket 先存在（它們是固定幾列，另外計入常數）
+  await newPlayer(w);
+  const fresh = await newPlayer(w);
+  await putSave(w, fresh.token, 1, sampleSave());
+  await doTransfer(w, 'ABCD-EFGH');
+  if (lane === '每小時') { // 全域每小時 bucket 也先建立
+    const q = await newPlayer(w);
+    await w.db.prepare('INSERT INTO rate_limits (bucket, count, reset_at) VALUES (?, 1000, ?)').bind(`pl:rsv:${q.player_id}`, Math.floor(Date.now() / 1000) + 3600).run();
+    await putSave(w, q.token, 1, sampleSave());
+  }
+
+  if (lane === null) {
+    const s = newSecrets();
+    await rec('POST /api/player（新建，IPv4）', () => w.fetch('/api/player', json(s, { 'cf-connecting-ip': w.nextIp() })));
+    await rec('POST /api/player（冪等重送）', () => w.fetch('/api/player', json(s, { 'cf-connecting-ip': w.nextIp() })));
+    await rec('POST /api/player（新建，IPv6）', () => w.fetch('/api/player', json(newSecrets(), { 'cf-connecting-ip': '2001:db8:501::1' })));
+    await rec('POST /api/player（轉移碼碰撞 409，IPv6）', () => w.fetch('/api/player', json({ token: newSecrets().token, transfer_code: s.transfer_code }, { 'cf-connecting-ip': '2001:db8:502::1' })));
+    const token = s.token;
+    await rec('GET /api/saves', () => w.fetch('/api/saves', { headers: auth(token) }));
+    await w.db.prepare('UPDATE players SET last_seen = 0 WHERE token_hash IS NOT NULL').run();
+    await rec('GET /api/saves（當天第一次，更新 last_seen）', () => w.fetch('/api/saves', { headers: auth(token) }));
+    await putSave(w, token, 1, sampleSave());
+    await rec('GET /api/save/1', () => w.fetch('/api/save/1', { headers: auth(token) }));
+    const code = newSecrets().transfer_code;
+    await doRotate(w, token, code);
+    await rec('POST /api/transfer/rotate（重送已生效的碼）', () => doRotate(w, token, code));
+    await rec('POST /api/transfer（成功，IPv6）', async () => (await doTransfer(w, code, { ip: '2001:db8:503::1' })).res);
+    await rec('POST /api/transfer（碼錯，IPv6）', async () => (await doTransfer(w, 'ABCD-EFGH', { ip: '2001:db8:504::1' })).res);
+    await rec('GET /api/stats（未快取）', () => w.fetch('/api/stats'));
+    await rec('GET /api/stats（快取）', () => w.fetch('/api/stats'));
+    await rec('401（錯誤權杖）', () => w.fetch('/api/saves', { headers: auth('A'.repeat(43)) }));
+    return out;
+  }
+
+  // 已登入寫入：每種請求用一個新玩家（第一次寫入 → 新增該玩家的 bucket），量到最壞情況
+  const player = async () => {
+    const p = await newPlayer(w);
+    if (lane === '每小時') await w.db.prepare('INSERT INTO rate_limits (bucket, count, reset_at) VALUES (?, 1000, ?)').bind(`pl:rsv:${p.player_id}`, Math.floor(Date.now() / 1000) + 3600).run();
+    return p;
   };
   const clearReq = (token, ps) => w.fetch('/api/clear', {
     method: 'POST', headers: auth(token, { 'content-type': 'application/json' }), body: JSON.stringify({ chapter: 'chapter1', play_seconds: ps, collapse: 0 }),
   });
+  let p = await player();
+  await rec('PUT（新建）', () => putSave(w, p.token, 1, sampleSave()));
+  p = await player();
+  await putSave(w, p.token, 1, sampleSave());
+  if (lane === '每小時') await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(`pl:write:${p.player_id}`).run();
+  await rec('PUT（覆蓋）', () => putSave(w, p.token, 1, sampleSave({ playtime_s: 999 }), { match: 1 }));
+  await rec('PUT（409）', () => putSave(w, p.token, 1, sampleSave(), { match: 1 }));
+  p = await player();
+  await putSave(w, p.token, 1, sampleSave());
+  await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(`pl:write:${p.player_id}`).run();
+  if (lane === '保留') await w.db.prepare('DELETE FROM rate_limits WHERE bucket = ?').bind(`pl:rsv:${p.player_id}`).run();
+  await rec('DELETE', () => w.fetch('/api/save/1', { method: 'DELETE', headers: auth(p.token, { 'if-match': '"1"' }) }));
+  await rec('PUT（刪除後重建）', () => putSave(w, p.token, 1, sampleSave()));
+  p = await player();
+  await rec('POST /api/clear（新紀錄）', () => clearReq(p.token, 100));
+  await rec('POST /api/clear（改善成績）', () => clearReq(p.token, 99));
+  await rec('POST /api/clear（沒有改善）', () => clearReq(p.token, 500));
+  p = await player();
+  await rec('POST /api/transfer/rotate', () => doRotate(w, p.token));
+  const other = await newPlayer(w);
+  p = await player();
+  await rec('POST /api/transfer/rotate（碰撞 409，IPv6）', () => w.fetch('/api/transfer/rotate',
+    json({ new_transfer_code: other.transfer_code }, auth(p.token, { 'cf-connecting-ip': '2001:db8:505::1' }))));
+  return out;
+}
 
-  it('各端點', async () => {
-    const secrets = newSecrets();
-    let res = await w.fetch('/api/player', json(secrets, { 'cf-connecting-ip': w.nextIp() }));
-    expect(res.status).toBe(201);
-    record('POST /api/player（新建）', res);
-    res = await w.fetch('/api/player', json(secrets, { 'cf-connecting-ip': w.nextIp() }));
-    expect(res.status).toBe(200);
-    record('POST /api/player（冪等重送）', res);
-    const token = secrets.token;
+describe('每種請求的 D1 讀寫列數（x-d1-rows 實測；上限是回歸防線）', () => {
+  const measured = {};
+  afterAll(() => {
+    mkdirSync(dirname(OUT), { recursive: true });
+    writeFileSync(OUT, `D1 讀寫列數實測：\n${Object.entries(measured).map(([k, r]) => `  ${k.padEnd(44)} read=${r.read} written=${r.written} 新 bucket=${r.newBuckets}`).join('\n')}\n`);
+  });
 
-    res = await w.fetch('/api/saves', { headers: auth(token) });
-    record('GET /api/saves', res);
-    await w.db.prepare('UPDATE players SET last_seen = 0 WHERE token_hash IS NOT NULL').run();
-    res = await w.fetch('/api/saves', { headers: auth(token) });
-    record('GET /api/saves（當天第一次，更新 last_seen）', res);
+  it('不分通道的端點', async () => {
+    const w = await startWorker({ varsOverride: { STATS_MIN_PLAYERS: '1' } });
+    try {
+      const m = await measureAll(w, null);
+      for (const [k, max] of Object.entries(MAX_ROWS)) {
+        expect(m[k], k).toBeDefined();
+        measured[k] = m[k];
+        expect(m[k].read, `${k} read`).toBeLessThanOrEqual(max.read);
+        expect(m[k].written, `${k} written`).toBeLessThanOrEqual(max.written);
+      }
+      expect(Object.keys(m).sort()).toEqual(Object.keys(MAX_ROWS).sort());
+      expect(m['POST /api/player（轉移碼碰撞 409，IPv6）'].status).toBe(409);
+      expect(m['POST /api/transfer（成功，IPv6）'].status).toBe(200);
+    } finally {
+      await w.close();
+    }
+  });
 
-    res = await putSave(w, token, 1, sampleSave());
-    expect(res.status).toBe(200);
-    record('PUT（新建）', res);
-    res = await putSave(w, token, 1, sampleSave({ playtime_s: 999 }), { match: 1 });
-    expect(res.status).toBe(200);
-    record('PUT（覆蓋）', res);
-    res = await putSave(w, token, 1, sampleSave(), { match: 1 });
-    expect(res.status).toBe(409);
-    record('PUT（409）', res);
-
-    res = await w.fetch('/api/save/1', { headers: auth(token) });
-    record('GET /api/save/1', res);
-
-    res = await w.fetch('/api/save/1', { method: 'DELETE', headers: auth(token, { 'if-match': '"2"' }) });
-    expect(res.status).toBe(204);
-    record('DELETE', res);
-    res = await putSave(w, token, 1, sampleSave());
-    expect(res.status).toBe(200);
-    record('PUT（刪除後重建）', res);
-
-    res = await clearReq(token, 100);
-    expect(res.status).toBe(200);
-    record('POST /api/clear（新紀錄）', res);
-    res = await clearReq(token, 99);
-    expect(res.status).toBe(200);
-    record('POST /api/clear（改善成績）', res);
-    res = await clearReq(token, 500);
-    expect(res.status).toBe(200);
-    record('POST /api/clear（沒有改善）', res);
-
-    res = await doRotate(w, token);
-    expect(res.status).toBe(200);
-    record('POST /api/transfer/rotate', res);
-
-    const code = newSecrets().transfer_code;
-    await doRotate(w, token, code);
-    const t = await doTransfer(w, code);
-    expect(t.res.status).toBe(200);
-    record('POST /api/transfer（成功）', t.res);
-    const miss = await doTransfer(w, 'ABCD-EFGH');
-    record('POST /api/transfer（碼錯）', miss.res);
-
-    res = await w.fetch('/api/stats');
-    record('GET /api/stats（未快取）', res);
-    res = await w.fetch('/api/stats');
-    record('GET /api/stats（快取）', res);
-
-    res = await w.fetch('/api/saves', { headers: auth('A'.repeat(43)) });
-    record('401（錯誤權杖）', res);
-    expect(Object.keys(measured).sort()).toEqual(Object.keys(MAX_ROWS).sort());
+  it.each([['保留', {}], ['每小時', {}]])('已登入寫入：［%s］通道', async (lane) => {
+    const w = await startWorker({ varsOverride: { STATS_MIN_PLAYERS: '1', RL_ROTATE_PER_HOUR: '100' } });
+    try {
+      const m = await measureAll(w, lane);
+      const day = await w.db.prepare("SELECT COALESCE(SUM(count), 0) AS n FROM rate_limits WHERE bucket LIKE 'g:wday:%'").first();
+      expect(day.n).toBeGreaterThan(0);
+      for (const k of WRITE_KINDS) {
+        expect(m[k], k).toBeDefined();
+        measured[`${k}［${lane}］`] = m[k];
+        expect(m[k].read, `${k}［${lane}］read`).toBeLessThanOrEqual(LANE_ROWS[lane][k].read);
+        expect(m[k].written, `${k}［${lane}］written`).toBeLessThanOrEqual(LANE_ROWS[lane][k].written);
+      }
+      expect(m['POST /api/transfer/rotate（碰撞 409，IPv6）'].status).toBe(409);
+    } finally {
+      await w.close();
+    }
   });
 });
 
-describe('惡意流量的每日寫入上限 < 10 萬列（修訂 3；用 wrangler.toml 的實際 vars 計算）', () => {
-  let w;
-  beforeAll(async () => { w = await startWorker(); });
-  afterAll(async () => { await w?.close(); });
+const PLAYER_KEYS = ['write', 'clear', 'rotate', 'rsv', 'transfer'];
 
-  /** 實測 Cron 刪除一個「3 格存檔＋每章一筆通關紀錄」的玩家要寫幾列（含索引與 trigger）。 */
-  async function purgeRowsPerPlayer() {
-    const { purge } = await import('../../worker/src/index.js');
-    const p = await newPlayer(w);
-    for (let slot = 1; slot <= 3; slot++) expect((await putSave(w, p.token, slot, sampleSave())).status).toBe(200);
-    for (const chapter of String(readWranglerConfig().vars.CHAPTERS).split(',')) {
-      const r = await w.fetch('/api/clear', { method: 'POST', headers: auth(p.token, { 'content-type': 'application/json' }), body: JSON.stringify({ chapter, play_seconds: 10, collapse: 0 }) });
-      expect(r.status).toBe(200);
-    }
-    await w.db.prepare('UPDATE players SET last_seen = 0 WHERE player_id = ?').bind(p.player_id).run();
-    let written = 0;
-    const db = { prepare: (sql) => w.db.prepare(sql), batch: async (st) => { const rs = await w.db.batch(st); for (const r of rs) written += r.meta.rows_written; return rs; } };
-    await purge(db, Math.floor(Date.now() / 1000));
-    expect((await w.db.prepare('SELECT COUNT(*) AS n FROM players WHERE player_id = ?').bind(p.player_id).first()).n).toBe(0);
-    return written;
+/**
+ * 實測 Cron 刪除一個「3 格存檔＋每章一筆通關紀錄＋5 種玩家限流 bucket」的玩家要寫幾列（含索引與 trigger）。
+ * 玩家的限流 bucket 平常不清（原地重設），只在玩家被刪時一起刪，所以算在每人列數裡。
+ */
+async function purgeRowsPerPlayer(w) {
+  const p = await newPlayer(w);
+  for (let slot = 1; slot <= 3; slot++) expect((await putSave(w, p.token, slot, sampleSave())).status).toBe(200);
+  for (const chapter of String(readWranglerConfig().vars.CHAPTERS).split(',')) {
+    const r = await w.fetch('/api/clear', { method: 'POST', headers: auth(p.token, { 'content-type': 'application/json' }), body: JSON.stringify({ chapter, play_seconds: 10, collapse: 0 }) });
+    expect(r.status).toBe(200);
   }
+  await w.db.prepare('UPDATE players SET last_seen = 0 WHERE player_id = ?').bind(p.player_id).run();
+  for (const k of PLAYER_KEYS) {
+    await w.db.prepare('INSERT OR REPLACE INTO rate_limits (bucket, count, reset_at) VALUES (?, 1, 1)').bind(`pl:${k}:${p.player_id}`).run();
+  }
+  // 只量玩家本身：IP／全域的過期限流紀錄另外計（先清掉，避免混在一起）
+  await w.db.prepare("DELETE FROM rate_limits WHERE substr(bucket, 1, 3) <> 'pl:'").run();
+  const meter = metered(w.db);
+  expect(await purge(meter.db, Math.floor(Date.now() / 1000))).toBe(1);
+  expect((await w.db.prepare('SELECT COUNT(*) AS n FROM players WHERE player_id = ?').bind(p.player_id).first()).n).toBe(0);
+  expect((await w.db.prepare('SELECT COUNT(*) AS n FROM rate_limits WHERE bucket LIKE ?').bind(`%${p.player_id}`).first()).n).toBe(0);
+  return meter.written();
+}
 
-  it('上限＝各全域上限 × 24 小時 × 該類請求的最大寫入列數＋每日 last_seen 更新＋Cron 清理', async () => {
+/** 包一層 D1：累計 batch／all／run 的寫入列數。 */
+function metered(db) {
+  let written = 0;
+  const wrap = (st) => ({
+    bind: (...a) => wrap(st.bind(...a)),
+    all: async () => { const r = await st.all(); written += r.meta.rows_written; return r; },
+    run: async () => { const r = await st.run(); written += r.meta.rows_written; return r; },
+    first: async () => (await st.all()).results[0] ?? null,
+    raw: st,
+  });
+  return {
+    db: {
+      prepare: (sql) => wrap(db.prepare(sql)),
+      batch: async (sts) => { const rs = await db.batch(sts.map((s) => s.raw ?? s)); for (const r of rs) written += r.meta.rows_written; return rs; },
+    },
+    written: () => written,
+  };
+}
+
+describe('Cron 單次寫入列數上限（修訂 4 第 2、6 節）', () => {
+  it('一次最多刪 PURGE_BATCH 人；玩家部分的寫入 ≤ PURGE_BATCH × 實測每人列數', async () => {
+    const v = readWranglerConfig().vars;
+    const batch = Number(v.PURGE_BATCH);
+    expect(batch).toBe(500);
+    const w = await startWorker();
+    try {
+      const perPerson = await purgeRowsPerPlayer(w);
+      // 600 個「3 格存檔＋每章通關」的過期玩家（直接寫 SQL，trigger 照常運作）
+      const old = 1000;
+      const ids = JSON.stringify(Array.from({ length: 600 }, (_, i) => `z${String(i).padStart(4, '0')}`));
+      const chapters = JSON.stringify(String(v.CHAPTERS).split(','));
+      await w.db.batch([
+        w.db.prepare(`INSERT INTO players (player_id, token_hash, transfer_hash, created_at, last_seen)
+          SELECT value, 't' || value, 'x' || value, ?, ? FROM json_each(?)`).bind(old, old, ids),
+        w.db.prepare(`INSERT INTO saves (player_id, slot, version, data, data_sha256, summary, updated_at)
+          SELECT p.value, s.value, 1, '{}', 'h', '{}', ? FROM json_each(?) p, json_each('[1,2,3]') s`).bind(old, ids),
+        w.db.prepare(`INSERT INTO clears (player_id, chapter, ending, play_seconds, collapse, created_at)
+          SELECT p.value, c.value, NULL, 10, 0, ? FROM json_each(?) p, json_each(?) c`).bind(old, ids, chapters),
+        w.db.prepare(`INSERT INTO rate_limits (bucket, count, reset_at)
+          SELECT 'pl:' || k.value || ':' || p.value, 1, 1 FROM json_each(?) p, json_each(?) k`).bind(ids, JSON.stringify(PLAYER_KEYS)),
+      ]);
+      const meter = metered(w.db);
+      const deleted = await purge(meter.db, Math.floor(Date.now() / 1000), { batch });
+      expect(deleted).toBe(batch);
+      expect(meter.written()).toBeLessThanOrEqual(batch * perPerson);
+      expect((await w.db.prepare("SELECT COUNT(*) AS n FROM players WHERE player_id LIKE 'z%'").first()).n).toBe(100);
+      // scheduled() 用的是 vars 的 PURGE_BATCH
+      await w.scheduled(Date.now());
+      expect((await w.db.prepare("SELECT COUNT(*) AS n FROM players WHERE player_id LIKE 'z%'").first()).n).toBe(0);
+      const stats = await w.db.prepare("SELECT players FROM chapter_stats WHERE chapter = 'prologue'").first();
+      expect(stats?.players ?? 0).toBe(0);
+      writeFileSync(join(ROOT, 'test-results', 'cron-batch.txt'), `Cron 一次刪 ${deleted} 人：寫入 ${meter.written()} 列（每人上限 ${perPerson} 列 → 上限 ${batch * perPerson}）\n`);
+    } finally {
+      await w.close();
+    }
+  });
+});
+
+describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；用 wrangler.toml 的實際 vars 計算）', () => {
+  it('上限＝各全域額度 × 25 個時間窗 × 該類請求的最大寫入列數＋保留通道每日預算＋last_seen＋Cron＋限流紀錄清理', async () => {
     const v = readWranglerConfig().vars;
     const n = (k) => { const x = Number(v[k]); expect(Number.isInteger(x) && x > 0, k).toBe(true); return x; };
+    const windows = 25; // 固定時間窗從第一次命中起算 1 小時，一個 UTC 日最多跨到 25 個窗
     const wr = (k) => MAX_ROWS[k].written;
-    const maxOf = (...ks) => Math.max(...ks.map(wr));
-    const hours = 24;
-    const chapters = String(v.CHAPTERS).split(',').length;
-    // 超額（429）、403、415、401 都是 0 列（其他測試斷言），只有全域額度內的請求會寫入；
-    // 全域先只讀預檢，額滿後換再多來源也是 0 列。
-    const newPlayersPerDay = Math.min(n('RL_PLAYER_GLOBAL_PER_HOUR') * hours, n('MAX_PLAYERS'));
-    const players = n('RL_PLAYER_GLOBAL_PER_HOUR') * hours * maxOf('POST /api/player（新建）', 'POST /api/player（冪等重送）');
-    const transfers = n('RL_TRANSFER_GLOBAL_PER_HOUR') * hours * maxOf('POST /api/transfer（成功）', 'POST /api/transfer（碼錯）');
-    const authedEach = maxOf('PUT（新建）', 'PUT（覆蓋）', 'PUT（409）', 'DELETE', 'PUT（刪除後重建）',
-      'POST /api/clear（改善成績）', 'POST /api/clear（沒有改善）', 'POST /api/transfer/rotate');
-    const authed = n('RL_WRITE_GLOBAL_PER_HOUR') * hours * authedEach;
-    // 「新紀錄」的 clear 比其他寫入多幾列，但每個玩家每章只有一次：每天最多（新玩家數 × 章節數）次
-    const clearNewExtra = Math.max(0, wr('POST /api/clear（新紀錄）') - authedEach) * newPlayersPerDay * chapters;
+    const lane = (name, ks = WRITE_KINDS) => Math.max(...ks.map((k) => LANE_ROWS[name][k].written));
+    // 已登入寫入：每一次都當作「新通關」（最貴的一種）計——新通關的額外寫入以已登入寫入次數上限計。
+    // rotate 碰撞 409 另外計入轉移額度（g:transfer），它多出來的限流列數算在轉移那一項，所以這裡排除它：
+    const plainKinds = WRITE_KINDS.filter((k) => !k.includes('碰撞'));
+    for (const name of ['保留', '每小時']) {
+      expect(LANE_ROWS[name]['POST /api/transfer/rotate（碰撞 409，IPv6）'].written - LANE_ROWS[name]['POST /api/transfer/rotate'].written)
+        .toBeLessThanOrEqual(wr('POST /api/transfer（成功，IPv6）'));
+    }
+    expect(wr('POST /api/player（轉移碼碰撞 409，IPv6）')).toBeLessThanOrEqual(wr('POST /api/player（新建，IPv6）'));
+
+    const playerReq = n('RL_PLAYER_GLOBAL_PER_HOUR') * windows;
+    const transferReq = n('RL_TRANSFER_GLOBAL_PER_HOUR') * windows; // 含 player／rotate 碰撞 409（共用 g:transfer）
+    const hourlyReq = n('RL_WRITE_GLOBAL_PER_HOUR') * windows;
+    const reservedReq = n('RL_WRITE_GLOBAL_PER_DAY'); // 保留通道：帶日期的 bucket，一個 UTC 日就是一個窗
+    const players = playerReq * Math.max(wr('POST /api/player（新建，IPv4）'), wr('POST /api/player（新建，IPv6）'), wr('POST /api/player（冪等重送）'));
+    const transfers = transferReq * Math.max(wr('POST /api/transfer（成功，IPv6）'), wr('POST /api/transfer（碼錯，IPv6）'));
+    const hourly = hourlyReq * lane('每小時', plainKinds);
+    const reserved = reservedReq * lane('保留', plainKinds);
     // 每個玩家每天最多一次 last_seen 更新（任何已登入請求，包括讀取）
     const lastSeen = n('MAX_PLAYERS') * (wr('GET /api/saves（當天第一次，更新 last_seen）') - wr('GET /api/saves'));
-    // Cron：180 天前某一天建立、之後不再登入的玩家（每天最多 newPlayersPerDay 個）在同一天被刪除
-    const purgeEach = await purgeRowsPerPlayer();
-    const purge = newPlayersPerDay * purgeEach;
-    const total = players + transfers + authed + clearNewExtra + lastSeen + purge;
-    console.log(`惡意流量每日寫入上限：建立玩家 ${players}＋轉移 ${transfers}＋已登入寫入 ${authed}（每次 ${authedEach} 列）`
-      + `＋新通關額外 ${clearNewExtra}＋last_seen ${lastSeen}＋Cron ${purge}（每人 ${purgeEach} 列）＝${total} 列`);
+    // Cron：每天一次，最多 PURGE_BATCH 人
+    const w = await startWorker();
+    let perPerson;
+    try { perPerson = await purgeRowsPerPlayer(w); } finally { await w.close(); }
+    const cron = n('PURGE_BATCH') * perPerson;
+    // 限流紀錄清理：IP bucket 每天換鹽，建立後 Cron 刪除時再寫 1 列。每個請求最多新增幾列由下一個測試實測斷言：
+    // 建立玩家／轉移（IPv6 的 /64＋/48）≤ 2；全域 bucket（g:player、g:transfer、g:write、g:wday）每天至多 4 列。
+    // 玩家的 bucket（pl:*）原地重設、不每天清，只在玩家被刪時一起刪（已含在 Cron 每人列數）。
+    const rlPurge = playerReq * 2 + transferReq * 2 + 4;
+    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge;
+    const line = `惡意流量每日寫入上限：建立玩家 ${players}＋轉移 ${transfers}＋已登入每小時通道 ${hourly}（${hourlyReq} 次 × ${lane('每小時', plainKinds)} 列）`
+      + `＋保留通道 ${reserved}（${reservedReq} 次 × ${lane('保留', plainKinds)} 列）＋last_seen ${lastSeen}＋Cron ${cron}（${n('PURGE_BATCH')} 人 × ${perPerson} 列）`
+      + `＋限流紀錄清理 ${rlPurge}＝${total} 列`;
+    mkdirSync(join(ROOT, 'test-results'), { recursive: true });
+    writeFileSync(join(ROOT, 'test-results', 'cron-cost-total.txt'), `${line}\n`);
+    console.log(line);
     expect(total).toBeLessThan(100000);
+  });
+
+  it('每個請求新增的 IP 限流列數不超過算式假設（IPv6 建立玩家／轉移 ≤ 2）；玩家 bucket 不會被每日清理', async () => {
+    const w = await startWorker({ varsOverride: { RL_ROTATE_PER_HOUR: '100' } });
+    try {
+      const plain = await measureAll(w, null);
+      expect(plain['POST /api/player（新建，IPv6）'].newBuckets).toBeLessThanOrEqual(2);
+      expect(plain['POST /api/player（轉移碼碰撞 409，IPv6）'].newBuckets).toBeLessThanOrEqual(4); // 2（玩家）＋2（轉移，算在轉移額度）
+      expect(plain['POST /api/transfer（成功，IPv6）'].newBuckets).toBeLessThanOrEqual(2);
+      expect(plain['POST /api/transfer（碼錯，IPv6）'].newBuckets).toBeLessThanOrEqual(2);
+    } finally {
+      await w.close();
+    }
+    const s = await startWorker();
+    try {
+      const p = await newPlayer(s);
+      expect((await putSave(s, p.token, 1, sampleSave())).status).toBe(200);
+      await s.db.prepare('UPDATE rate_limits SET reset_at = 1').run(); // 全部過期
+      await s.scheduled(Date.now());
+      const left = await s.db.prepare('SELECT bucket FROM rate_limits').all();
+      expect(left.results.map((r) => r.bucket).sort()).toEqual([`pl:rsv:${p.player_id}`, `pl:write:${p.player_id}`]);
+    } finally {
+      await s.close();
+    }
   });
 });

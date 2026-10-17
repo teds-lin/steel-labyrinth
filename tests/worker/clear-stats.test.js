@@ -45,7 +45,7 @@ describe('POST /api/clear', () => {
     const p = await newPlayer(w);
     for (const b of [
       ok({ chapter: 'prologue', play_seconds: 0, collapse: 0 }),
-      ok({ chapter: 'chapter1', play_seconds: 1e7, collapse: 100 }),
+      ok({ chapter: 'chapter1', play_seconds: 36000, collapse: 100 }), // 修訂 4 第 7 節：MAX_PLAYER_SECONDS
     ]) expect((await clear(p.token, b)).status).toBe(200);
     const { ending, ...noEnding } = ok({ chapter: 'chapter2' });
     expect((await clear(p.token, noEnding)).status).toBe(200);
@@ -80,7 +80,7 @@ describe('POST /api/clear', () => {
     ['ending 是 false', ok({ ending: false })],
     ['ending 是數字', ok({ ending: 1 })],
     ['play_seconds 負數', ok({ play_seconds: -1 })],
-    ['play_seconds 太大', ok({ play_seconds: 1e7 + 1 })],
+    ['play_seconds 太大（> MAX_PLAYER_SECONDS）', ok({ play_seconds: 36001 })],
     ['play_seconds 是字串', ok({ play_seconds: '3600' })],
     ['play_seconds 缺少', { chapter: 'c', ending: null, collapse: 1 }],
     ['collapse 小數', ok({ collapse: 3.5 })],

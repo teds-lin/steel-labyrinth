@@ -1,24 +1,10 @@
 // 轉移碼、權杖、雜湊與常數時間比較（只用 Web Crypto，Worker 與 Node 都能跑）。
+import { isLowEntropyToken, isLowEntropyTransferCode, randomToken, randomTransferCode } from '../../web/src/cloud/secrets.js';
 
 /** 轉移碼字元集：排除 0、O、1、I、L。 */
 export const TRANSFER_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const TRANSFER_LENGTH = 8;
 const ALPHABET_SET = new Set(TRANSFER_ALPHABET);
-// 拒絕取樣：只接受 < 248（31 的倍數）的位元組，避免 % 31 的偏差。
-const SAMPLE_LIMIT = 256 - (256 % TRANSFER_ALPHABET.length);
-
-/** 產生 XXXX-XXXX 格式的轉移碼（修訂 2 起由客戶端產生；伺服器端只在測試與工具中使用）。 */
-export function generateTransferCode() {
-  const out = [];
-  const buf = new Uint8Array(16);
-  while (out.length < TRANSFER_LENGTH) {
-    crypto.getRandomValues(buf);
-    for (const b of buf) {
-      if (b < SAMPLE_LIMIT && out.length < TRANSFER_LENGTH) out.push(TRANSFER_ALPHABET[b % TRANSFER_ALPHABET.length]);
-    }
-  }
-  return `${out.slice(0, 4).join('')}-${out.slice(4).join('')}`;
-}
 
 /** 正規化轉移碼：去掉空白、連字號與零寬／格式字元（Unicode Cf）、轉大寫；不是 8 個合法字元就回 null。 */
 export function normalizeTransferCode(input) {
@@ -33,13 +19,17 @@ export function normalizeTransferCode(input) {
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 export const isTokenFormat = (v) => typeof v === 'string' && TOKEN_RE.test(v);
 
-/** 32 bytes 隨機權杖 → base64url（43 字元、無補位）。修訂 2 起由客戶端產生。 */
-export function generateToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+/**
+ * 修訂 4 第 5 節：低熵秘密一律 400（權杖不同字元少於 16 種；轉移碼同一字元出現 4 次以上）。
+ * 判斷與產生器直接用客戶端的 web/src/cloud/secrets.js（同一份程式），官方客戶端產生的秘密不可能被誤殺。
+ */
+export const isAcceptableToken = (t) => isTokenFormat(t) && !isLowEntropyToken(t);
+/** normalized：normalizeTransferCode 的結果（8 碼、無連字號）。 */
+export const isAcceptableTransferCode = (normalized) => typeof normalized === 'string' && !isLowEntropyTransferCode(normalized);
+
+/** 測試與工具用的產生器（和客戶端是同一份）。 */
+export const generateToken = () => randomToken();
+export const generateTransferCode = () => randomTransferCode();
 
 /** SHA-256 → 小寫十六進位。 */
 export async function sha256Hex(str) {
@@ -59,10 +49,10 @@ export function timingSafeEqualHex(a, b) {
 export const transferHash = (pepper, normalized) => sha256Hex(`${pepper}${normalized}`);
 
 /**
- * 限流用的來源字串：IPv4 照舊用整個位址；IPv6 只取前 64 位元（一個 /64 通常屬於同一個用戶，
- * 換位址不能繞過限制）；IPv4 對映位址（::ffff:a.b.c.d）當作 IPv4。解析不了就原樣使用。
+ * 限流用的來源字串：IPv4 照舊用整個位址；IPv6 只取前 prefix 位元（64 或 48；一個 /64 通常屬於同一個用戶，
+ * 換位址不能繞過限制；修訂 4 另以 /48 限制）；IPv4 對映位址（::ffff:a.b.c.d）當作 IPv4。解析不了就原樣使用。
  */
-export function ipBucketSource(ip) {
+export function ipBucketSource(ip, prefix = 64) {
   if (typeof ip !== 'string' || !ip.includes(':')) return ip;
   let s = ip.trim().toLowerCase();
   const zone = s.indexOf('%');
@@ -87,15 +77,19 @@ export function ipBucketSource(ip) {
   if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return ip;
   const n = groups.map((g) => parseInt(g, 16));
   if (v4 && n.slice(0, 5).every((x) => x === 0) && n[5] === 0xffff) return v4; // IPv4 對映位址
-  return `${n.slice(0, 4).map((x) => x.toString(16)).join(':')}::/64`;
+  const groupsKept = prefix === 48 ? 3 : 4;
+  return `${n.slice(0, groupsKept).map((x) => x.toString(16)).join(':')}::/${groupsKept * 16}`;
 }
 
 /**
  * IP 限流 key：SHA-256(每日鹽＋IP)；每日鹽由 pepper 與 UTC 日期導出，所以隔天就無法和前一天的 key 連結，
  * 而且資料庫裡永遠沒有原始 IP。nowSec：Unix 秒。
  */
-export async function ipBucketKey(pepper, ip, nowSec) {
+export async function ipBucketKey(pepper, ip, nowSec, prefix = 64) {
   const day = new Date(nowSec * 1000).toISOString().slice(0, 10);
   const salt = await sha256Hex(`ip-salt:${pepper}:${day}`);
-  return sha256Hex(`${salt}:${ipBucketSource(ip)}`);
+  return sha256Hex(`${salt}:${ipBucketSource(ip, prefix)}`);
 }
+
+/** 是不是可解析的 IPv6 位址（IPv4 對映位址不算）：只有 IPv6 才多一層 /48 限制。 */
+export const isIpv6Source = (ip) => /::\/64$/.test(String(ipBucketSource(ip)));

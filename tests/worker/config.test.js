@@ -34,7 +34,10 @@ describe('wrangler.toml', () => {
   it('vars：修訂 2 的全域上限、容量、統計門檻、章節白名單', () => {
     expect(Number(cfg.vars.RL_PLAYER_GLOBAL_PER_HOUR)).toBe(60); // 修訂 3
     expect(Number(cfg.vars.RL_TRANSFER_GLOBAL_PER_HOUR)).toBe(120); // 修訂 3a
-    expect(Number(cfg.vars.RL_WRITE_GLOBAL_PER_HOUR)).toBe(400); // 修訂 3a
+    expect(Number(cfg.vars.RL_WRITE_GLOBAL_PER_HOUR)).toBe(100); // 修訂 4a（保留通道之外；原 400 在修訂 4 的算式下超過免費額度）
+    expect(Number(cfg.vars.RL_WRITE_GLOBAL_PER_DAY)).toBe(4000); // 修訂 4a：保留通道的全域每日預算
+    expect(Number(cfg.vars.PURGE_BATCH)).toBe(500); // 修訂 4 第 2 節
+    expect(Number(cfg.vars.MAX_PLAYER_SECONDS)).toBe(36000); // 修訂 4 第 7 節
     expect(Number(cfg.vars.MAX_PLAYERS)).toBe(5000); // 修訂 3
     expect(Number(cfg.vars.STATS_MIN_PLAYERS)).toBe(3);
     expect(cfg.vars.CHAPTERS).toBe('prologue,chapter1,chapter2');
@@ -51,9 +54,13 @@ describe('wrangler.toml', () => {
   it('vars：限流值', () => {
     expect(Number(cfg.vars.RL_PLAYER_PER_HOUR)).toBe(5);
     expect(Number(cfg.vars.RL_TRANSFER_PER_HOUR)).toBe(10);
-    expect(Number(cfg.vars.RL_WRITE_PER_HOUR)).toBe(60);
-    expect(Number(cfg.vars.RL_ROTATE_PER_HOUR)).toBe(10);
-    expect(Number(cfg.vars.RL_CLEAR_PER_HOUR)).toBe(30);
+    // 修訂 4 第 1 節：每位玩家配額降低、保留通道、IPv6 /48
+    expect(Number(cfg.vars.RL_WRITE_PER_HOUR)).toBe(20);
+    expect(Number(cfg.vars.RL_ROTATE_PER_HOUR)).toBe(3);
+    expect(Number(cfg.vars.RL_CLEAR_PER_HOUR)).toBe(10);
+    expect(Number(cfg.vars.RL_RESERVED_PER_HOUR)).toBe(3);
+    expect(Number(cfg.vars.RL_PLAYER_PER_HOUR_V6_48)).toBe(10);
+    expect(Number(cfg.vars.RL_TRANSFER_PER_HOUR_V6_48)).toBe(20);
   });
 
   it('沒有任何密鑰寫進 repo', () => {

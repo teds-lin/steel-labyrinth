@@ -1,4 +1,4 @@
-// 頻率限制：每種限制都測到 429＋Retry-After；限制值用 wrangler.toml 的 vars（5／10／60／10／30）。
+// 頻率限制：每種限制都測到 429＋Retry-After；限制值用 wrangler.toml 的 vars（5／10／20／3／10，修訂 4）。
 // 修訂 2 D：超額後不再寫入 D1（條件式加一）、IPv6 以 /64 計算、全域上限、MAX_PLAYERS 容量。
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
@@ -20,7 +20,7 @@ async function expect429(res) {
 
 const create = (s, ip, body = newSecrets()) => s.fetch('/api/player', json(body, { 'cf-connecting-ip': ip }));
 const clearBody = JSON.stringify({ chapter: 'chapter1', ending: null, play_seconds: 10, collapse: 0 });
-const clear = (token) => w.fetch('/api/clear', { method: 'POST', headers: auth(token, { 'content-type': 'application/json' }), body: clearBody });
+const clear = (token, s = w) => s.fetch('/api/clear', { method: 'POST', headers: auth(token, { 'content-type': 'application/json' }), body: clearBody });
 
 describe('POST /api/player：同一 IP 每小時 5 次', () => {
   it('第 6 次 429；別的 IP 不受影響；資料表只存 IP 雜湊', async () => {
@@ -88,15 +88,15 @@ describe('超額後不再寫入 D1（修訂 2 D：條件式加一）', () => {
 
   it('寫入、rotate、clear 超額：429 只讀不寫', async () => {
     const p = await newPlayer(w);
-    for (let i = 0; i < 60; i++) await putSave(w, p.token, 1, '{');
+    for (let i = 0; i < 20; i++) await putSave(w, p.token, 1, '{');
     let res = await putSave(w, p.token, 1, sampleSave());
     expect(d1Rows(res).written).toBe(0);
     await expect429(res);
-    for (let i = 0; i < 10; i++) await doRotate(w, p.token);
+    for (let i = 0; i < 3; i++) await doRotate(w, p.token);
     res = await doRotate(w, p.token);
     expect(d1Rows(res).written).toBe(0);
     await expect429(res);
-    for (let i = 0; i < 30; i++) await clear(p.token);
+    for (let i = 0; i < 10; i++) await clear(p.token);
     res = await clear(p.token);
     expect(d1Rows(res).written).toBe(0);
     await expect429(res);
@@ -130,10 +130,10 @@ describe('POST /api/transfer：同一 IP 每小時 10 次（成功失敗都算�
   });
 });
 
-describe('寫入：同一玩家每小時 60 次（PUT＋DELETE 合計）', () => {
-  it('30 次 PUT＋30 次 DELETE 後，第 61 次寫入 429；讀取不受影響；別的玩家不受影響', async () => {
+describe('寫入：同一玩家每小時 20 次（PUT＋DELETE 合計；修訂 4）', () => {
+  it('10 次 PUT＋10 次 DELETE 後，第 21 次寫入 429；讀取不受影響；別的玩家不受影響', async () => {
     const p = await newPlayer(w);
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 10; i++) {
       const r = await putSave(w, p.token, 1, sampleSave());
       expect(r.status).toBe(200);
       const { version } = await r.json();
@@ -148,25 +148,25 @@ describe('寫入：同一玩家每小時 60 次（PUT＋DELETE 合計）', () =>
 
   it('轉移之後仍是同一個玩家的額度（不能靠轉移重置）', async () => {
     const p = await newPlayer(w);
-    for (let i = 0; i < 60; i++) await putSave(w, p.token, (i % 3) + 1, '{');
+    for (let i = 0; i < 20; i++) await putSave(w, p.token, (i % 3) + 1, '{');
     const t = await doTransfer(w, p.transfer_code);
     expect(t.res.status).toBe(200);
     await expect429(await putSave(w, t.token, 1, sampleSave()));
   });
 });
 
-describe('POST /api/transfer/rotate：同一玩家每小時 10 次', () => {
-  it('第 11 次 429', async () => {
+describe('POST /api/transfer/rotate：同一玩家每小時 3 次（修訂 4）', () => {
+  it('第 4 次 429', async () => {
     const p = await newPlayer(w);
-    for (let i = 0; i < 10; i++) expect((await doRotate(w, p.token)).status).toBe(200);
+    for (let i = 0; i < 3; i++) expect((await doRotate(w, p.token)).status).toBe(200);
     await expect429(await doRotate(w, p.token));
   });
 });
 
-describe('POST /api/clear：同一玩家每小時 30 次', () => {
-  it('第 31 次 429', async () => {
+describe('POST /api/clear：同一玩家每小時 10 次（修訂 4）', () => {
+  it('第 11 次 429', async () => {
     const p = await newPlayer(w);
-    for (let i = 0; i < 30; i++) expect((await clear(p.token)).status).toBe(200);
+    for (let i = 0; i < 10; i++) expect((await clear(p.token)).status).toBe(200);
     await expect429(await clear(p.token));
   });
 });
@@ -200,20 +200,23 @@ describe('全域上限（修訂 2 D：不分來源）', () => {
     }
   });
 
-  it('預設值（修訂 3／3a）：玩家 60、轉移 120、已登入寫入 400、容量 5000', async () => {
+  it('預設值（修訂 3／3a／4a）：玩家 60、轉移 120、已登入寫入每小時 100＋保留通道每日 4000、容量 5000', async () => {
     const { readWranglerConfig } = await import('./helpers.js');
     const { vars } = readWranglerConfig();
     expect(Number(vars.RL_PLAYER_GLOBAL_PER_HOUR)).toBe(60);
     expect(Number(vars.RL_TRANSFER_GLOBAL_PER_HOUR)).toBe(120);
-    expect(Number(vars.RL_WRITE_GLOBAL_PER_HOUR)).toBe(400);
+    expect(Number(vars.RL_WRITE_GLOBAL_PER_HOUR)).toBe(100);
+    expect(Number(vars.RL_WRITE_GLOBAL_PER_DAY)).toBe(4000);
     expect(Number(vars.MAX_PLAYERS)).toBe(5000);
   });
 
   it('RL_WRITE_GLOBAL_PER_HOUR：PUT、DELETE、clear、rotate 不分玩家合計；超過 429 且不寫入（修訂 3）', async () => {
-    const s = await startWorker({ varsOverride: { RL_WRITE_GLOBAL_PER_HOUR: '4' } });
+    // 保留通道（修訂 4）另測：這裡把全域每日預算設成 1 並先用掉，之後的寫入都只走全域每小時上限
+    const s = await startWorker({ varsOverride: { RL_WRITE_GLOBAL_PER_HOUR: '4', RL_WRITE_GLOBAL_PER_DAY: '1' } });
     try {
       const ps = [];
       for (let i = 0; i < 3; i++) ps.push(await newPlayer(s));
+      expect((await clear((await newPlayer(s)).token, s)).status).toBe(200);
       const put = await putSave(s, ps[0].token, 1, sampleSave());
       expect(put.status).toBe(200);
       const { version } = await put.json();

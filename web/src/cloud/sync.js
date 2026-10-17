@@ -37,7 +37,11 @@ export const MSG = Object.freeze({
   broken: '雲端存檔的內容有誤，無法使用',
   localWrite: '無法寫入本機存檔（瀏覽器封鎖了儲存空間）',
   tooLarge: '存檔太大，超過雲端每格 16 KB 的上限，無法上傳',
+  pendingTransfer: '上一次接續還在確認中，請稍候再試',
 });
+
+/** 修訂 4 第 7 節：回報通關的遊戲時間上限（秒）；伺服器拒絕更大的值，超過就以上限回報。 */
+export const MAX_PLAYER_SECONDS = 36000;
 
 /** 修訂 3：每格雲端存檔上限 16 KB（serialize 輸出的 UTF-8 位元組）。 */
 export const MAX_SAVE_BYTES = 16 * 1024;
@@ -446,11 +450,12 @@ export function createCloudSync({
       return succeeded('rotate', { ok: true, transferCode: code });
     }
     if (r.status === 401) return failed('rotate', r);
-    if (definitelyRejected(r)) {
-      // 伺服器明確拒絕（429、409…）：新碼沒有生效，舊碼照舊有效
+    if (r.kind === 'http' && (r.status === 400 || r.status === 409)) {
+      // 修訂 4 第 3 節：只有 400（格式）與 409（碰撞）確定新碼沒生效 → 丟掉，舊碼照舊有效。
       update((cur) => ({ ...cur, pending_transfer_code: null }));
       return failed('rotate', r);
     }
+    // 429、5xx、逾時、網路錯誤：上一次的請求可能已經生效，保留待確認的新碼，之後用同一個碼重送
     return { ...failed('rotate', r), pendingCode: code };
   }
 
@@ -513,6 +518,8 @@ export function createCloudSync({
         const st = await settlePending();
         if (st.state === 'ok') return succeeded('enable', { ok: true, transferCode: info()?.transfer_code ?? null });
         if (st.state === 'unknown') return failed('enable', st.r);
+        // 修訂 4 第 4 節：還沒生效但很新（請求可能還在路上，晚到就會作廢舊權杖）→ 不可覆蓋
+        if (nowSec() - p.at <= PENDING_MAX_AGE_S) return local('enable', 'pending_transfer', MSG.pendingTransfer);
         p = null;
       }
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -752,7 +759,7 @@ export function createCloudSync({
       const rec = {
         chapter,
         ending: typeof ending === 'string' && CHAPTER_RE.test(ending) ? ending : null,
-        play_seconds: clampInt(sec, 0, 10_000_000),
+        play_seconds: clampInt(sec, 0, MAX_PLAYER_SECONDS),
         collapse: clampInt(collapse, 0, 100),
       };
       const r = await api.reportClear(rec);
