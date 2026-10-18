@@ -444,6 +444,7 @@ test.describe('M2 戰鬥', () => {
     check(b);
     expect(b.menu.buttons.map((x) => x.label)).toEqual(expect.arrayContaining(['攻擊', '技能', '開槍', '道具', '防禦']));
     expect(b.menu.buttons.map((x) => x.label)).not.toContain('逃跑'); // Boss 戰不能逃
+    expect(b.message, '不能逃跑的戰鬥要在提示上明講').toMatch(/要怎麼做？（無法逃跑）$/);
     expect(b.order.length).toBe(6);
     if (testInfo.project.name === 'mobile') await page.screenshot({ path: testInfo.outputPath('battle-main-mobile.png') });
 

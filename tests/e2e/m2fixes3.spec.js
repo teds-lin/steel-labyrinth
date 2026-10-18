@@ -74,6 +74,7 @@ test.describe('規格補充 3（畫面層）', () => {
     await g.waitScene('Battle');
     const first = await g.battleWait();
     expect(first.commands.canFlee, '第一次（不是重試戰）可以逃').toBe(true);
+    expect(first.message, '可以逃跑的戰鬥不加註').not.toMatch(/無法逃跑/);
     const lose = await g.fightBattle(() => ({ skill: 'guard' }), { maxTurns: 200 });
     expect(lose.scene).toBe('GameOver');
     await page.waitForFunction(() => window.__SL.gameOver() !== null);
@@ -84,6 +85,7 @@ test.describe('規格補充 3（畫面層）', () => {
     expect(b.collapse).toBe(60); // prepareRetry：min(95, 60)，讓這場打得下去
     expect(b.commands.canFlee).toBe(false);
     expect(b.menu.buttons.map((x) => x.label)).not.toContain('逃跑');
+    expect(b.message, '重試戰不能逃，提示要明講').toMatch(/要怎麼做？（無法逃跑）$/);
     const win = await g.fightBattle(attackWeakest, { maxTurns: 200 });
     expect(win.last.result.outcome).toBe('victory');
     expect(win.scene).toBe('Map');

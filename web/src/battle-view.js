@@ -48,6 +48,9 @@ export function costText(cost) {
 
 export const reasonText = (reason) => (reason ? REASON_TEXT[reason] ?? '現在無法使用' : '');
 
+/** 我方回合的提示；不能逃跑的戰鬥（canFlee === false）要明講，免得玩家以為「逃跑」鍵不見了。 */
+export const commandPrompt = (label, canFlee) => `${label}要怎麼做？${canFlee === false ? '（無法逃跑）' : ''}`;
+
 /**
  * 被預兆揭露的意圖文字：「下一步：重擊 → 雷恩」。單體以外的技能不寫目標（全體寫「全體」）。
  * 沒有被揭露時回 null。

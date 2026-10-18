@@ -14,6 +14,7 @@ import {
 import { battleSpriteKey, battleSpriteSize, bgKey, spriteKey, BG_H } from '../textures.js';
 import {
   unitLabels, shortLabel, formatIntent, revealedIntent, describe, costText, reasonText, rewardLines, STATUS_NAMES, STAT_NAMES, OUTCOME_TITLE,
+  commandPrompt,
 } from '../battle-view.js';
 
 // ---------- 版面（邏輯座標） ----------
@@ -582,7 +583,7 @@ export class BattleScene extends Phaser.Scene {
       this.turnResolve = resolve;
       this.cmds = commands(this.b, session.data);
       const a = currentActor(this.b);
-      this.setMessage(`${this.labels[a.uid]}要怎麼做？`);
+      this.setMessage(commandPrompt(this.labels[a.uid], this.cmds?.canFlee));
       this.showRoot();
     });
   }
