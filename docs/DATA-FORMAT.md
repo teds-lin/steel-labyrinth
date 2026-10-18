@@ -406,3 +406,12 @@ web/data/
 2. 新條件 `{ "promoted_forced": N }`：晉升紀錄 `promotions` 中晉升到 N 的那一筆是硬喝（`forced: true`）。劇情用它判斷硬喝，不要另外重複寫共鳴門檻。
 3. 夢客的 `guests` 讀取規則：以玩家目前章節的 story 為準；目前章節沒有定義該夢客時，往前一章找，直到找到為止。
 4. 新的戰鬥狀態 `bind`（【影縛】）：持續期間跳過行動；**受到傷害不會解除**（和 sleep 不同）；受意志減免（敵對效果）。
+
+## 補充（2026-10-18，依 M5 引擎實作）
+1. `startDialogue(dlg, state, data)`、`evalCondition`、`applyEffect(s)` 都接受 `data`；含 `can_promote`／`promote`／`promoted_forced` 的對話必須傳 `data`。
+2. `can_promote` 只能用在對話（節點 branches、選項 if）、交換與結局的條件；**不能**用在地圖物件 `if`、出口 `requires`、觸發點 `if`、入夢 `if`（這些求值時沒有 data，validate 會報錯）。晉升請在 look 對話裡分歧。
+3. pending 的新項目：`{ type: "open_trade", guest }`、`{ type: "resolve_ending" }`、`{ type: "promote_failed", promote_failed: "materials"|"rank"|"lineage", lineage, rank, missing: [{ item, have, need }] }`。
+4. 存檔 v4 另有 `ending`（null 或結局 id），讀檔時不在任何章節 endings 裡就清成 null 並警告 `ending_reset`。
+5. 交換 id 必須跨夢客唯一；同一夢客在不同章節可以重用同一個 id（`once` 旗標跨章節共用）。
+6. 晉升後新階位的探索標籤（voice、shadow）算免費解法（與喝下讀痕者後的 trace 同理），前提是晉升材料能從免費入口取得（validate 檢查）。
+7. 字串匯出有守門測試：新增任何字串欄位都要在 `tools/lib/strings.mjs` 與測試的 VISIBLE／HIDDEN 清單登記。

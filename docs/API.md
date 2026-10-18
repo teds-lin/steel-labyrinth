@@ -134,7 +134,7 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 
 ## E. 統計
 - `GET /api/stats` 用 Cache API 快取 60 秒，同一個時間窗內最多查一次 D1。
-- `POST /api/clear` 的 `chapter`、`ending` 必須在 vars `CHAPTERS`（逗號分隔，例如 `prologue,chapter1,chapter2`）白名單內，否則 400。`CHAPTERS` 必須等於 `web/data/manifest.json` 的 chapters（由測試把關）。`ending` 目前一律 null。
+- `POST /api/clear` 的 `chapter`、`ending` 必須在 vars `CHAPTERS`（逗號分隔，例如 `prologue,chapter1,chapter2`）白名單內，否則 400。`CHAPTERS` 必須等於 `web/data/manifest.json` 的 chapters（由測試把關）。`ending` 必須在 vars `ENDINGS` 白名單內（見「第一部完結」與 DATA-FORMAT），沒有結局的章節送 null。
 - 完成人數少於 `STATS_MIN_PLAYERS=3` 的章節不出現在統計中。
 
 ## F. 存檔內容
