@@ -56,13 +56,16 @@ describe('loadBundle', () => {
 });
 
 describe('collectStrings', () => {
-  it('收集地圖名、道具名與說明、對話 speaker/text、選項 text', () => {
+  it('收集地圖名、道具名與說明、章節標題與結束畫面、對話 speaker/text、選項 text', () => {
     writeGood();
     const rows = collectStrings(loadBundle(dir).bundle);
     expect(rows).toEqual([
       { unique_id: 'maps/attic.json#name', text: '閣樓' },
       { unique_id: 'items.json#key.name', text: '鑰匙' },
       { unique_id: 'items.json#key.desc', text: '舊鑰匙' },
+      { unique_id: 'story/prologue.json#title', text: '序章' },
+      { unique_id: 'story/prologue.json#end_screen.title', text: '序章　完' },
+      { unique_id: 'story/prologue.json#end_screen.subtitle', text: '第一章　製作中' },
       { unique_id: 'story/prologue.json#dlg_a.n1.speaker', text: '{name}' },
       { unique_id: 'story/prologue.json#dlg_a.n1.text', text: '嗯。' },
       { unique_id: 'story/prologue.json#dlg_a.n1.choices[0].text', text: '走' },
@@ -104,7 +107,7 @@ describe('CLI：export-strings', () => {
     const r = run('export-strings.mjs', [out, dir]);
     expect(r.status, r.stderr).toBe(0);
     const lines = readFileSync(out, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-    expect(lines).toHaveLength(8);
+    expect(lines).toHaveLength(11); // M5：多了章節 title 與 end_screen 的 title／subtitle
     expect(lines[0]).toEqual({ unique_id: 'maps/attic.json#name', text: '閣樓' });
   });
   it('unique_id 不唯一（例如重複對話 id）→ 報錯退出且不寫檔', () => {
@@ -192,7 +195,7 @@ describe('M2：loadBundle／collectStrings 支援 characters／skills／enemies�
     const ids = rows.map((r) => r.unique_id);
     expect(ids.slice(3, 9)).toEqual([
       'characters.json#hero.name', 'characters.json#ada.name', 'skills.json#attack.name', 'skills.json#attack.desc', 'enemies.json#fog.name',
-      'story/prologue.json#dlg_a.n1.speaker',
+      'story/prologue.json#title', // M5 起匯出章節標題（接在敵人後面、對話前面）
     ]);
     expect(rows.find((r) => r.unique_id === 'enemies.json#fog.name').text).toBe('霧行者');
     expect(() => assertUniqueIds(rows)).not.toThrow();

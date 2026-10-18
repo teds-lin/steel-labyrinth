@@ -21,7 +21,8 @@ export function effectiveStat(unit, stat) {
 export const hpRatio = (unit) => (unit.stats.hp > 0 ? unit.hp / unit.stats.hp : 0);
 
 /** 狀態（status 積木）。 */
-export const BATTLE_STATUSES = Object.freeze(['sleep', 'confuse', 'taunt', 'guard']);
+// bind（影縛，M5）：持續期間跳過行動；受到傷害不會解除（和 sleep 不同）；機率受意志減免（敵對效果，同其他狀態）。
+export const BATTLE_STATUSES = Object.freeze(['sleep', 'confuse', 'taunt', 'guard', 'bind']);
 /** buff／debuff 與 damage.stat 可以用的能力值（hp／sp 是資源，不吃百分比增減）。 */
 export const MOD_STATS = Object.freeze(['atk', 'def', 'spd', 'will', 'eva']);
 

@@ -1,9 +1,12 @@
 // 條件判斷（DATA-FORMAT「條件」一節）。
 // 未知寫法一律丟錯，不可當成成立；先整棵檢查再求值，避免 any/all 短路藏住壞寫法。
+// M5：evalCondition(cond, state, data)。can_promote 需要遊戲資料（譜系的 potion），沒有 data 時丟錯；其他條件不需要 data。
+import { canPromoteTo, resonanceTotal } from './promotion.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isNonEmptyStr = (v) => typeof v === 'string' && v !== '';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+const isNonNegInt = (v) => Number.isInteger(v) && v >= 0;
 
 // 用 null 原型＋Object.hasOwn 查表：避免 toString／constructor／__proto__ 這類原型鍵被當成合法寫法。
 const LEAF = Object.freeze(Object.assign(Object.create(null), {
@@ -15,7 +18,15 @@ const LEAF = Object.freeze(Object.assign(Object.create(null), {
   rank_lte: isNum,
   in_party: isNonEmptyStr,
   ammo_gte: isNum,
+  // M5 晉升與結局
+  can_promote: Number.isInteger,
+  resonance_gte: isNonNegInt,
+  collapse_lte: isNonNegInt,
+  collapse_gte: isNonNegInt,
+  promoted_forced: Number.isInteger, // 補充（依故事聖經）2：晉升到 N 的那一次是硬喝
 }));
+/** 求值時需要遊戲資料（data）的條件；validate 用它限制這些條件只能放在求值時有 data 的地方。 */
+export const DATA_CONDITIONS = Object.freeze(['can_promote']);
 /** 只讀自有屬性（不吃原型鏈）。 */
 const own = (obj, k) => (isObj(obj) && Object.hasOwn(obj, k) ? obj[k] : undefined);
 
@@ -40,7 +51,9 @@ export function checkCondition(cond, path = 'if') {
   return [`${path}：未知的條件寫法「${k}」`];
 }
 
-function evalChecked(cond, state) {
+const collapseOf = (state) => (isNum(state?.collapse) ? state.collapse : 0);
+
+function evalChecked(cond, state, data) {
   const [k] = Object.keys(cond);
   const v = cond[k];
   switch (k) {
@@ -52,16 +65,34 @@ function evalChecked(cond, state) {
     case 'rank_lte': return state?.lineage != null && isNum(state.lineage.rank) && state.lineage.rank <= v;
     case 'in_party': return Array.isArray(state?.party) && state.party.some((m) => m?.id === v);
     case 'ammo_gte': return (isNum(state?.ammo) ? state.ammo : 0) >= v;
-    case 'all': return v.every((c) => evalChecked(c, state));
-    case 'any': return v.some((c) => evalChecked(c, state));
-    case 'not': return !evalChecked(v, state);
+    case 'can_promote': return canPromoteTo(v, state, data);
+    case 'resonance_gte': return resonanceTotal(state) >= v;
+    case 'collapse_lte': return collapseOf(state) <= v;
+    case 'collapse_gte': return collapseOf(state) >= v;
+    case 'promoted_forced': {
+      const list = Array.isArray(state?.promotions) ? state.promotions : [];
+      const last = list.findLast((p) => isObj(p) && p.rank === v); // 同一階有多筆（理論上不會）以最後一筆為準
+      return last?.forced === true;
+    }
+    case 'all': return v.every((c) => evalChecked(c, state, data));
+    case 'any': return v.some((c) => evalChecked(c, state, data));
+    case 'not': return !evalChecked(v, state, data);
     default: throw new Error(`未知的條件寫法「${k}」`); // checkCondition 已擋，保險
   }
 }
 
-/** 求值；寫法不合法時丟錯。 */
-export function evalCondition(cond, state) {
+/** 條件裡有沒有用到需要 data 的寫法（can_promote）。 */
+export function conditionNeedsData(cond) {
+  if (!isObj(cond)) return false;
+  return Object.entries(cond).some(([k, v]) => DATA_CONDITIONS.includes(k)
+    || ((k === 'all' || k === 'any') && Array.isArray(v) && v.some(conditionNeedsData))
+    || (k === 'not' && conditionNeedsData(v)));
+}
+
+/** 求值；寫法不合法時丟錯。data（選填）：can_promote 需要，沒有時丟錯（先整棵檢查，不會因 any/all 短路而漏掉）。 */
+export function evalCondition(cond, state, data) {
   const errors = checkCondition(cond);
   if (errors.length) throw new Error(`條件不合法：${errors.join('；')}`);
-  return evalChecked(cond, state);
+  if (data == null && conditionNeedsData(cond)) throw new Error('條件 can_promote 需要遊戲資料（data）：請用 evalCondition(cond, state, data)');
+  return evalChecked(cond, state, data);
 }

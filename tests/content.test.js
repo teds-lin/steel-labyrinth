@@ -374,7 +374,7 @@ describe('M2 內容：從新遊戲一路玩到第二章結束（不使用任何�
   it('序章 v1 存檔（M1 格式）用 migrations[1] 遷移後，可以接著進入第一章並玩到第二章完', () => {
     // M1 的存檔樣本：序章通關時的狀態，只留 v1 的欄位
     const prologue = playPrologue(new BaseSim(data), 'key').state;
-    const { party, ammo, pending, dream_return: _dreamReturn, ...v1Fields } = prologue; // dream_return 是 v3 欄位
+    const { party, ammo, pending, dream_return: _dreamReturn, promotions: _promotions, ending: _ending, ...v1Fields } = prologue; // dream_return 是 v3 欄位；promotions、ending 是 v4 欄位
     const v1 = { ...JSON.parse(JSON.stringify(v1Fields)), schema_version: 1 };
     expect(Object.keys(v1).sort()).toEqual(['chapter', 'chapter_done', 'collapse', 'echo', 'flags', 'items', 'lineage', 'location', 'player', 'playtime_s', 'resonance', 'schema_version']);
     expect(v1.chapter_done).toEqual(['prologue']);

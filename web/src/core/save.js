@@ -1,4 +1,4 @@
-// 存檔：序列化、版本遷移、3 個存檔槽＋自動存檔槽。只存 DATA-FORMAT「遊戲狀態」「存檔 v2」「鐘塔之夢（存檔 v3）」裡的事實。
+// 存檔：序列化、版本遷移、3 個存檔槽＋自動存檔槽。只存 DATA-FORMAT「遊戲狀態」「存檔 v2」「鐘塔之夢（存檔 v3）」「第一部完結（存檔 v4）」裡的事實。
 // 拒絕原因與警告都帶 code（給畫面判斷用），訊息字串照舊。
 // 存取層（backend，通常是 localStorage）出錯時一律回 { ok:false, reason }，不讓遊戲當機。
 // 讀檔分兩關（DATA-FORMAT「讀檔驗證」）：deserialize 檢查格式；sanitizeLoadedState 對照內容資料檢查語意並修復位置。
@@ -8,7 +8,9 @@ import { HERO_ID, MAX_AMMO, MAX_PARTY, characterDef, deriveStats } from './stats
 
 export { MAX_AMMO, MAX_PARTY };
 
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
+/** 存檔 v4：晉升紀錄的筆數上限（第一部只有 9→8→7 兩次；留餘裕給之後的譜系，同時防止灌爆存檔）。 */
+export const MAX_PROMOTIONS = 16;
 export const SLOT_COUNT = 3;
 export const KEY_PREFIX = 'steel-labyrinth:save:';
 export const AUTO_KEY = `${KEY_PREFIX}auto`;
@@ -97,14 +99,25 @@ export const migrations = {
   2(old) {
     return { ...old, schema_version: 3, dream_return: null };
   },
+  /** v3 → v4（第一部完結）：補 promotions＝[]、ending＝null（v3 沒有晉升與結局；誤帶的值一律丟掉）。 */
+  3(old) {
+    return { ...old, schema_version: 4, promotions: [], ending: null };
+  },
 };
 
-/** 把 state 轉成存檔字串（固定寫入目前版本；pending 一律寫成 null；沒有 dream_return 時寫成 null）。 */
+/** 把 state 轉成存檔字串（固定寫入目前版本；pending 一律寫成 null；沒有 dream_return／promotions／ending 時寫成 null／[]／null）。 */
 export function serialize(state) {
-  return JSON.stringify({ ...state, schema_version: CURRENT_VERSION, pending: null, dream_return: state?.dream_return ?? null });
+  return JSON.stringify({
+    ...state, schema_version: CURRENT_VERSION, pending: null, dream_return: state?.dream_return ?? null,
+    promotions: Array.isArray(state?.promotions) ? state.promotions : [], ending: state?.ending ?? null,
+  });
 }
 
 const isStatValue = (v) => v === null || (Number.isInteger(v) && v >= 0);
+/** v4：晉升紀錄一筆 { lineage:非空字串（≤ 32）, rank:整數, forced:布林, chapter:字串|null }，不可有其他欄位。 */
+const isPromotion = (p) => isObj(p) && Object.keys(p).length === 4
+  && typeof p.lineage === 'string' && p.lineage !== '' && p.lineage.length <= 32 && Number.isInteger(p.rank)
+  && typeof p.forced === 'boolean' && (p.chapter === null || typeof p.chapter === 'string');
 const isMember = (m) => isObj(m) && typeof m.id === 'string' && m.id !== ''
   && Object.hasOwn(m, 'hp') && Object.hasOwn(m, 'sp') && isStatValue(m.hp) && isStatValue(m.sp);
 
@@ -129,6 +142,9 @@ const REQUIRED = [
   ['pending', (v) => v === null || Array.isArray(v)],
   // v3：入夢前的現實位置（醒來時回到這裡）。x／y／dir 的型別交給 sanitizeLoadedState 修復（同 location）。
   ['dream_return', (v) => v === null || (isObj(v) && typeof v.map === 'string')],
+  // v4：晉升紀錄與結局 id
+  ['promotions', (v) => Array.isArray(v) && v.length <= MAX_PROMOTIONS && v.every(isPromotion)],
+  ['ending', (v) => v === null || (typeof v === 'string' && SAVE_KEY_RE.test(v))],
 ];
 
 function getPath(obj, path) {
@@ -221,8 +237,10 @@ function chapterStart(chapter, data) {
 export function sanitizeLoadedState(state, data) {
   try {
     if (!isObj(state)) return reject('corrupt', '存檔損壞：內容不是物件');
-    // 舊程式在記憶體中建立的 state（例如還沒有 dream_return 的 newGame）視為 null
+    // 舊程式在記憶體中建立的 state（例如還沒有 dream_return／promotions／ending 的 newGame）補成預設值
     if (!Object.hasOwn(state, 'dream_return')) state = { ...state, dream_return: null };
+    if (!Object.hasOwn(state, 'promotions')) state = { ...state, promotions: [] };
+    if (!Object.hasOwn(state, 'ending')) state = { ...state, ending: null };
     try {
       assertShape(state);
     } catch (e) {
@@ -269,6 +287,16 @@ export function sanitizeLoadedState(state, data) {
     });
     if (clamped) warnings.push(warning('party_clamped', '存檔的隊伍生命或靈性超過上限，已調整為上限'));
     next = { ...next, party: fixedParty, pending: null };
+
+    // v4：結局 id 必須是某一章 endings 裡的 id（例如改名後）；否則清成 null 並警告（不拒絕：結局只影響回報與結局畫面）
+    if (state.ending !== null) {
+      const known = (Array.isArray(data?.story) ? data.story : []).some((s) => isObj(s) && Array.isArray(s.endings)
+        && s.endings.some((e) => isObj(e) && e.id === state.ending));
+      if (!known) {
+        warnings.push(warning('ending_reset', `存檔的結局「${state.ending}」不存在，已清除`));
+        next = { ...next, ending: null };
+      }
+    }
 
     // v3：dream_return（入夢前的現實位置）。地圖不存在 → 改成該章的預設起點；位置不合法 → 該地圖第一個 spawn。
     // 補充（2026-10-18）第 1 條：dream_return 指向夢境地圖 → 不合法，改成該章起點；人在夢境地圖但 dream_return 是 null → 同上；

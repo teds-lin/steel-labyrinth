@@ -19,7 +19,7 @@ const throwingBackend = () => ({
 
 describe('serialize / deserialize', () => {
   it('版本常數', () => {
-    expect(CURRENT_VERSION).toBe(3);
+    expect(CURRENT_VERSION).toBe(4);
     expect(SLOT_COUNT).toBe(3);
     expect(KEY_PREFIX).toBe('steel-labyrinth:save:');
   });
@@ -37,7 +37,7 @@ describe('serialize / deserialize', () => {
     expect(() => deserialize(undefined)).toThrow(/損壞/);
   });
   it('未來版本 → 明確錯誤', () => {
-    expect(() => deserialize(JSON.stringify({ ...game(), schema_version: 4 }))).toThrow(/版本 4.*較新|較新/);
+    expect(() => deserialize(JSON.stringify({ ...game(), schema_version: CURRENT_VERSION + 1 }))).toThrow(/較新/);
   });
   it('缺版本或版本不是整數 → 錯誤', () => {
     const { schema_version, ...rest } = game();
@@ -492,9 +492,9 @@ describe('存檔 v3：dream_return 與 v2→v3 遷移', () => {
     expect(v3.dream_return).toBe(null);
     expect(JSON.stringify(v2)).toBe(before);
   });
-  it('v2 存檔字串經 deserialize 遷移成 v3（dream_return: null）', () => {
+  it('v2 存檔字串經 deserialize 遷移成目前版本（v3 起 dream_return: null）', () => {
     const loaded = deserialize(JSON.stringify(v2Save()));
-    expect(loaded.schema_version).toBe(3);
+    expect(loaded.schema_version).toBe(CURRENT_VERSION);
     expect(loaded.dream_return).toBe(null);
   });
   it('v2 存檔裡誤帶的 dream_return 一律以 null 取代（v2 沒有這個欄位）', () => {

@@ -383,7 +383,7 @@ web/data/
 ## 交換（鐘塔之夢）
 - 章節 story 的 `guests[]` 可以加 `trades`：
   ```json
-  { "id": "nine_moss", "label": "兩包鎮靜香換一份回聲苔", "give": [ { "item": "sedative", "count": 2 } ],
+  { "id": "nine_moss", "label": "兩包鎮靜香換一份回聲苔", "give": [ { "item": "sedative_incense", "count": 2 } ],
     "get": [ { "item": "echo_moss", "count": 1 } ], "if": { "flag": "ch4_started" }, "once": false }
   ```
 - 夢客物件的 look 對話可以用效果 `{ "open_trade": "nine" }` 開啟交換介面。純客戶端、不連伺服器。
@@ -400,3 +400,9 @@ web/data/
 - 對話效果 `{ "resolve_ending": true }`：依 `endings` 判定，對話結束後播放該結局的對話，並把結局 id 記在 `state.ending`。
 - 結局對話的最後要有 `{ "chapter_end": "finale" }`；結局畫面顯示 `end_screen.title` 與結局名稱（`endings[].title`）。
 - `/api/clear` 的 `ending` 必須在 vars `ENDINGS`（逗號分隔）白名單內；沒有結局的章節仍送 null。
+
+## 補充（2026-10-18，依故事聖經）
+1. `{ "can_promote": N }`：通用寫法，表示「目前階位是 N+1，且晉升到 N 的材料齊全」。
+2. 新條件 `{ "promoted_forced": N }`：晉升紀錄 `promotions` 中晉升到 N 的那一筆是硬喝（`forced: true`）。劇情用它判斷硬喝，不要另外重複寫共鳴門檻。
+3. 夢客的 `guests` 讀取規則：以玩家目前章節的 story 為準；目前章節沒有定義該夢客時，往前一章找，直到找到為止。
+4. 新的戰鬥狀態 `bind`（【影縛】）：持續期間跳過行動；**受到傷害不會解除**（和 sleep 不同）；受意志減免（敵對效果）。

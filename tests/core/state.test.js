@@ -23,7 +23,7 @@ describe('newGame', () => {
       location: { map: 'attic', x: 2, y: 3, dir: 'left' },
       flags: {}, items: {}, echo: { charges: DEFAULT_ECHO_CHARGES }, collapse: 0,
       resonance: {}, chapter: 'prologue', chapter_done: [], playtime_s: 0,
-      party: [{ id: 'hero', hp: null, sp: null }], ammo: 0, pending: null, dream_return: null,
+      party: [{ id: 'hero', hp: null, sp: null }], ammo: 0, pending: null, dream_return: null, promotions: [], ending: null,
     });
     expect(DEFAULT_ECHO_CHARGES).toBe(0);
   });

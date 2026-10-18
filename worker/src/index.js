@@ -363,12 +363,19 @@ async function deleteSave(request, env, now, rawSlot) {
 /** vars 的 CHAPTERS（逗號分隔）：允許回報的章節白名單，必須等於 web/data/manifest.json 的 chapters（測試把關）。 */
 const chaptersOf = (env) => String(env.CHAPTERS ?? '').split(',').map((c) => c.trim()).filter(Boolean);
 
+/**
+ * vars 的 ENDINGS（逗號分隔）：允許回報的結局 id 白名單（M5 P7），必須等於公開資料所有 story 的 endings[].id（測試把關）。
+ * 空字串＝還沒有結局：任何字串 ending 都 400。
+ */
+const endingsOf = (env) => String(env.ENDINGS ?? '').split(',').map((c) => c.trim()).filter(Boolean);
+
 /** maxSeconds：MAX_PLAYER_SECONDS（修訂 4 第 7 節：10 小時，超過 400）。 */
-function validClear(body, chapters, maxSeconds) {
+function validClear(body, chapters, endings, maxSeconds) {
   if (!isPlainObject(body)) return false;
   const { chapter, play_seconds: ps, collapse } = body;
   if (typeof chapter !== 'string' || !chapters.includes(chapter)) return false;
-  if (Object.hasOwn(body, 'ending') && body.ending !== null) return false; // 修訂 2 E：ending 目前一律 null
+  // M5：ending 可以省略或 null（沒有結局的章節）；字串必須在 ENDINGS 白名單內
+  if (Object.hasOwn(body, 'ending') && body.ending !== null && !(typeof body.ending === 'string' && endings.includes(body.ending))) return false;
   if (typeof ps !== 'number' || !Number.isFinite(ps) || ps < 0 || ps > maxSeconds) return false;
   if (!Number.isInteger(collapse) || collapse < 0 || collapse > 100) return false;
   return true;
@@ -379,15 +386,16 @@ async function reportClear(request, env, now) {
   const { player_id: playerId } = await authenticate(request, env, now);
   await hitWrite(env, playerId, WRITE_LIMITS.clear, now);
   const body = await readJson(request);
-  if (!validClear(body, chaptersOf(env), limitOf(env, 'MAX_PLAYER_SECONDS', 36000))) throw badRequest();
+  if (!validClear(body, chaptersOf(env), endingsOf(env), limitOf(env, 'MAX_PLAYER_SECONDS', 36000))) throw badRequest();
   const playSeconds = Math.round(body.play_seconds);
+  const ending = typeof body.ending === 'string' ? body.ending : null; // 同一列的 ending 欄位，不新增寫入
   // chapter_stats 由 clears 的 trigger 同步更新（新紀錄＋1 人；改善成績調整總時間）。
   const [, best] = await env.DB.batch([
     env.DB.prepare(`
-      INSERT INTO clears (player_id, chapter, ending, play_seconds, collapse, created_at) VALUES (?1, ?2, NULL, ?3, ?4, ?5)
+      INSERT INTO clears (player_id, chapter, ending, play_seconds, collapse, created_at) VALUES (?1, ?2, ?6, ?3, ?4, ?5)
       ON CONFLICT (player_id, chapter) DO UPDATE SET
         ending = excluded.ending, play_seconds = excluded.play_seconds, collapse = excluded.collapse, created_at = excluded.created_at
-      WHERE excluded.play_seconds < clears.play_seconds`).bind(playerId, body.chapter, playSeconds, body.collapse, now),
+      WHERE excluded.play_seconds < clears.play_seconds`).bind(playerId, body.chapter, playSeconds, body.collapse, now, ending),
     env.DB.prepare('SELECT play_seconds FROM clears WHERE player_id = ? AND chapter = ?').bind(playerId, body.chapter),
   ]);
   return jsonResponse({ chapter: body.chapter, best_play_seconds: best.results[0].play_seconds });

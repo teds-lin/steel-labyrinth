@@ -76,9 +76,10 @@ function proceed(draft, log) {
     draft.units = r.units;
     const u = unitOf(draft, r.uid);
     const asleep = hasStatus(u, 'sleep');
+    const bound = hasStatus(u, 'bind'); // 影縛：跳過行動（受傷不解除，回合數照樣減少）
     tickDurations(u, log);
-    if (asleep) {
-      log.push({ type: 'sleep_skip', uid: u.uid });
+    if (asleep || bound) {
+      log.push({ type: asleep ? 'sleep_skip' : 'bind_skip', uid: u.uid });
       u.ct -= CT_THRESHOLD;
       continue;
     }
@@ -403,7 +404,7 @@ export function finishBattle(battle, state, data) {
   const enc = encounterDef(data, battle.encounter);
   const onWin = isObj(enc.on_win) ? enc.on_win : {};
   const story = (s) => ({
-    state: applyGameEffects(onWin.effects, s),
+    state: applyGameEffects(onWin.effects, s, data),
     next: typeof onWin.dialogue === 'string' ? { type: 'dialogue', dialogue: onWin.dialogue } : null,
   });
   const none = { items: [] };

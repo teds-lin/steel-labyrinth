@@ -2,7 +2,7 @@
 // 瀏覽器（開發模式自檢）與 tools/check-data.mjs 共用。
 // bundle = { manifest, tiles, items, lineages:[], maps:[], story:[], characters?:[], skills?:[], enemies?:[], encounters?:[] }
 // （四個戰鬥檔案可以省略，視為空陣列：序章資料沒有它們。）
-import { checkCondition } from './conditions.js';
+import { checkCondition, DATA_CONDITIONS } from './conditions.js';
 import { checkEffect } from './effects.js';
 import { DIRS } from './grid.js';
 import { ECHO_TAG } from './echo.js';
@@ -83,7 +83,7 @@ function run(bundle, errors) {
         return;
       }
       if (dialogues.has(dlg.id)) errors.push(`${file}：對話 id「${dlg.id}」重複（先前出現在 ${dialogues.get(dlg.id).file}）`);
-      else dialogues.set(dlg.id, { dlg, file });
+      else dialogues.set(dlg.id, { dlg, file, story: isStr(story.id) ? story.id : null });
     });
   });
 
@@ -95,7 +95,7 @@ function run(bundle, errors) {
   const guests = new Map(); // 夢客 id → { guest, file }
   arr(bundle.story).forEach((story) => { if (isObj(story) && isStr(story.id)) checkGuests(story, guests, errors); });
 
-  const ctx = { errors, tiles, items, maps, dialogues, lineages, storyIds, characters, skills, enemies, encounters, guests, storyById: new Map(), free: null };
+  const ctx = { errors, tiles, items, maps, dialogues, lineages, storyIds, characters, skills, enemies, encounters, guests, storyById: new Map(), free: null, endingIds: new Map() };
   ctx.free = analyzeFree(bundle, ctx);
 
   checkManifest(bundle.manifest, ctx, storyIds, lineages);
@@ -105,6 +105,8 @@ function run(bundle, errors) {
   }
   for (const item of items.values()) checkItem(item, ctx);
   for (const lin of lineages.values()) checkLineage(lin, errors, ctx);
+  checkPotionMaterialsFree(ctx);
+  checkTrades(ctx);
   checkCharacters(characters, ctx);
   for (const sk of skills.values()) checkSkill(sk, ctx);
   for (const en of enemies.values()) checkEnemy(en, ctx);
@@ -113,7 +115,7 @@ function run(bundle, errors) {
   checkPartySkills(ctx);
   checkPartyLimit(bundle, ctx);
   for (const map of maps.values()) checkMap(map, ctx);
-  for (const { dlg, file } of dialogues.values()) checkDialogue(dlg, file, ctx);
+  for (const { dlg, file, story } of dialogues.values()) checkDialogue(dlg, file, ctx, story);
   checkDreamPlacement(ctx);
 }
 
@@ -134,8 +136,11 @@ function checkGuests(story, guests, errors) {
     if (!isObj(g) || typeof g.id !== 'string') { errors.push(`${W}：guests[${i}] 缺少 id`); return; }
     const where = `${W} 夢客「${g.id}」`;
     if (!GUEST_ID_RE.test(g.id)) errors.push(`${where}：夢客 id「${g.id}」格式不合法（必須是 [a-z0-9_]{1,32}）`);
-    if (guests.has(g.id)) errors.push(`${where}：夢客 id「${g.id}」重複（先前出現在 ${guests.get(g.id).file}）`);
-    else guests.set(g.id, { guest: g, file: W });
+    // 補充（依故事聖經）3：同一位夢客可以在不同章節重新定義（以目前章節為準、往前找）；同一章裡不可重複
+    const prev = guests.get(g.id);
+    if (prev?.defs.some((d) => d.file === W)) errors.push(`${where}：夢客 id「${g.id}」重複（同一章裡只能定義一次）`);
+    else if (prev) prev.defs.push({ guest: g, file: W });
+    else guests.set(g.id, { guest: g, file: W, defs: [{ guest: g, file: W }] });
     if (!isStr(g.name)) errors.push(`${where}：name 必須是非空字串`);
     if (g.sprite !== undefined && !isStr(g.sprite)) errors.push(`${where}：sprite 必須是非空字串`);
     if (!isObj(g.scripted)) { errors.push(`${where}：scripted 必須是物件`); return; }
@@ -199,7 +204,7 @@ function checkDreamObject(obj, map, where, ctx) {
       errors.push(`${where}：dream 必須是物件（{ "if": 條件 }）`);
     } else {
       if (extraKeys(obj.dream, ['if', 'map', 'spawn', ...DREAM_TEXT_KEYS]).length) errors.push(`${where}：dream 只能有 if、map、spawn、prompt、yes、no`);
-      if (obj.dream.if !== undefined) checkCond(obj.dream.if, `${where} dream`, ctx);
+      if (obj.dream.if !== undefined) checkCond(obj.dream.if, `${where} dream`, ctx, { noData: true });
       // 補充 5：入夢選項的文字（選填；沒寫用預設）
       for (const k of DREAM_TEXT_KEYS) {
         const v = obj.dream[k];
@@ -249,7 +254,99 @@ function checkLineage(lin, errors, ctx) {
       else for (const sk of r.skills) if (!isStr(sk) || !ctx.skills.has(sk)) errors.push(`${where} 的 skills 引用不存在的技能「${q(sk)}」`);
     }
     if (r.stats !== undefined) checkStatBlock(r.stats, `${where} 的 stats`, errors, { partial: true });
+    if (r.potion !== undefined) checkPotion(r.potion, where, ctx);
   });
+}
+
+// ---------- 晉升（M5） ----------
+
+/** rank 的 potion：{ materials:[{ item, count }], resonance:非負整數, forced_collapse:0～100 整數 }。 */
+function checkPotion(potion, where, ctx) {
+  const { errors } = ctx;
+  if (!isObj(potion)) {
+    errors.push(`${where} 的 potion 必須是物件（{ materials, resonance, forced_collapse }）`);
+    return;
+  }
+  for (const k of extraKeys(potion, ['materials', 'resonance', 'forced_collapse'])) errors.push(`${where} potion：不認得的欄位「${k}」`);
+  if (!Array.isArray(potion.materials)) errors.push(`${where} potion.materials 必須是陣列`);
+  else {
+    const seen = new Set();
+    potion.materials.forEach((m, i) => {
+      const mw = `${where} potion.materials[${i}]`;
+      if (!isObj(m)) { errors.push(`${mw}：必須是 { item, count }`); return; }
+      if (extraKeys(m, ['item', 'count']).length) errors.push(`${mw}：只能有 item、count`);
+      if (!isStr(m.item) || !ctx.items.has(m.item)) errors.push(`${mw}：item 引用不存在的道具「${q(m.item)}」`);
+      else if (seen.has(m.item)) errors.push(`${where} potion.materials 的道具「${m.item}」重複（請合併成一筆並寫 count）`);
+      else seen.add(m.item);
+      if (!(Number.isInteger(m.count) && m.count > 0)) errors.push(`${mw}：count 必須是正整數，實際為 ${JSON.stringify(m.count)}`);
+    });
+  }
+  if (!(Number.isInteger(potion.resonance) && potion.resonance >= 0)) errors.push(`${where} potion.resonance 必須是非負整數（共鳴門檻），實際為 ${JSON.stringify(potion.resonance)}`);
+  const fc = potion.forced_collapse;
+  if (!(Number.isInteger(fc) && fc >= 0 && fc <= 100)) errors.push(`${where} potion.forced_collapse 必須是 0～100 的整數（共鳴不足硬喝時增加的崩解），實際為 ${JSON.stringify(fc)}`);
+}
+
+/** 每個 potion 的材料都必須能從免費入口取得（喝下靈劑之前或之後的免費可達性分析；交換也算，見 explore）。 */
+function checkPotionMaterialsFree(ctx) {
+  const { free } = ctx;
+  for (const lin of ctx.lineages.values()) {
+    for (const r of arr(lin.ranks)) {
+      if (!isObj(r) || !Number.isInteger(r.rank) || !isObj(r.potion)) continue;
+      for (const m of arr(r.potion.materials)) {
+        if (!isObj(m) || !isStr(m.item) || !ctx.items.has(m.item)) continue;
+        if (!free.items1.has(m.item) && !free.items2.has(m.item)) {
+          ctx.errors.push(`lineages/${lin.id}.json：譜系「${lin.id}」rank ${r.rank} 的 potion 材料「${m.item}」無法從免費入口取得（不花殘響時，必須能從可達的對話、已能開的鎖、打得贏的遭遇或開放中的交換拿到；條件不可能成立的選項／branch、要花殘響的選項、孤兒對話都不算）`);
+        }
+      }
+    }
+  }
+}
+
+// ---------- 交換（M5） ----------
+
+const TRADE_ID_RE = /^[a-z0-9_]{1,32}$/;
+const TRADE_KEYS = ['id', 'label', 'give', 'get', 'if', 'once'];
+
+/** 交換的 give／get：至少一項，每項 { item（存在）, count（正整數） }。 */
+function checkTradeLines(list, field, tw, ctx) {
+  if (!Array.isArray(list) || list.length === 0) {
+    ctx.errors.push(`${tw}：${field} 必須是至少一項的陣列（[{ "item", "count" }]）`);
+    return;
+  }
+  list.forEach((x, i) => {
+    const lw = `${tw}：${field}[${i}]`;
+    if (!isObj(x)) { ctx.errors.push(`${lw} 必須是 { item, count }`); return; }
+    if (extraKeys(x, ['item', 'count']).length) ctx.errors.push(`${lw} 只能有 item、count`);
+    if (!isStr(x.item) || !ctx.items.has(x.item)) ctx.errors.push(`${lw}：item 引用不存在的道具「${q(x.item)}」`);
+    if (!(Number.isInteger(x.count) && x.count > 0)) ctx.errors.push(`${lw}：count 必須是正整數，實際為 ${JSON.stringify(x.count)}`);
+  });
+}
+
+/**
+ * 夢客的 trades：[{ id, label, give, get, if?, once? }]。交換 id 在同一份夢客定義裡唯一，而且不可被另一位夢客使用；
+ * 同一位夢客在不同章節的定義可以重用同一個 id（同一筆交換，once 旗標 trade:<guest>:<id> 跨章節共用）。
+ */
+function checkTrades(ctx) {
+  const seen = new Map(); // 交換 id → { guest, file }
+  for (const { guest: g, file } of [...ctx.guests.values()].flatMap((x) => x.defs)) {
+    if (g.trades === undefined) continue;
+    const where = `${file} 夢客「${g.id}」`;
+    if (!Array.isArray(g.trades)) { ctx.errors.push(`${where}：trades 必須是陣列`); continue; }
+    g.trades.forEach((t, i) => {
+      if (!isObj(t) || t.id === undefined) { ctx.errors.push(`${where}：trades[${i}] 缺少 id`); return; }
+      if (!isStr(t.id) || !TRADE_ID_RE.test(t.id)) ctx.errors.push(`${where}：trades[${i}] 的 id「${q(t.id)}」格式不合法（必須是 [a-z0-9_]{1,32}）`);
+      const prev = seen.get(t.id);
+      if (prev && (prev.guest !== g.id || prev.file === file)) ctx.errors.push(`${where}：交換 id「${t.id}」重複（先前出現在 ${prev.file} 的夢客「${prev.guest}」；交換 id 不可跨夢客重用，同一份定義裡也不可重複）`);
+      else if (!prev) seen.set(t.id, { guest: g.id, file });
+      const tw = `${where} 交換「${t.id}」`;
+      for (const k of extraKeys(t, TRADE_KEYS)) ctx.errors.push(`${tw}：不認得的欄位「${k}」`);
+      if (!(typeof t.label === 'string' && t.label.trim() !== '')) ctx.errors.push(`${tw}：label 必須是非空字串（交換介面顯示的說明）`);
+      checkTradeLines(t.give, 'give', tw, ctx);
+      checkTradeLines(t.get, 'get', tw, ctx);
+      if (t.if !== undefined) checkCond(t.if, tw, ctx);
+      if (t.once !== undefined && !isBool(t.once)) ctx.errors.push(`${tw}：once 必須是 true/false`);
+    });
+  }
 }
 
 /** 能力值區塊：只能用 7 個能力值鍵、值為數字。partial＝成長值（可省略、可為負）；否則全部必填、非負、hp ≥ 1。 */
@@ -673,6 +770,47 @@ function checkStoryMeta(story, errors, ctx) {
     if (!isStr(story.end_screen[k])) errors.push(`${W}：end_screen.${k} 必須是非空字串`);
   }
   if (story.end_screen.continue !== undefined) checkDestination(story.end_screen.continue, `${W}：end_screen.continue`, ctx);
+  if (story.endings !== undefined) checkEndings(story, W, ctx);
+}
+
+// ---------- 結局（M5） ----------
+
+const ENDING_ID_RE = /^[a-z0-9_]{1,32}$/;
+
+/** 對話裡所有 chapter_end 的值。 */
+function dialogueChapterEnds(dlg) {
+  const out = [];
+  for (const n of arr(dlg?.nodes)) {
+    if (!isObj(n)) continue;
+    for (const l of [n.effects, ...arr(n.choices).map((c) => (isObj(c) ? c.effects : null))]) for (const e of arr(l)) if (has(e, 'chapter_end')) out.push(e.chapter_end);
+  }
+  return out;
+}
+
+/** 終章 story 的 endings：依序比對，最後一筆沒有 if；id 跨章節唯一（也是 /api/clear 的 ENDINGS 白名單）；結局對話要有該章的 chapter_end。 */
+function checkEndings(story, W, ctx) {
+  const { errors } = ctx;
+  const list = story.endings;
+  if (!Array.isArray(list) || list.length === 0) {
+    errors.push(`${W}：endings 必須是至少一筆的陣列`);
+    return;
+  }
+  list.forEach((e, i) => {
+    if (!isObj(e)) { errors.push(`${W}：endings[${i}] 必須是物件`); return; }
+    if (!isStr(e.id) || !ENDING_ID_RE.test(e.id)) errors.push(`${W}：結局 id「${q(e.id)}」格式不合法（必須是 [a-z0-9_]{1,32}，也是 /api/clear 的 ENDINGS 白名單）`);
+    else if (ctx.endingIds.has(e.id)) errors.push(`${W}：結局 id「${e.id}」重複（先前出現在 story/${ctx.endingIds.get(e.id)}.json）`);
+    else ctx.endingIds.set(e.id, story.id);
+    const ew = `${W} 結局「${q(e.id)}」`;
+    for (const k of extraKeys(e, ['id', 'title', 'if', 'dialogue'])) errors.push(`${ew}：不認得的欄位「${k}」`);
+    if (!(typeof e.title === 'string' && e.title.trim() !== '')) errors.push(`${ew}：title 必須是非空字串（結局畫面顯示的結局名稱）`);
+    if (e.if !== undefined) checkCond(e.if, ew, ctx);
+    const last = i === list.length - 1;
+    if (last && e.if !== undefined) errors.push(`${W}：endings 的最後一筆（「${q(e.id)}」）必須沒有 if（保證一定有結局）`);
+    if (!last && e.if === undefined) errors.push(`${W}：endings[${i}]（「${q(e.id)}」）沒有 if，後面的結局永遠不會被選到`);
+    refDialogue(e.dialogue, ew, 'dialogue', ctx, true);
+    const d = isStr(e.dialogue) ? ctx.dialogues.get(e.dialogue)?.dlg : undefined;
+    if (d && !dialogueChapterEnds(d).includes(story.id)) errors.push(`${ew}：結局對話「${e.dialogue}」必須有 { "chapter_end": "${story.id}" }（結局對話的最後進入第一部完結畫面）`);
+  });
 }
 
 // ---------- 免費可達性（fallback 檢查） ----------
@@ -708,6 +846,12 @@ function maybeTrue(cond, world) {
     case 'rank_lte': return typeof v === 'number' && [...world.lineages.values()].some((r) => r <= v);
     case 'in_party': return v === HERO_ID || world.party.has(v);
     case 'ammo_gte': return typeof v === 'number' && (v <= 0 || world.ammo);
+    // M5：共鳴與崩解從 0 起算，只有收集到會增加它們的效果後才可能達到正的門檻
+    case 'resonance_gte': return typeof v === 'number' && (v <= 0 || world.resonance);
+    case 'collapse_lte': return true;
+    case 'collapse_gte': return typeof v === 'number' && (v <= 0 || world.collapse);
+    case 'promoted_forced': return Number.isInteger(v) && [...world.lineages.values()].some((r) => r <= v); // 已晉升到 v（硬喝與否都可能）
+    case 'can_promote': return Number.isInteger(v) && [...world.lineages.keys()].some((id) => promotable(world, id, v));
     case 'any': return Array.isArray(v) && v.some((c) => maybeTrue(c, world));
     case 'all': return Array.isArray(v) && v.every((c) => maybeTrue(c, world));
     default: return false;
@@ -715,8 +859,18 @@ function maybeTrue(cond, world) {
 }
 const maybe = (cond, world) => cond === undefined || maybeTrue(cond, world);
 
-const newWorld = () => ({ flags: new Set(), items: new Set(), party: new Set(), ammo: false, lineages: new Map(), tags: new Set() });
-const cloneWorld = (w) => ({ flags: new Set(w.flags), items: new Set(w.items), party: new Set(w.party), ammo: w.ammo, lineages: new Map(w.lineages), tags: new Set(w.tags) });
+// defs：譜系定義（ctx.lineages），can_promote／promote 查 potion 用；resonance／collapse：是否已收集到會增加共鳴／崩解的效果。
+const newWorld = (ctx) => ({ flags: new Set(), items: new Set(), party: new Set(), ammo: false, lineages: new Map(), tags: new Set(), defs: ctx.lineages, resonance: false, collapse: false });
+const cloneWorld = (w) => ({ flags: new Set(w.flags), items: new Set(w.items), party: new Set(w.party), ammo: w.ammo, lineages: new Map(w.lineages), tags: new Set(w.tags), defs: w.defs, resonance: w.resonance, collapse: w.collapse });
+
+/** 免費世界裡，譜系 id 有沒有可能晉升到 rank：已達到 rank＋1（或更高階）、目標階位存在、potion 材料都已能免費取得。 */
+function promotable(world, id, rank) {
+  const cur = world.lineages.get(id);
+  if (cur === undefined || cur > rank + 1) return false;
+  const target = arr(world.defs.get(id)?.ranks).find((r) => isObj(r) && r.rank === rank);
+  if (!target) return false;
+  return arr(isObj(target.potion) ? target.potion.materials : []).every((m) => isObj(m) && world.items.has(m.item));
+}
 
 /** 喝下 { id, rank }：記下譜系與階位，並加入已達到階位的 field 標籤。回傳是否有變化。 */
 function grantLineage(world, g, ctx) {
@@ -779,6 +933,21 @@ function explore(ctx, { world, startMaps, entries, lineageActive }) {
       if (has(e, 'set_flag')) addFlag(e.set_flag);
       if (has(e, 'join_party') && isStr(e.join_party) && !world.party.has(e.join_party)) { world.party.add(e.join_party); changed = true; }
       if (has(e, 'give_ammo') && !world.ammo) { world.ammo = true; changed = true; }
+      if (has(e, 'resonance') && !world.resonance) { world.resonance = true; changed = true; }
+      if (has(e, 'collapse') && typeof e.collapse === 'number' && e.collapse > 0 && !world.collapse) { world.collapse = true; changed = true; }
+      // M5 晉升：喝下靈劑之後的階段，材料都能免費取得時才算晉升（新階位的 field 標籤隨之免費）；硬喝會增加崩解
+      if (has(e, 'promote') && isObj(e.promote) && lineageActive && promotable(world, e.promote.lineage, e.promote.rank)) {
+        if (grantLineage(world, { id: e.promote.lineage, rank: e.promote.rank }, ctx)) changed = true;
+        const fc = arr(ctx.lineages.get(e.promote.lineage)?.ranks).find((r) => isObj(r) && r.rank === e.promote.rank)?.potion?.forced_collapse;
+        if (typeof fc === 'number' && fc > 0 && !world.collapse) { world.collapse = true; changed = true; }
+      }
+      // M5 交換：開啟交換介面後，if 可能成立、give 都能免費取得的交換，get 也算免費取得
+      if (has(e, 'open_trade')) {
+        for (const t of arr(ctx.guests.get(e.open_trade)?.defs).flatMap((d) => arr(d.guest.trades))) { // 各章的交換表都算
+          if (!isObj(t) || !maybe(t.if, world) || !arr(t.give).every((g) => isObj(g) && world.items.has(g.item))) continue;
+          for (const g of arr(t.get)) if (isObj(g) && isStr(g.item) && !world.items.has(g.item)) { world.items.add(g.item); changed = true; }
+        }
+      }
       if (has(e, 'set_lineage') && isObj(e.set_lineage)) {
         const g = { id: e.set_lineage.id, rank: e.set_lineage.rank, map: mapCtx, dlg: dlgId };
         const key = `${g.id}:${g.rank}@${g.map}:${g.dlg}`;
@@ -786,6 +955,9 @@ function explore(ctx, { world, startMaps, entries, lineageActive }) {
         if (lineageActive && grantLineage(world, g, ctx)) changed = true;
       }
       if (has(e, 'goto')) addDest(e.goto);
+      // 鐘塔之夢：入夢的目的地可達；醒來後播的對話也是入口（M5 的交換在夢境裡，必須算進來）
+      if (has(e, 'enter_dream') && isObj(e.enter_dream)) addMap(e.enter_dream.map);
+      if (has(e, 'wake') && isObj(e.wake) && isStr(e.wake.dialogue)) addEntry(e.wake.dialogue, mapCtx);
       if (has(e, 'chapter_end')) {
         const story = ctx.storyById.get(e.chapter_end);
         if (isObj(story?.end_screen)) addDest(story.end_screen.continue);
@@ -798,6 +970,9 @@ function explore(ctx, { world, startMaps, entries, lineageActive }) {
     const key = `${id}@${mapCtx}`;
     if (!enc || encWalked.has(key)) return;
     encWalked.add(key);
+    // M5：敵人的技能會增加崩解 → collapse_gte 可能成立
+    if (!world.collapse && arr(enc.enemies).some((eid) => arr(ctx.enemies.get(eid)?.skills).some((sid) => arr(ctx.skills.get(sid)?.effects)
+      .some((x) => isObj(x) && x.type === 'collapse' && typeof x.amount === 'number' && x.amount > 0)))) { world.collapse = true; changed = true; }
     const onWin = isObj(enc.on_win) ? enc.on_win : {};
     collect(onWin.effects, mapCtx, isStr(onWin.dialogue) ? onWin.dialogue : null);
     walk(onWin.dialogue, mapCtx);
@@ -849,6 +1024,7 @@ function explore(ctx, { world, startMaps, entries, lineageActive }) {
         if (!isObj(obj) || !maybe(obj.if, world)) continue;
         walk(obj.look, mapId);
         walkEncounter(obj.battle, mapId);
+        if (isObj(obj.dream) && isStr(obj.dream.map) && maybe(obj.dream.if, world)) addMap(obj.dream.map); // 入夢選項
         if (lineageActive && world.tags.has(ECHO_TAG)) walk(obj.echo, mapId);
         if (!isObj(obj.lock)) continue;
         walk(obj.lock.locked, mapId);
@@ -880,7 +1056,7 @@ function explore(ctx, { world, startMaps, entries, lineageActive }) {
 function analyzeFree(bundle, ctx) {
   ctx.storyById = new Map(arr(bundle.story).filter((s) => isObj(s) && isStr(s.id)).map((s) => [s.id, s]));
   const start = isObj(bundle.manifest) && isObj(bundle.manifest.start) ? bundle.manifest.start : {};
-  const s1 = explore(ctx, { world: newWorld(), startMaps: [start.map], entries: [{ dlg: start.dialogue, map: start.map }], lineageActive: false });
+  const s1 = explore(ctx, { world: newWorld(ctx), startMaps: [start.map], entries: [{ dlg: start.dialogue, map: start.map }], lineageActive: false });
   let s2 = null;
   if (s1.grants.length) {
     const world = cloneWorld(s1.world);
@@ -922,17 +1098,45 @@ function conditionRefs(cond, key, out = []) {
   return out;
 }
 
-function checkCond(cond, where, ctx) {
+/** 條件裡某個鍵的所有值（不限型別）。 */
+function conditionValues(cond, key, out = []) {
+  if (!isObj(cond)) return out;
+  if (has(cond, key)) out.push(cond[key]);
+  for (const c of arr(has(cond, 'all') ? cond.all : undefined)) conditionValues(c, key, out);
+  for (const c of arr(has(cond, 'any') ? cond.any : undefined)) conditionValues(c, key, out);
+  if (has(cond, 'not') && isObj(cond.not)) conditionValues(cond.not, key, out);
+  return out;
+}
+
+/**
+ * opts.noData：這個條件在畫面上求值時沒有遊戲資料（地圖的物件 if、出口 requires、觸發點 if、入夢 if），
+ * 不可以用需要 data 的條件（can_promote）。
+ */
+function checkCond(cond, where, ctx, opts = {}) {
   const errs = checkCondition(cond, 'if');
   for (const e of errs) ctx.errors.push(`${where}：${e}`);
   if (errs.length === 0) {
     for (const id of conditionRefs(cond, 'item')) if (!ctx.items.has(id)) ctx.errors.push(`${where}：條件引用不存在的道具「${id}」`);
     for (const id of conditionRefs(cond, 'lineage')) if (!ctx.lineages.has(id)) ctx.errors.push(`${where}：條件引用不存在的譜系「${id}」`);
     for (const id of conditionRefs(cond, 'in_party')) if (id !== HERO_ID && !ctx.characters.has(id)) ctx.errors.push(`${where}：條件 in_party 引用不存在的角色「${id}」`);
+    for (const n of conditionValues(cond, 'can_promote')) {
+      const ok = [...ctx.lineages.values()].some((lin) => arr(lin.ranks).some((r) => isObj(r) && r.rank === n) && arr(lin.ranks).some((r) => isObj(r) && r.rank === n + 1));
+      if (!ok) ctx.errors.push(`${where}：條件 can_promote ${n}：沒有任何譜系同時開放階位 ${n} 與 ${n + 1}，永遠不會成立`);
+    }
+    for (const n of conditionValues(cond, 'promoted_forced')) {
+      const ok = [...ctx.lineages.values()].some((lin) => arr(lin.ranks).some((r) => isObj(r) && r.rank === n && isObj(r.potion)));
+      if (!ok) ctx.errors.push(`${where}：條件 promoted_forced ${n}：沒有任何譜系的 rank ${n} 有 potion，永遠不會成立`);
+    }
+    if (opts.noData) {
+      for (const k of DATA_CONDITIONS) {
+        if (conditionValues(cond, k).length) ctx.errors.push(`${where}：${k} 只能用在對話（選項、branches）、交換與結局的條件（地圖的條件在畫面上求值時沒有遊戲資料；請改在 look 對話裡分歧）`);
+      }
+    }
   }
 }
 
-function checkEffects(effects, where, ctx) {
+/** opts.story：效果所在對話的章節 id（道具 field_effects、遭遇 on_win 沒有章節）。 */
+function checkEffects(effects, where, ctx, opts = {}) {
   if (effects === undefined) return;
   if (!Array.isArray(effects)) {
     ctx.errors.push(`${where}：effects 必須是陣列`);
@@ -964,7 +1168,33 @@ function checkEffects(effects, where, ctx) {
     if (has(e, 'enter_dream')) checkDreamDest(e.enter_dream, `${where}：effects[${i}] enter_dream`, ctx);
     if (has(e, 'wake') && isObj(e.wake)) refDialogue(e.wake.dialogue, `${where}：effects[${i}]`, 'wake 的 dialogue', ctx);
     if (has(e, 'open_chat') && !ctx.guests.has(e.open_chat)) ctx.errors.push(`${where}：effects[${i}] open_chat 引用不存在的夢客「${e.open_chat}」`);
+    // M5：晉升、交換、結局
+    if (has(e, 'promote')) checkPromoteEffect(e.promote, `${where}：effects[${i}] promote`, ctx);
+    if (has(e, 'open_trade')) {
+      const gs = ctx.guests.get(e.open_trade);
+      if (!gs) ctx.errors.push(`${where}：effects[${i}] open_trade 引用不存在的夢客「${e.open_trade}」`);
+      else if (!gs.defs.some((d) => Array.isArray(d.guest.trades) && d.guest.trades.length > 0)) ctx.errors.push(`${where}：effects[${i}] open_trade 的夢客「${e.open_trade}」沒有 trades`);
+    }
+    if (has(e, 'resolve_ending')) {
+      if (!isStr(opts.story)) ctx.errors.push(`${where}：effects[${i}] resolve_ending 只能用在有 endings 的章節的對話（不能放在道具或遭遇）`);
+      else {
+        const st = ctx.storyById.get(opts.story);
+        if (!(isObj(st) && Array.isArray(st.endings) && st.endings.length > 0)) ctx.errors.push(`${where}：effects[${i}] resolve_ending 只能用在有 endings 的章節（這裡是「${opts.story}」）`);
+      }
+    }
   });
+}
+
+/** promote：譜系與目標階位存在、只能升一階（目標＋1 的階位存在）、目標階位有 potion。 */
+function checkPromoteEffect(v, where, ctx) {
+  const def = ctx.lineages.get(v.lineage);
+  if (!def) { ctx.errors.push(`${where} 引用不存在的譜系「${v.lineage}」`); return; }
+  const target = arr(def.ranks).find((r) => isObj(r) && r.rank === v.rank);
+  if (!target) { ctx.errors.push(`${where}：譜系「${v.lineage}」沒有開放階位 ${v.rank}`); return; }
+  if (!arr(def.ranks).some((r) => isObj(r) && r.rank === v.rank + 1)) {
+    ctx.errors.push(`${where} 只能晉升一階：譜系「${v.lineage}」沒有 rank ${v.rank + 1}（目標 rank ${v.rank} 的上一階）`);
+  }
+  if (!isObj(target.potion)) ctx.errors.push(`${where} 的目標 譜系「${v.lineage}」rank ${v.rank} 沒有 potion（晉升要寫明靈劑材料與共鳴門檻）`);
 }
 
 function refDialogue(id, where, field, ctx, required = false) {
@@ -1083,7 +1313,7 @@ function checkMap(map, ctx) {
     const where = `${W} 物件「${obj.id}」`;
     checkPos(obj, `物件「${obj.id}」`);
     if (obj.solid !== undefined && !isBool(obj.solid)) errors.push(`${where}：solid 必須是 true/false`);
-    if (obj.if !== undefined) checkCond(obj.if, where, ctx);
+    if (obj.if !== undefined) checkCond(obj.if, where, ctx, { noData: true });
     refDialogue(obj.look, where, 'look', ctx);
     refDialogue(obj.echo, where, 'echo', ctx);
     refEncounter(obj.battle, where, ctx);
@@ -1111,7 +1341,7 @@ function checkMap(map, ctx) {
     else if (!arr(target.spawns).some((s) => isObj(s) && s.id === ex.spawn)) {
       errors.push(`${where}：地圖「${target.id}」沒有 spawn「${q(ex.spawn)}」`);
     }
-    if (ex.requires !== undefined) checkCond(ex.requires, where, ctx);
+    if (ex.requires !== undefined) checkCond(ex.requires, where, ctx, { noData: true });
     refDialogue(ex.blocked, where, 'blocked', ctx);
   });
   if (map.exits !== undefined && !Array.isArray(map.exits)) errors.push(`${W}：exits 必須是陣列`);
@@ -1129,7 +1359,7 @@ function checkMap(map, ctx) {
     }
     refDialogue(trg.dialogue, where, 'dialogue', ctx, trg.battle === undefined); // 有 battle 時 dialogue 可省略
     refEncounter(trg.battle, where, ctx);
-    if (trg.if !== undefined) checkCond(trg.if, where, ctx);
+    if (trg.if !== undefined) checkCond(trg.if, where, ctx, { noData: true });
     if (trg.once !== undefined && !isBool(trg.once)) errors.push(`${where}：once 必須是 true/false`);
     // 規格補充 3 第 4 條：once 的觸發點逃跑後就不會再觸發，遭遇會永久消失
     if (trg.once === true) {
@@ -1197,7 +1427,7 @@ function guaranteesEcho(cond) {
   return false;
 }
 
-function checkDialogue(dlg, file, ctx) {
+function checkDialogue(dlg, file, ctx, story = null) {
   const W = `${file} 對話「${dlg.id}」`;
   const { errors } = ctx;
   if (!Array.isArray(dlg.nodes)) {
@@ -1256,7 +1486,7 @@ function checkDialogue(dlg, file, ctx) {
           if (c.next === undefined) errors.push(`${cw}：缺少 next`);
           else out.push(target(cw, 'next', c.next));
           if (c.if !== undefined) checkCond(c.if, cw, ctx);
-          checkEffects(c.effects, cw, ctx);
+          checkEffects(c.effects, cw, ctx, { story });
           if (usesEcho(c.effects) && !guaranteesEcho(c.if)) {
             errors.push(`${cw}：有 use_echo 的選項必須用 if 保證 echo_gte ≥ 1（例如 { "echo_gte": 1 }），否則殘響 0 時選了會出錯`);
           }
@@ -1268,7 +1498,7 @@ function checkDialogue(dlg, file, ctx) {
     }
     if (n.text !== undefined && n.text !== null && typeof n.text !== 'string') errors.push(`${where}：text 必須是字串`);
     if (n.speaker !== undefined && n.speaker !== null && typeof n.speaker !== 'string') errors.push(`${where}：speaker 必須是字串或 null`);
-    checkEffects(n.effects, where, ctx);
+    checkEffects(n.effects, where, ctx, { story });
     if (usesEcho(n.effects)) {
       errors.push(`${where}：use_echo 只能放在選項上（並以 if 的 echo_gte ≥ 1 守門），不可放在節點的 effects`);
     }

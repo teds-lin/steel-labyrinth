@@ -99,7 +99,26 @@ export function wakeUp(state, data) {
 }
 
 /** 依 id 找夢客（所有章節的 guests）；沒有回 null。 */
-export function guestById(data, id) {
+/**
+ * 夢客的定義（DATA-FORMAT 補充（依故事聖經）3）：以 state.chapter 的 story 為準；該章沒有定義這位夢客時往前一章找，
+ * 直到找到為止（manifest.chapters 的順序；不往後找，避免讀到還沒開放章節的台詞與交換表）。
+ * state.chapter 不在 manifest.chapters 時，從最後一章往前找。找不到回 null。
+ */
+export function guestFor(id, state, data) {
+  const order = Array.isArray(data?.manifest?.chapters) ? data.manifest.chapters : (data?.story ?? []).map((s) => s?.id);
+  let i = order.indexOf(state?.chapter);
+  if (i < 0) i = order.length - 1;
+  for (; i >= 0; i--) {
+    const story = findById(data?.story, order[i]);
+    const g = findById(story?.guests, id);
+    if (g) return g;
+  }
+  return null;
+}
+
+/** 夢客的定義。帶 state 時照 guestFor 的章節規則；不帶 state 時（舊呼叫方式）回傳第一個找到的。 */
+export function guestById(data, id, state) {
+  if (state !== undefined && state !== null) return guestFor(id, state, data);
   for (const ch of data?.story ?? []) {
     const g = findById(ch?.guests, id);
     if (g) return g;

@@ -11,8 +11,11 @@ export const MAX_AUTO_STEPS = 100;
 const hasText = (node) => node.text !== undefined && node.text !== null;
 const isDisplayed = (node) => hasText(node) || Array.isArray(node.choices);
 
-/** 開始一段對話。回傳執行器；更新後的 state 由 runner.state 取得。 */
-export function startDialogue(dlg, initialState) {
+/**
+ * 開始一段對話。回傳執行器；更新後的 state 由 runner.state 取得。
+ * data（選填，M5）：遊戲資料 bundle，交給條件與效果（can_promote、promote 需要；沒有時用到它們會丟錯）。
+ */
+export function startDialogue(dlg, initialState, data) {
   if (!dlg || !Array.isArray(dlg.nodes)) throw new Error('對話不存在或格式錯誤');
   const nodes = new Map(dlg.nodes.map((n) => [n.id, n]));
   let state = initialState;
@@ -28,7 +31,7 @@ export function startDialogue(dlg, initialState) {
   // 文字與效果處理完後：依序檢查 branches，第一個成立的勝出；否則走 next。
   const resolveNext = (n) => {
     for (const b of n.branches ?? []) {
-      if (evalCondition(b.if, state)) return b.next;
+      if (evalCondition(b.if, state, data)) return b.next;
     }
     return n.next;
   };
@@ -38,7 +41,7 @@ export function startDialogue(dlg, initialState) {
     for (;;) {
       if (target === END) { node = null; return; }
       const n = lookup(target);
-      state = applyEffects(n.effects, state);
+      state = applyEffects(n.effects, state, data);
       if (isDisplayed(n)) { node = n; autoSteps = 0; return; }
       autoSteps += 1;
       if (autoSteps > MAX_AUTO_STEPS) {
@@ -50,7 +53,7 @@ export function startDialogue(dlg, initialState) {
 
   const visibleChoices = (n) => (n.choices ?? [])
     .map((c, raw) => ({ c, raw }))
-    .filter(({ c }) => c.if === undefined || evalCondition(c.if, state));
+    .filter(({ c }) => c.if === undefined || evalCondition(c.if, state, data));
 
   const ensureActive = () => { if (!node) throw new Error(`對話 ${dlg.id} 已結束`); };
 
@@ -85,7 +88,7 @@ export function startDialogue(dlg, initialState) {
         throw new Error(`選項索引 ${index} 超出範圍（可見選項 ${vis.length} 個）`);
       }
       const { c } = vis[index];
-      state = applyEffects(c.effects, state);
+      state = applyEffects(c.effects, state, data);
       goTo(c.next);
       return runner;
     },

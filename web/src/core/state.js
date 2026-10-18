@@ -45,6 +45,8 @@ export function newGame({ name, manifest, maps } = {}) {
     ammo: 0,
     pending: null,
     dream_return: null, // 存檔 v3：夢境中記住的現實位置（{ map, x, y, dir }）
+    promotions: [], // 存檔 v4：晉升紀錄 [{ lineage, rank, forced, chapter }]
+    ending: null, // 存檔 v4：結局 id（resolveEnding 寫入）
   };
 }
 

@@ -1,6 +1,9 @@
 // 效果（DATA-FORMAT「效果」「地圖與對話的擴充」）。一律回傳新 state，不原地修改。未知寫法丟錯。
-// battle／goto／enter_dream／wake／open_chat 不在這裡執行：寫進 state.pending（陣列，依序累加），由畫面在對話結束後用 takePending 取出處理。
+// battle／goto／enter_dream／wake／open_chat／open_trade／resolve_ending 不在這裡執行：寫進 state.pending（陣列，依序累加），
+// 由畫面在對話結束後用 takePending 取出處理。promote 失敗時也在 pending 加入 { type:'promote_failed', … }（畫面顯示原因）。
+// M5：applyEffect(effect, state, data)／applyEffects(effects, state, data)。promote 需要遊戲資料（data），沒有時丟錯。
 import { spendEcho, clampCollapse } from './echo.js';
+import { applyPromote } from './promotion.js';
 import { HERO_ID, MAX_AMMO, MAX_PARTY } from './stats.js';
 
 export { MAX_AMMO, MAX_PARTY };
@@ -37,6 +40,10 @@ const RULES = Object.freeze(Object.assign(Object.create(null), {
   enter_dream: (v) => isObj(v) && exactKeys(v, ['map', 'spawn'], []) && isNonEmptyStr(v.map) && isNonEmptyStr(v.spawn),
   wake: (v) => v === true || (isObj(v) && exactKeys(v, ['dialogue'], []) && isNonEmptyStr(v.dialogue)), // 補充：醒來後播的對話
   open_chat: isNonEmptyStr,
+  // M5：晉升、交換、結局
+  promote: (v) => isObj(v) && exactKeys(v, ['lineage', 'rank'], []) && isNonEmptyStr(v.lineage) && Number.isInteger(v.rank),
+  open_trade: isNonEmptyStr,
+  resolve_ending: (v) => v === true,
 }));
 /** 只讀自有屬性的計數（不吃原型鏈）；不是數字時當 0。 */
 const count = (obj, k) => {
@@ -54,8 +61,8 @@ export function checkEffect(effect, path = 'effect') {
   return RULES[k](effect[k]) ? [] : [`${path}：「${k}」的值不合法：${JSON.stringify(effect[k])}`];
 }
 
-/** 套用單一效果，回傳新 state。 */
-export function applyEffect(effect, state) {
+/** 套用單一效果，回傳新 state。data（選填）：promote 需要。 */
+export function applyEffect(effect, state, data) {
   const errors = checkEffect(effect);
   if (errors.length) throw new Error(`效果不合法：${errors.join('；')}`);
   const [k] = Object.keys(effect);
@@ -97,6 +104,12 @@ export function applyEffect(effect, state) {
       return pushPending(state, { type: 'wake', dialogue: v === true ? null : v.dialogue });
     case 'open_chat':
       return pushPending(state, { type: 'open_chat', guest: v });
+    case 'open_trade':
+      return pushPending(state, { type: 'open_trade', guest: v });
+    case 'resolve_ending':
+      return pushPending(state, { type: 'resolve_ending' });
+    case 'promote':
+      return applyPromote(v, state, data);
     case 'set_lineage':
       return { ...state, lineage: { id: v.id, rank: v.rank } };
     case 'join_party': {
@@ -119,15 +132,15 @@ export function applyEffect(effect, state) {
   }
 }
 
-/** 取出對話結束後要處理的事（battle／goto／enter_dream／wake／open_chat），回傳 { state（pending 清成 null）, pending:[…] }。 */
+/** 取出對話結束後要處理的事（battle／goto／enter_dream／wake／open_chat／open_trade／resolve_ending／promote_failed），回傳 { state（pending 清成 null）, pending:[…] }。 */
 export function takePending(state) {
   const pending = Array.isArray(state?.pending) ? state.pending.map((p) => ({ ...p })) : [];
   return { state: { ...state, pending: null }, pending };
 }
 
-/** 依序套用效果陣列；undefined 視為沒有效果。 */
-export function applyEffects(effects, state) {
+/** 依序套用效果陣列；undefined 視為沒有效果。data（選填）傳給每一個效果。 */
+export function applyEffects(effects, state, data) {
   if (effects === undefined) return state;
   if (!Array.isArray(effects)) throw new Error('effects 必須是陣列');
-  return effects.reduce((s, e) => applyEffect(e, s), state);
+  return effects.reduce((s, e) => applyEffect(e, s, data), state);
 }

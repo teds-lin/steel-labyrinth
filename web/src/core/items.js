@@ -27,5 +27,5 @@ export function useFieldItem(itemId, state, data) {
   if (n <= 0) throw new Error(`沒有道具「${itemId}」`);
   const items = { ...state.items };
   if (n > 1) items[itemId] = n - 1; else delete items[itemId];
-  return applyEffects(def.field_effects, { ...state, items });
+  return applyEffects(def.field_effects, { ...state, items }, data);
 }
