@@ -360,3 +360,43 @@ web/data/
 ## 補充（2026-10-18，依 M4 第一輪對抗審查）
 1. 讀檔時：`dream_return` 指向夢境地圖 → 視為不合法，改成該章起點並警告；人在夢境地圖但 `dream_return` 是 null → 同上；人在現實地圖卻帶著 `dream_return` → 清成 null。
 2. `wakeUp` 找不到有效的 `dream_return` 時，退路是**該章起點**（前一章 `end_screen.continue`；序章用 `manifest.start`），不是 `manifest.start`。
+
+---
+
+# 第一部完結（M5 起）
+
+## 晉升
+- 譜系的 rank 可以加 `potion`：
+  ```json
+  { "rank": 8, "name": "借聲者", "field": ["voice"], "skills": ["whisper"], "stats": { … },
+    "potion": { "materials": [ { "item": "echo_moss", "count": 2 }, { "item": "choir_wax", "count": 1 } ],
+                "resonance": 12, "forced_collapse": 40 } }
+  ```
+  - `materials`：喝下時消耗的道具。`resonance`：主角在**目前階位期間**累積的共鳴合計門檻（`state.resonance` 各事件數加總，晉升後歸零重新累積）。`forced_collapse`：共鳴不足仍硬喝時增加的崩解（喝下仍會晉升）。
+- 對話效果 `{ "promote": { "lineage": "trace", "rank": 8 } }`：
+  - 只能晉升到目前階位的下一階（數字減 1）；材料不足 → 效果不執行並把 `state.pending` 加入 `{ promote_failed: "materials" }`（畫面顯示原因）。
+  - 共鳴足夠 → 晉升；共鳴不足 → 晉升並增加 `forced_collapse`。
+  - 晉升後 `state.lineage.rank` 更新、`state.resonance` 歸零；能力值、技能、探索標籤由 `deriveStats`／`availableSkills`／`availableFieldTags` 依新階位計算。
+- 新條件：`{ "can_promote": 8 }`（材料齊全且目前階位是 9）、`{ "resonance_gte": 12 }`、`{ "collapse_lte": 40 }`、`{ "collapse_gte": 60 }`。
+- 存檔 v4：新增 `promotions`：`[{ "lineage", "rank", "forced": bool, "chapter" }]`（晉升紀錄，結局判定用）。v3→v4 遷移補空陣列。
+
+## 交換（鐘塔之夢）
+- 章節 story 的 `guests[]` 可以加 `trades`：
+  ```json
+  { "id": "nine_moss", "label": "兩包鎮靜香換一份回聲苔", "give": [ { "item": "sedative", "count": 2 } ],
+    "get": [ { "item": "echo_moss", "count": 1 } ], "if": { "flag": "ch4_started" }, "once": false }
+  ```
+- 夢客物件的 look 對話可以用效果 `{ "open_trade": "nine" }` 開啟交換介面。純客戶端、不連伺服器。
+- `once: true` 的交換做過一次就記旗標 `trade:<guest>:<id>`，之後不再列出。
+
+## 結局
+- 終章 story 的 `endings`：依序比對，第一個 `if` 成立的就是結局；最後一筆必須沒有 `if`（保證有結局）。
+  ```json
+  "endings": [
+    { "id": "lamp_kept", "title": "燈火未熄", "if": { "all": [ { "flag": "trusted_marlo" }, { "collapse_lte": 40 } ] }, "dialogue": "dlg_end_a" },
+    { "id": "fog_walker", "title": "霧中行者", "if": { "collapse_gte": 70 }, "dialogue": "dlg_end_c" },
+    { "id": "dawn", "title": "黎明之前", "dialogue": "dlg_end_b" } ]
+  ```
+- 對話效果 `{ "resolve_ending": true }`：依 `endings` 判定，對話結束後播放該結局的對話，並把結局 id 記在 `state.ending`。
+- 結局對話的最後要有 `{ "chapter_end": "finale" }`；結局畫面顯示 `end_screen.title` 與結局名稱（`endings[].title`）。
+- `/api/clear` 的 `ending` 必須在 vars `ENDINGS`（逗號分隔）白名單內；沒有結局的章節仍送 null。
