@@ -1,0 +1,5 @@
+{
+  "chapters": ["fx_ch4", "fx_finale"],
+  "start": { "map": "fx_room", "spawn": "default", "dialogue": "dlg_fx5_start", "echo_charges": 0 },
+  "files": { "maps": ["fx_room", "fx_dream"], "story": ["fx_ch4", "fx_finale"], "lineages": ["trace"] }
+}

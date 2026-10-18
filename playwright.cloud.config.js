@@ -4,6 +4,7 @@
 // 但用獨立的 persist 目錄與 8788 埠，不碰開發資料）。
 // 獨立於 playwright.config.js，所以 `npm run e2e` 不會多啟動 Worker。指令：npm run e2e:cloud
 // 本機 D1 資料放在 test-results/cloud-worker-state/<時間戳>/（每次執行一份新的，不碰開發資料 .wrangler/state）。
+import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
@@ -20,6 +21,20 @@ const DREAM_SQL = join(tmpdir(), `steel-labyrinth-dream-e2e-${STATE.replace(/\D/
 // 線上驗證：設定 E2E_BASE_URL（例如 GitHub Pages）與 E2E_API_URL（正式 Worker）時，不啟動本機伺服器與 Worker。
 // 正式環境有頻率限制，請用 --grep 只跑需要的情境。
 const REMOTE = process.env.E2E_BASE_URL;
+// M5：E2E 的通關回報白名單＝正式資料的章節與結局＋M5 測試 fixture（tests/fixtures/m5）的章節與結局。
+// 每次從資料讀，正式資料加了新章節或結局也不必改這裡（正式 toml 的 CHAPTERS／ENDINGS 由 tests/worker 的測試把關）。
+function clearWhitelist() {
+  const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
+  const chapters = [];
+  const endings = [];
+  for (const dir of ['web/data/', 'tests/fixtures/m5/']) {
+    const m = read(`${dir}manifest.json`);
+    chapters.push(...m.chapters);
+    for (const id of m.files.story) for (const e of read(`${dir}story/${id}.json`).endings ?? []) endings.push(e.id);
+  }
+  return { chapters: [...new Set(chapters)].join(','), endings: [...new Set(endings)].join(',') };
+}
+const WL = clearWhitelist();
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -59,7 +74,9 @@ export default defineConfig({
         + ' RL_PLAYER_PER_HOUR_V6_48:100000 RL_TRANSFER_PER_HOUR_V6_48:100000 RL_WRITE_GLOBAL_PER_DAY:1000000'
         + ' STATS_MIN_PLAYERS:1 ALLOWED_ORIGINS:http://localhost:8091'
         // M4：夢境通行證限流調高（每個測試都會重新驗證）；Turnstile hostname 加上本機
-        + ' RL_DREAM_PASS_PER_HOUR:1000 RL_DREAM_PASS_GLOBAL_PER_HOUR:100000 TURNSTILE_HOSTNAMES:localhost',
+        + ' RL_DREAM_PASS_PER_HOUR:1000 RL_DREAM_PASS_GLOBAL_PER_HOUR:100000 TURNSTILE_HOSTNAMES:localhost'
+        // M5：通關回報白名單（clearWhitelist，含 M5 測試 fixture）
+        + ` CHAPTERS:${WL.chapters} ENDINGS:${WL.endings}`,
       // 不用 /api/stats 當健康檢查：它有 60 秒快取（修訂 2 E），會讓第一個統計測試讀到啟動時的空結果。
       // /api/saves 未帶權杖回 401，Playwright 視為伺服器已就緒。
       url: `http://localhost:${WORKER_PORT}/api/saves`,

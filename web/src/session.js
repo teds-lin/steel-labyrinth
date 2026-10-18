@@ -1,6 +1,7 @@
 // 遊戲階段（session）：畫面層唯一持有「目前 state」的地方。
 // core 的 state 不可變，這裡只負責「換成新的 state」並通知各場景重畫。
 import { createStorage, sanitizeLoadedState, SLOT_COUNT, AUTO_KEY } from './core/save.js';
+import { resumeScene } from './ui/m5-view.js';
 
 /** deserialize 的拒絕原因是否為「存檔版本比遊戲新」（core 的拒絕都帶 code）。 */
 const isNewerVersion = (r) => r?.code === 'newer';
@@ -153,14 +154,12 @@ export const session = {
 
   /**
    * 讀檔後要進哪個畫面：存檔停在「已完成、而且有下一章（end_screen.continue）」的章節結尾時，
-   * 回到章節結束畫面（可以按「繼續」進下一章）；其他情況回地圖。
+   * 回到章節結束畫面（可以按「繼續」進下一章）；已完結（終章有結局）的存檔回到結局畫面；其他情況回地圖。
+   * 判斷規則在 ui/m5-view.js 的 resumeScene（node 測試）。
    */
   resumeTarget(state, notices = []) {
-    const ch = state?.chapter;
-    const done = Array.isArray(state?.chapter_done) ? state.chapter_done : [];
-    if (typeof ch === 'string' && done.includes(ch) && this.storyById(ch)?.end_screen?.continue) {
-      return { scene: 'ChapterEnd', data: { chapter: ch, notices } };
-    }
+    const r = resumeScene(state, this.data);
+    if (r.scene === 'ChapterEnd') return { scene: 'ChapterEnd', data: { chapter: r.chapter, notices } };
     return { scene: 'Map', data: { notices } };
   },
 

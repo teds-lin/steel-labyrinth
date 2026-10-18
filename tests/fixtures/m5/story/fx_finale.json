@@ -1,0 +1,42 @@
+{
+  "id": "fx_finale",
+  "title": "終章（測試）",
+  "end_screen": { "title": "第一部　霧中鐘聲　完", "subtitle": "（測試）霧散了，鐘聲還在耳邊。" },
+  "guests": [
+    {
+      "id": "nine", "name": "九點", "sprite": "guest_nine",
+      "scripted": {
+        "greeting": ["（測試・終章）九點看起來很累。"],
+        "fallback": ["（測試）霧太濃了。"],
+        "quota": ["（測試）今天先到這裡。"],
+        "filtered": ["（測試）當我沒說。"],
+        "not_open": ["（測試・終章）九點只剩最後一樣東西可以換。"]
+      },
+      "trades": [
+        { "id": "fx5_final", "label": "影墨換兩包鎮靜香", "give": [{ "item": "shade_ink", "count": 1 }], "get": [{ "item": "sedative_incense", "count": 2 }], "once": true }
+      ]
+    }
+  ],
+  "endings": [
+    { "id": "fx_lamp", "title": "燈火未熄", "if": { "all": [{ "flag": "fx5_trusted" }, { "collapse_lte": 40 }] }, "dialogue": "dlg_fx5_end_a" },
+    { "id": "fx_fog", "title": "霧中行者", "if": { "collapse_gte": 70 }, "dialogue": "dlg_fx5_end_c" },
+    { "id": "fx_dawn", "title": "黎明之前", "dialogue": "dlg_fx5_end_b" }
+  ],
+  "dialogues": [
+    { "id": "dlg_fx5_final", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "桌上的鐘停在最後一格。", "choices": [
+        { "text": "敲響最後的鐘聲", "effects": [{ "resolve_ending": true }], "next": "END" },
+        { "text": "還不是時候", "next": "END" }
+      ] }
+    ] },
+    { "id": "dlg_fx5_end_a", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "（測試）燈還亮著。", "effects": [{ "chapter_end": "fx_finale" }], "next": "END" }
+    ] },
+    { "id": "dlg_fx5_end_b", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "（測試）天快亮了。", "effects": [{ "chapter_end": "fx_finale" }], "next": "END" }
+    ] },
+    { "id": "dlg_fx5_end_c", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "（測試）你走進霧裡，沒有回頭。", "effects": [{ "chapter_end": "fx_finale" }], "next": "END" }
+    ] }
+  ]
+}

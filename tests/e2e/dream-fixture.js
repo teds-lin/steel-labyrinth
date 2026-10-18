@@ -19,6 +19,12 @@ function safeJoin(base, rel) {
   return p.startsWith(base + sep) ? p : null;
 }
 
+/** 測試用夢境 story 裡定義的夢客。 */
+function fixtureGuests() {
+  const overlay = readJson(join(FIX, 'overlay.json'));
+  return (overlay.add.story ?? []).flatMap((id) => readJson(join(FIX, 'story', `${id}.json`)).guests ?? []);
+}
+
 export async function useDreamFixture(page) {
   const overlay = readJson(join(FIX, 'overlay.json'));
   await page.route(`**/${DREAM_FIXTURE_PREFIX}**`, async (route) => {
@@ -36,6 +42,13 @@ export async function useDreamFixture(page) {
     const data = readJson(real);
     const m = /^maps\/([a-z0-9_]+)\.json$/.exec(rel);
     if (m && overlay.objects[m[1]]) data.objects = [...(data.objects ?? []), ...overlay.objects[m[1]]];
+    // M5：夢客以玩家目前章節的 story 為準、只往前找（guestFor）。測試夢客也加進每一章正式 story 的 guests，
+    // 任何章節的存檔都讀得到它（同一夢客可以出現在多個章節）。
+    if (/^story\/[a-z0-9_]+\.json$/.test(rel)) {
+      const have = new Set((data.guests ?? []).map((x) => x.id));
+      const extra = fixtureGuests().filter((x) => !have.has(x.id));
+      if (extra.length) data.guests = [...(data.guests ?? []), ...extra];
+    }
     await json(route, data);
   });
 }

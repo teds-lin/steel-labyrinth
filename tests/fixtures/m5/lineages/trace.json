@@ -1,0 +1,10 @@
+{
+  "id": "trace", "source": "mirror", "nature": "看穿真相", "show_resonance": true,
+  "ranks": [
+    { "rank": 9, "name": "讀痕者", "field": ["trace"], "skills": ["omen"], "stats": { "hp": 10, "sp": 10, "will": 4 } },
+    { "rank": 8, "name": "借聲者", "field": ["voice"], "skills": ["fx_borrow_voice"], "stats": { "sp": 6, "will": 2 },
+      "potion": { "materials": [{ "item": "echo_moss", "count": 2 }, { "item": "choir_wax", "count": 1 }], "resonance": 12, "forced_collapse": 40 } },
+    { "rank": 7, "name": "換影者", "field": ["shadow"], "skills": ["fx_swap_shadow"], "stats": { "hp": 6, "spd": 2 },
+      "potion": { "materials": [{ "item": "shade_ink", "count": 1 }], "resonance": 8, "forced_collapse": 30 } }
+  ]
+}

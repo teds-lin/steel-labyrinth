@@ -4,9 +4,12 @@ import { TILE, MAP_ZOOM, MAP_VIEW, COLORS, TEST_MODE, battleSeed } from '../conf
 import { session } from '../session.js';
 import { step, enterMap, mapSize, tileIdAt, objectVisible, isUnlocked, fleeBackLocation } from '../core/grid.js';
 import { takePending } from '../core/effects.js';
+import { facingTarget } from '../core/interact.js';
 import { tileKey, spriteKey, heroKey } from '../textures.js';
 import { investigateFacing, echoFacing, loadNotice } from '../adapters.js';
-import { isDreamMap, enterDream, wakeUp, guestById, dreamChoiceDialogue, notOpenDialogue } from '../core/dream.js';
+import { isDreamMap, enterDream, wakeUp, guestFor, dreamChoiceDialogue, notOpenDialogue } from '../core/dream.js';
+import { resolveEnding } from '../core/ending.js';
+import { promoteFailedDialogue, fieldTagLabel } from '../ui/m5-view.js';
 import { cloud } from '../cloud-client.js';
 
 const MOVE_MS = 150;
@@ -86,6 +89,7 @@ export class MapScene extends Phaser.Scene {
     return {
       glows: this.glowCount ?? 0, map: this.currentMapId ?? null,
       dream: this.dreamView ?? null, // 夢境視覺：{ fog, clock, tinted }；現實地圖為 null
+      tagFx: this.tagFxView ?? null, // 最近一次探索標籤（借聲、換影…）解鎖的演出：{ tag, label, target, toast }
     };
   }
 
@@ -337,15 +341,61 @@ export class MapScene extends Phaser.Scene {
       this.ui.toast('這裡好像出了點問題');
       return;
     }
+    // 用探索標籤（借聲、換影…）解開了鎖：先播標籤的提示與動畫，再播對話
+    const target = r.unlock ? this.facingObject() : null;
     session.setState(r.state);
-    const extra = { dream: r.dream ?? null, guest: r.guest ?? null };
-    if (r.dialogues.length || r.battle || extra.dream || extra.guest) this.runDialogues(r.dialogues, r.battle ?? null, extra);
+    const extra = { dream: r.dream ?? null, guest: r.guest ?? null, tagFx: r.unlock ? { tag: r.unlock.tag, obj: target } : null };
+    if (r.dialogues.length || r.battle || extra.dream || extra.guest || extra.tagFx) this.runDialogues(r.dialogues, r.battle ?? null, extra);
     else if (r.message) this.ui.toast(r.message);
   }
 
+  /** 面前那一格的物件（標籤演出的目標；只用來畫，不影響規則）。 */
+  facingObject() {
+    try {
+      return facingTarget(this.mapDef, session.state, session.data);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 探索標籤的解鎖演出（M5）：提示「【借聲】發動」，並依標籤播動畫——
+   * voice：聲波從主角擴散到門；shadow：主角的影子滑到門那裡、門閃一下；其他標籤：門的位置亮一下。
+   */
+  playTagFx(tag, obj) {
+    const label = fieldTagLabel(tag);
+    const toast = `【${label}】發動`;
+    this.tagFxView = { tag, label, target: obj?.id ?? null, toast };
+    this.ui?.toast(toast, 1400);
+    const tx = obj ? obj.x * TILE + TILE / 2 : this.player.x;
+    const ty = obj ? obj.y * TILE + TILE / 2 : this.player.y;
+    const px = this.player.x;
+    const py = this.player.y;
+    const ms = TEST_MODE ? 120 : 650;
+    const done = [];
+    // onDone 不可以放進 tween 設定（Phaser 會把不認得的鍵當成要補間的屬性）
+    const tween = ({ onDone, ...cfg }) => new Promise((res) => { this.tweens.add({ ...cfg, onComplete: () => { onDone?.(); res(); } }); });
+    if (tag === 'voice') {
+      for (let i = 0; i < 3; i++) {
+        const ring = this.add.circle(px, py, 4, 0x000000, 0).setStrokeStyle(1.5, 0xf0d2a0, 0.9).setDepth(15);
+        done.push(tween({ targets: ring, x: tx, y: ty, radius: 16, alpha: 0, delay: TEST_MODE ? 0 : i * 160, duration: ms, onDone: () => ring.destroy() }));
+      }
+    } else if (tag === 'shadow') {
+      const ghost = this.add.image(px, py, this.player.texture.key).setTint(0x000000).setAlpha(0.65).setDepth(9);
+      done.push(tween({ targets: ghost, x: tx, y: ty, alpha: 0.2, duration: ms, ease: 'Sine.easeInOut', onDone: () => ghost.destroy() }));
+      const img = obj ? this.objSprites?.get(obj.id)?.img : null;
+      if (img) done.push(tween({ targets: img, alpha: 0.3, duration: ms / 3, yoyo: true, repeat: 1, delay: ms / 2 }));
+    } else {
+      const glow = this.add.image(tx, ty, 'fx:glow').setAlpha(0).setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+      done.push(tween({ targets: glow, alpha: 0.9, duration: ms / 2, yoyo: true, onDone: () => glow.destroy() }));
+    }
+    return Promise.all(done);
+  }
+
   /** 依序播放多段對話（例如調查上鎖的門：look → on_item／locked）；章節結束就停。battle：播完後開戰。 */
-  async runDialogues(ids, battle = null, { dream = null, guest = null } = {}) {
+  async runDialogues(ids, battle = null, { dream = null, guest = null, tagFx = null } = {}) {
     await this.locked(async () => {
+      if (tagFx) await this.playTagFx(tagFx.tag, tagFx.obj);
       for (const id of ids) {
         if (this.ended) return;
         await this.runDialogue(id);
@@ -394,6 +444,9 @@ export class MapScene extends Phaser.Scene {
         else if (p.type === 'enter_dream') await this.doEnterDream(p);
         else if (p.type === 'wake') await this.doWake(p);
         else if (p.type === 'open_chat') await this.doOpenChat(p.guest);
+        else if (p.type === 'open_trade') await this.doOpenTrade(p.guest);
+        else if (p.type === 'resolve_ending') await this.doResolveEnding();
+        else if (p.type === 'promote_failed') await this.runDialogue(promoteFailedDialogue(p, session.data));
         else console.warn('不認得的 pending', p);
       }
     }
@@ -460,9 +513,41 @@ export class MapScene extends Phaser.Scene {
     if (typeof p.dialogue === 'string' && !this.ended) await this.runDialogue(p.dialogue);
   }
 
-  /** 自由交談：未啟用雲端時改播 not_open 預寫台詞；否則開啟聊天畫面，等它關閉。 */
+  // ---------- 第一部完結（M5） ----------
+  /** 交換：開啟選單的交換頁（Menu 的 trade 模式），等它關閉。夢客以目前章節為準（guestFor）。 */
+  async doOpenTrade(guestId) {
+    if (!guestFor(guestId, session.state, session.data)) {
+      console.warn(`找不到夢客「${guestId}」`);
+      return;
+    }
+    await this.waitUi();
+    session.foldPlaytime();
+    await new Promise((resolve) => {
+      this.scene.pause('UI');
+      this.scene.pause();
+      this.scene.launch('Menu', { mode: 'trade', from: 'Map', guest: guestId, onClose: resolve });
+    });
+    session.scene = 'Map';
+    this.refreshObjects();
+  }
+
+  /** 結局判定：resolveEnding → 寫回 state.ending → 播該結局的對話（最後的 chapter_end 會進結局畫面）。 */
+  async doResolveEnding() {
+    let r;
+    try {
+      r = resolveEnding(session.state, session.data);
+    } catch (e) {
+      console.warn('結局判定失敗', e);
+      this.ui.toast('結局資料有問題');
+      return;
+    }
+    session.setState(r.state);
+    if (typeof r.ending.dialogue === 'string' && !this.ended) await this.runDialogue(r.ending.dialogue);
+  }
+
+  /** 自由交談：未啟用雲端時改播 not_open 預寫台詞；否則開啟聊天畫面，等它關閉。夢客以目前章節為準（guestFor）。 */
   async doOpenChat(guestId) {
-    const guest = guestById(session.data, guestId);
+    const guest = guestFor(guestId, session.state, session.data);
     if (!guest) {
       console.warn(`找不到夢客「${guestId}」`);
       return;

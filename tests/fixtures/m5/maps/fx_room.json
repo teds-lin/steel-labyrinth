@@ -1,0 +1,31 @@
+{
+  "id": "fx_room",
+  "name": "測試用・鏡之間",
+  "tiles": [
+    "##########",
+    "#........#",
+    "#..rrrr..#",
+    "#..rrrr..#",
+    "#........#",
+    "#........#",
+    "#L......L#",
+    "##########"
+  ],
+  "legend": { "#": "wall", ".": "floor", "r": "rug", "L": "gas_lamp" },
+  "spawns": [{ "id": "default", "x": 4, "y": 3, "dir": "down" }],
+  "objects": [
+    { "id": "obj_fx5_mirror", "x": 2, "y": 1, "sprite": "standing_mirror", "solid": true, "look": "dlg_fx5_mirror" },
+    { "id": "obj_fx5_cabinet", "x": 4, "y": 1, "sprite": "potion_cabinet", "solid": true, "look": "dlg_fx5_cabinet" },
+    { "id": "obj_fx5_voice_door", "x": 7, "y": 1, "sprite": "office_door", "solid": true,
+      "lock": { "flag": "fx5_voice_open", "solvable_by": ["voice"], "fallback": "item:old_key",
+                "on_tag": { "voice": "dlg_fx5_voice_open" }, "on_item": "dlg_fx5_key_open", "locked": "dlg_fx5_voice_locked" } },
+    { "id": "obj_fx5_shadow_door", "x": 8, "y": 4, "sprite": "warehouse_door", "solid": true,
+      "lock": { "flag": "fx5_shadow_open", "solvable_by": ["shadow"], "fallback": "item:old_key",
+                "on_tag": { "shadow": "dlg_fx5_shadow_open" }, "on_item": "dlg_fx5_key_open", "locked": "dlg_fx5_shadow_locked" } },
+    { "id": "obj_fx5_bed", "x": 2, "y": 5, "sprite": "sofa_bed", "solid": true, "look": "dlg_fx5_bed",
+      "dream": { "map": "fx_dream", "spawn": "center" } },
+    { "id": "obj_fx5_altar", "x": 6, "y": 5, "sprite": "hall_table", "solid": true, "look": "dlg_fx5_final" }
+  ],
+  "exits": [],
+  "triggers": []
+}

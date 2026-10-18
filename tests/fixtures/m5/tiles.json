@@ -1,0 +1,9 @@
+[
+  { "id": "wall", "solid": true, "color": "#2b2f3a" },
+  { "id": "floor", "solid": false, "color": "#5a5248" },
+  { "id": "rug", "solid": false, "color": "#6a3a32" },
+  { "id": "gas_lamp", "solid": true, "color": "#e0a050", "glow": true },
+  { "id": "tower_wall", "solid": true, "color": "#1c2436" },
+  { "id": "dream_floor", "solid": false, "color": "#3a4566" },
+  { "id": "mist", "solid": false, "color": "#6c7890" }
+]

@@ -1,0 +1,5 @@
+[
+  { "id": "hero", "name": "{name}", "sprite": "hero",
+    "base": { "hp": 60, "sp": 20, "atk": 10, "def": 6, "spd": 10, "will": 10, "eva": 5 },
+    "skills": ["attack", "guard"] }
+]

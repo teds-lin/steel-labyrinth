@@ -126,7 +126,7 @@ test.describe('M2 戰鬥', () => {
     expect(ce.subtitle).toBe(STORY.prologue.end_screen.subtitle);
     expect(ce.continue).toEqual(STORY.prologue.end_screen.continue);
     let s = await g.st();
-    expect(s.schema_version).toBe(3); // 存檔 v3（M4：dream_return）
+    expect(s.schema_version).toBe(4); // 存檔 v4（M5：promotions、ending）
     expect(s.party.map((m) => m.id)).toEqual(['hero']);
 
     // 繼續 → 第一章開頭
@@ -224,7 +224,7 @@ test.describe('M2 戰鬥', () => {
     await g.pickMenu('存檔 2');
     await page.waitForFunction(() => /已存檔到存檔 2/.test(window.__SL.menu()?.note ?? ''), null, { timeout: 5_000 });
     const saved = await sl(page, () => JSON.parse(localStorage.getItem('steel-labyrinth:save:2')));
-    expect(saved.schema_version).toBe(3); // 存檔 v3（M4）
+    expect(saved.schema_version).toBe(4); // 存檔 v4（M5）
     expect(saved.chapter).toBe('chapter2');
     expect(saved.party.map((m) => m.id)).toEqual(['hero', 'ada']);
     expect(saved.flags.fog1_done).toBe(true);
@@ -385,7 +385,7 @@ test.describe('M2 戰鬥', () => {
     await g.pickMenu('隊伍');
     m = await sl(page, () => window.__SL.menu());
     expect(m.page).toBe('party');
-    expect(m.items.length).toBe(3); // 主角、艾妲、返回
+    expect(m.items.map((it) => it.label.split('　')[0])).toEqual([expect.any(String), '艾妲・費恩', '晉升進度', '返回']); // 主角、艾妲、晉升進度（M5：主角有譜系時）、返回
     expect(m.items[1].label).toContain('艾妲');
     await g.pickMenu('艾妲');
     m = await sl(page, () => window.__SL.menu());
@@ -410,6 +410,8 @@ test.describe('M2 戰鬥', () => {
     const sprites = new Set();
     for (const id of manifest.files.maps) for (const o of readData(`maps/${id}.json`).objects ?? []) sprites.add(o.sprite);
     for (const c of [...readData('characters.json'), ...readData('enemies.json')]) sprites.add(c.sprite);
+    // 夢客的頭像（story 的 guests[].sprite）也要有專屬圖
+    for (const id of manifest.files.story) for (const gst of readData(`story/${id}.json`).guests ?? []) if (gst.sprite) sprites.add(gst.sprite);
     expect(art.counts.sprites).toBe(sprites.size);
     expect(art.counts.tiles).toBe(readData('tiles.json').length);
     expect(art.counts.bgs).toBe(new Set(readData('encounters.json').map((e) => e.bg)).size);

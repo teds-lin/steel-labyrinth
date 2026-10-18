@@ -1,0 +1,73 @@
+{
+  "id": "fx_ch4",
+  "title": "第四章（測試）",
+  "end_screen": { "title": "第四章（測試）　完", "subtitle": "測試用" },
+  "guests": [
+    {
+      "id": "nine", "name": "九點", "sprite": "guest_nine",
+      "scripted": {
+        "greeting": ["（測試）九點朝你點頭。"],
+        "fallback": ["（測試）霧太濃了。"],
+        "quota": ["（測試）今天先到這裡。"],
+        "filtered": ["（測試）當我沒說。"],
+        "not_open": ["（測試・第四章）九點把交換清單推到你面前。"]
+      },
+      "trades": [
+        { "id": "fx5_moss", "label": "兩包鎮靜香換一份回聲苔", "give": [{ "item": "sedative_incense", "count": 2 }], "get": [{ "item": "echo_moss", "count": 1 }], "once": false },
+        { "id": "fx5_wax", "label": "回聲苔換唱詩蠟（只此一次）", "give": [{ "item": "echo_moss", "count": 1 }], "get": [{ "item": "choir_wax", "count": 1 }], "once": true },
+        { "id": "fx5_ink", "label": "唱詩蠟換影墨", "give": [{ "item": "choir_wax", "count": 1 }], "get": [{ "item": "shade_ink", "count": 1 }], "if": { "rank_lte": 8 }, "once": false }
+      ]
+    }
+  ],
+  "dialogues": [
+    { "id": "dlg_fx5_start", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "（測試用的第四章。）",
+        "effects": [{ "set_lineage": { "id": "trace", "rank": 9 } }, { "give_item": "sedative_incense" }, { "give_item": "sedative_incense" }, { "give_item": "echo_moss" }],
+        "next": "END" }
+    ] },
+    { "id": "dlg_fx5_mirror", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "鏡子裡浮著一瓶靈劑。", "choices": [
+        { "text": "喝下靈劑", "if": { "not": { "rank_lte": 8 } }, "effects": [{ "promote": { "lineage": "trace", "rank": 8 } }], "next": "n2" },
+        { "text": "喝下更深的靈劑", "if": { "all": [{ "rank_lte": 8 }, { "not": { "rank_lte": 7 } }] }, "effects": [{ "promote": { "lineage": "trace", "rank": 7 } }], "next": "n2" },
+        { "text": "離開", "next": "END" }
+      ] },
+      { "id": "n2", "speaker": null, "text": "鏡面恢復了平靜。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_cabinet", "start": "n0", "nodes": [
+      { "id": "n0", "branches": [{ "if": { "flag": "fx5_got_key" }, "next": "n2" }], "next": "n1" },
+      { "id": "n1", "speaker": null, "text": "櫃子裡有一把舊鑰匙。", "effects": [{ "give_item": "old_key" }, { "set_flag": "fx5_got_key" }], "next": "END" },
+      { "id": "n2", "speaker": null, "text": "櫃子空了。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_voice_locked", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "門後有人在等暗號，可是你學不像那個聲音。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_voice_open", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "你借來守門人的聲音說出暗號，門應聲而開。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_shadow_locked", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "門縫底下透出一道影子，但你碰不到它。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_shadow_open", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "你和門後的影子換了位置，從裡面拉開了門閂。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_key_open", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "舊鑰匙轉了一圈，門開了。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_bed", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "一張舊沙發床。", "next": "END" }
+    ] },
+    { "id": "dlg_fx5_nine", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": "九點", "text": "要交換什麼嗎？", "choices": [
+        { "text": "交換", "effects": [{ "open_trade": "nine" }], "next": "END" },
+        { "text": "自由交談", "effects": [{ "open_chat": "nine" }], "next": "END" },
+        { "text": "不用了", "next": "END" }
+      ] }
+    ] },
+    { "id": "dlg_fx5_wake", "start": "n1", "nodes": [
+      { "id": "n1", "speaker": null, "text": "要醒來嗎？", "choices": [
+        { "text": "醒來", "effects": [{ "wake": true }], "next": "END" },
+        { "text": "再待一會兒", "next": "END" }
+      ] }
+    ] }
+  ]
+}

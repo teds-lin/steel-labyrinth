@@ -1,0 +1,8 @@
+[
+  { "id": "echo_moss", "name": "回聲苔", "desc": "（測試用）貼在耳邊會聽見遠處的聲音。" },
+  { "id": "choir_wax", "name": "唱詩蠟", "desc": "（測試用）融化時會發出低低的和聲。" },
+  { "id": "shade_ink", "name": "影墨", "desc": "（測試用）滴在地上會長出一小片影子。" },
+  { "id": "old_key", "name": "舊鑰匙", "desc": "（測試用）兩道門都打得開的備用鑰匙。" },
+  { "id": "sedative_incense", "name": "鎮靜香", "desc": "（測試用）能壓下腦中的雜音。", "target": "self",
+    "battle_effects": [{ "type": "collapse", "amount": -15 }], "field_effects": [{ "collapse": -15 }] }
+]

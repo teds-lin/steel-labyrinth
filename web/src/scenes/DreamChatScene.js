@@ -12,7 +12,7 @@ import { WIDTH, HEIGHT, TEST_MODE } from '../config.js';
 import { session } from '../session.js';
 import { addText, Button, fitText } from '../ui/widgets.js';
 import { spriteKey } from '../textures.js';
-import { guestById, pickScripted } from '../core/dream.js';
+import { guestFor, pickScripted } from '../core/dream.js';
 import { cloud, dream } from '../cloud-client.js';
 import { mountTurnstile } from '../ui/turnstile-panel.js';
 import { TURNSTILE_ACTIONS } from '../cloud/turnstile-config.js';
@@ -61,7 +61,7 @@ export class DreamChatScene extends Phaser.Scene {
     this.pendingText = null; // 等通行證時暫存的那一句
     this.typing = null;
     this.typingDone = null;
-    this.guest = guestById(session.data, this.guestId) ?? { id: this.guestId, name: this.guestId ?? '？', scripted: {} };
+    this.guest = guestFor(this.guestId, session.state, session.data) ?? { id: this.guestId, name: this.guestId ?? '？', scripted: {} };
     if (!chatLogs.has(this.guest.id)) chatLogs.set(this.guest.id, []);
     this.log = chatLogs.get(this.guest.id);
 

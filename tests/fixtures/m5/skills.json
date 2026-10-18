@@ -1,0 +1,7 @@
+[
+  { "id": "attack", "name": "攻擊", "desc": "用手邊的武器打過去。", "target": "enemy", "menu": "root", "effects": [{ "type": "damage", "power": 100 }] },
+  { "id": "guard", "name": "防禦", "desc": "到下次行動前受到的傷害減半。", "target": "self", "menu": "root", "effects": [{ "type": "status", "status": "guard", "chance": 100, "turns": 1 }] },
+  { "id": "omen", "name": "預兆", "desc": "看穿敵人的下一步。", "cost": { "sp": 4 }, "target": "enemy", "effects": [{ "type": "reveal_intent" }] },
+  { "id": "fx_borrow_voice", "name": "借來的聲音", "desc": "（測試用）用別人的聲音說話，讓敵人分心。", "cost": { "sp": 5 }, "target": "enemy", "effects": [{ "type": "debuff", "stat": "atk", "pct": 20, "turns": 2 }] },
+  { "id": "fx_swap_shadow", "name": "換影", "desc": "（測試用）和影子交換位置，更容易閃避。", "cost": { "sp": 6 }, "target": "self", "effects": [{ "type": "buff", "stat": "eva", "amount": 30, "turns": 2 }] }
+]

@@ -1,5 +1,6 @@
 // 選單（疊在其他場景上方）：存檔（3 槽，覆蓋前確認）、讀取、雲端存檔、道具、隊伍、回標題。
-// mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）、'transfer'（標題的「用轉移碼接續」）。
+// mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）、'transfer'（標題的「用轉移碼接續」）、
+//       'trade'（M5：夢客的交換；地圖的 open_trade 開啟，關閉時呼叫 onClose）。
 // 雲端存檔的各頁面在 cloud-pages.js（mixin）。
 import { WIDTH, HEIGHT, COLORS } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
@@ -7,6 +8,12 @@ import { addText, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
 import { fieldItems, useFieldItem } from '../core/items.js';
 import { partyStatus, availableSkills } from '../core/stats.js';
 import { cloudPages } from './cloud-pages.js';
+import { applyTrade } from '../core/trade.js';
+import { guestFor } from '../core/dream.js';
+import { promotionProgress, tradeRows, tradeConfirm, tradeDoneText } from '../ui/m5-view.js';
+
+/** 交換頁一頁最多幾項（再加「下一頁」「離開」）。 */
+const TRADES_PER_PAGE = 3;
 
 const STAT_LABELS = [['atk', '攻擊'], ['def', '防禦'], ['spd', '速度'], ['will', '意志'], ['eva', '閃避']];
 /** 道具頁一頁最多幾項（再加「下一頁」「返回」）。 */
@@ -20,6 +27,8 @@ export class MenuScene extends Phaser.Scene {
   init(data) {
     this.mode = data?.mode ?? 'game';
     this.from = data?.from ?? 'Map';
+    this.guestId = typeof data?.guest === 'string' ? data.guest : null;
+    this.onClose = typeof data?.onClose === 'function' ? data.onClose : null;
   }
 
   create() {
@@ -50,6 +59,7 @@ export class MenuScene extends Phaser.Scene {
     if (this.mode === 'load') this.showSlots('load');
     else if (this.mode === 'save') this.showSlots('save');
     else if (this.mode === 'transfer') this.showTransferInput();
+    else if (this.mode === 'trade') this.showTrade(0);
     else this.showMain();
   }
 
@@ -84,6 +94,7 @@ export class MenuScene extends Phaser.Scene {
       if (!b.sub) return;
       const room = b.w - 24;
       if (it.subName !== undefined) fitPart(b.sub, it.subName, it.subRender, room);
+      else if (String(it.sub).includes('\n')) { /* 多行副標（交換清單）：不截斷，太寬時由 b.fit() 等比縮小 */ }
       else fitText(b.sub, it.sub, room);
       b.fit();
     });
@@ -176,6 +187,11 @@ export class MenuScene extends Phaser.Scene {
       sub: STAT_LABELS.map(([k, n]) => `${n} ${m.max[k]}`).join('　'),
       onSelect: () => this.showMember(m.id),
     }));
+    if (session.state?.lineage) {
+      let next = null;
+      try { next = promotionProgress(session.state, session.data).next; } catch (e) { console.warn('promotionProgress 失敗', e); }
+      items.push({ label: '晉升進度', sub: next ? `下一階：${next.name}（階 ${next.rank}）` : '目前沒有可以晉升的下一階', onSelect: () => this.showPromotion() });
+    }
     items.push({ label: '返回', onSelect: () => this.showMain() });
     this.setPage('party', '隊伍', `子彈 ${session.state?.ammo ?? 0}　崩解 ${session.state?.collapse ?? 0}/100`, items, { h: 58, fontSize: 15 });
   }
@@ -200,6 +216,67 @@ export class MenuScene extends Phaser.Scene {
     ].filter((x) => x !== null).join('\n');
     this.memberSkills = skills;
     this.setPage('member', m.name, note, [{ label: '返回', onSelect: () => this.showParty() }], { y: 420, noteAlign: 'left' });
+  }
+
+  // ---------- 晉升進度（M5） ----------
+  showPromotion() {
+    let v;
+    try {
+      v = promotionProgress(session.state, session.data);
+    } catch (e) {
+      console.warn('promotionProgress 失敗', e);
+      v = { lines: ['晉升資料有問題，暫時無法顯示。'] };
+    }
+    this.setPage('promotion', '晉升進度', v.lines.join('\n'), [{ label: '返回', onSelect: () => this.showParty() }], { y: 440, noteAlign: 'left' });
+  }
+
+  // ---------- 交換（M5） ----------
+  guestName() {
+    const g = this.guestId ? guestFor(this.guestId, session.state, session.data) : null;
+    return typeof g?.name === 'string' ? g.name : '夢客';
+  }
+
+  showTrade(page = 0, note = null) {
+    let rows = [];
+    try {
+      rows = tradeRows(this.guestId, session.state, session.data);
+    } catch (e) {
+      console.warn('交換清單有問題', e);
+    }
+    const pages = Math.max(1, Math.ceil(rows.length / TRADES_PER_PAGE));
+    const p = Math.min(Math.max(0, page), pages - 1);
+    const items = rows.slice(p * TRADES_PER_PAGE, (p + 1) * TRADES_PER_PAGE).map((r) => ({
+      id: r.id, label: r.label, sub: r.sub, enabled: r.enabled, onSelect: () => this.confirmTrade(r.id, p),
+    }));
+    if (pages > 1) items.push({ label: `下一頁（${p + 1}/${pages}）`, onSelect: () => this.showTrade((p + 1) % pages) });
+    items.push({ label: '離開', onSelect: () => this.close() });
+    const name = this.guestName();
+    const msg = note ?? (rows.length === 0 ? `${name}現在沒有東西可以和你交換。` : '選擇要交換的項目');
+    this.tradePage = p;
+    this.setPage('trade', `與${name}交換`, msg, items, { h: 66, fontSize: 15, gap: 6 });
+  }
+
+  confirmTrade(tradeId, page) {
+    const c = tradeConfirm(this.guestId, tradeId, session.state, session.data);
+    if (!c) { this.showTrade(page, '這個交換已經不能做了'); return; }
+    this.setPage('trade_confirm', c.label, c.lines.join('\n'), [
+      { label: '交換', enabled: c.affordable, onSelect: () => this.doTrade(c, page) },
+      { label: '取消', onSelect: () => this.showTrade(page) },
+    ], { y: 240 });
+    this.backAction = () => this.showTrade(page);
+  }
+
+  doTrade(c, page) {
+    let next;
+    try {
+      next = applyTrade(c.id, session.state, session.data, this.guestId);
+    } catch (e) {
+      console.warn('交換失敗', e);
+      this.showTrade(page, `無法交換：${e?.message ?? e}`);
+      return;
+    }
+    session.setState(next);
+    this.showTrade(page, tradeDoneText(c));
   }
 
   lineageName(id) {
@@ -307,7 +384,7 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
     if ((this.page === 'save' || this.page === 'load' || this.page === 'items' || this.page === 'party') && this.mode === 'game') { this.showMain(); return; }
-    if (this.page === 'member') { this.showParty(); return; }
+    if (this.page === 'member' || this.page === 'promotion') { this.showParty(); return; }
     this.close();
   }
 
@@ -323,7 +400,10 @@ export class MenuScene extends Phaser.Scene {
     } else {
       this.scene.resume(this.from);
     }
+    const cb = this.onClose;
+    this.onClose = null;
     this.scene.stop();
+    cb?.();
   }
 }
 

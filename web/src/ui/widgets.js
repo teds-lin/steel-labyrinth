@@ -72,9 +72,13 @@ export class Button extends Phaser.GameObjects.Container {
     this.hit = scene.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
     const tx = align === 'left' ? -w / 2 + 14 : 0;
     const ox = align === 'left' ? 0 : 0.5;
-    this.label = addText(scene, tx, sub ? -9 : 0, label, { fontSize: `${fontSize}px` }).setOrigin(ox, 0.5);
+    // 副標可以有多行（以 \n 分隔，例如交換清單的「給出／得到」）：標題往上移，副標整塊放在下面
+    const subLines = sub !== null ? String(sub).split('\n').length : 0;
+    const labelY = sub === null ? 0 : (subLines > 1 ? -8 * subLines + 2 : -9);
+    this.label = addText(scene, tx, labelY, label, { fontSize: `${fontSize}px` }).setOrigin(ox, 0.5);
     this.sub = sub !== null
-      ? addText(scene, tx, 12, sub, { fontSize: '12px', color: COLORS.textDim }).setOrigin(ox, 0.5)
+      ? addText(scene, tx, subLines > 1 ? labelY + 12 : 12, sub, { fontSize: '12px', color: COLORS.textDim, lineSpacing: 3, align: align === 'left' ? 'left' : 'center' })
+        .setOrigin(ox, subLines > 1 ? 0 : 0.5)
       : null;
     this.add([this.bg, this.hit, this.label]);
     if (this.sub) this.add(this.sub);

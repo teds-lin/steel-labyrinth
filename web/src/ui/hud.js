@@ -40,11 +40,23 @@ export function ammoHud(ammo, { hasGun = false } = {}) {
   return { text: `子彈 ${n}`, show: hasGun || n > 0, value: n };
 }
 
-/** 讀痕者共鳴度：resonance 各事件的合計（M2 只顯示、不晉升）。 */
-export function resonanceHud(resonance) {
+/**
+ * 讀痕者共鳴度：resonance 各事件的合計。need（選填，M5）：下一階靈劑的共鳴門檻，> 0 時顯示「共鳴 有/需要」。
+ */
+export function resonanceHud(resonance, need = 0) {
   const vals = resonance && typeof resonance === 'object' ? Object.values(resonance) : [];
   const total = vals.reduce((a, v) => a + toInt(v, 0, 9999), 0);
-  return { text: `共鳴 ${total}`, value: total };
+  const n = toInt(need, 0, 9999);
+  return { text: n > 0 ? `共鳴 ${total}/${n}` : `共鳴 ${total}`, value: total, need: n };
+}
+
+/** 目前階位名稱（M5，HUD 第二列）：{ text, rank }；沒有譜系或資料不認得時 null。 */
+export function rankHud(state, data) {
+  const lin = state?.lineage;
+  if (!lin || typeof lin !== 'object' || typeof lin.id !== 'string') return null;
+  const def = (Array.isArray(data?.lineages) ? data.lineages : []).find((l) => l?.id === lin.id);
+  const r = (Array.isArray(def?.ranks) ? def.ranks : []).find((x) => x?.rank === lin.rank);
+  return typeof r?.name === 'string' && r.name !== '' ? { text: r.name, rank: lin.rank } : null;
 }
 
 /** 隊伍生命的精簡顯示：[{ name, hp, max, ratio, text }]（名字只取前兩個字）。 */

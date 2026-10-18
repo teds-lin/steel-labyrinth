@@ -6,6 +6,7 @@ import { installFakeTurnstile } from './fake-turnstile.js';
 import { game, makeSave, seedSaves } from './helpers.js';
 import { useDreamFixture, DREAM_FIXTURE_PREFIX } from './dream-fixture.js';
 import { dreamUi, makeSaveV3 } from './dream-ui.js';
+import { useM5Fixture, makeSaveV4, M5_DATA } from './m5-fixture.js';
 
 const API = process.env.E2E_API_URL || 'http://localhost:8788';
 const DEAD_API = 'http://localhost:8799'; // 沒人聽的埠
@@ -361,6 +362,34 @@ test.describe('M3 雲端存檔（整合，真的本機 Worker）', () => {
     expect((await apiCall(request, 'GET', '/api/saves', { token: infoB.token })).status()).toBe(200);
     expect(b.errors).toEqual([]);
     await b.ctx.close();
+  });
+
+  test('M5 結局通關回報：真的 Worker 接受白名單內的結局 id（ENDINGS）', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    await useM5Fixture(page);
+    await seedSaves(page, { 1: makeSaveV4({ chapter: 'fx_finale', chapter_done: ['fx_ch4'], collapse: 5, playtime_s: 400, flags: { fx5_trusted: true }, location: { map: 'fx_room', x: 5, y: 5, dir: 'right' } }) });
+    const A = ui(page, touch);
+    const g = game(page, { touch, data: M5_DATA }); // 尋路讀 fixture 的地圖
+    await page.goto(`${urlFor(API)}&data=${M5_DATA}`);
+    await A.loadFromTitle(1);
+    await A.openCloudMenu();
+    await A.waitCloud('intro');
+    await A.pick('enable');
+    await A.waitCloud('cloud');
+    await A.pick('back');
+    await g.waitScene('Menu');
+    await g.key('Escape');
+    await g.waitScene('Map');
+    await g.faceObject('obj_fx5_altar');
+    await g.act('investigate');
+    await g.waitDialogue();
+    await g.finishDialogue([0]);
+    await g.waitScene('ChapterEnd');
+    await page.waitForFunction(() => ['ok', 'failed'].includes(window.__SL.debug().chapterEnd?.clearReport?.status));
+    const ce = (await page.evaluate(() => window.__SL.debug())).chapterEnd;
+    expect(ce.clearReport.record).toMatchObject({ chapter: 'fx_finale', ending: 'fx_lamp' });
+    expect(ce.clearReport.status).toBe('ok');
+    expect(ce.ending.title).toBe('燈火未熄');
   });
 
   test('章節完成通關回報：GET /api/stats 看得到該章人數', async ({ page, request }, testInfo) => {

@@ -5,6 +5,7 @@ import { test as base } from '@playwright/test';
 import { expect, game, makeSave, seedSaves } from './helpers.js';
 import { createMockCloud, MOCK_API } from './cloud-mock.js';
 import { installFakeTurnstile, FAKE_TS_TOKEN } from './fake-turnstile.js';
+import { useM5Fixture, makeSaveV4, M5_DATA } from './m5-fixture.js';
 
 /**
  * 同 helpers.js 的錯誤蒐集 fixture，但忽略瀏覽器對「模擬 API 回非 2xx／連線失敗」自動印的
@@ -540,6 +541,31 @@ test.describe('M3 雲端存檔（客戶端，模擬 API）', () => {
     // 章節結束畫面照常可以操作
     await g.pickChapterEnd('存檔');
     await g.waitScene('Menu');
+  });
+
+  test('M5 結局：/api/clear 送出 state.ending（結局 id）', async ({ page }, testInfo) => {
+    const touch = isTouch(testInfo);
+    const mock = createMockCloud();
+    await mock.attach(page);
+    await seedCloud(page, mock.seedPlayer());
+    await useM5Fixture(page);
+    await seedSaves(page, { 1: makeSaveV4({ chapter: 'fx_finale', chapter_done: ['fx_ch4'], collapse: 80, playtime_s: 500, location: { map: 'fx_room', x: 5, y: 5, dir: 'right' } }) });
+    const g = game(page, { touch, data: M5_DATA });
+    const u = cloudUi(page, g);
+    await page.goto(`./?test=1&data=${M5_DATA}&api=${encodeURIComponent(MOCK_API)}`);
+    await u.loadFromTitle(1);
+    await g.faceObject('obj_fx5_altar');
+    await g.act('investigate');
+    await g.waitDialogue();
+    await g.finishDialogue([0]);
+    await g.waitScene('ChapterEnd');
+    await page.waitForFunction(() => ['ok', 'failed'].includes(window.__SL.debug().chapterEnd?.clearReport?.status));
+    const calls = mock.calls(/\/api\/clear$/, 'POST');
+    expect(calls.length).toBe(1);
+    expect(calls[0].body).toMatchObject({ chapter: 'fx_finale', ending: 'fx_fog', collapse: 80 });
+    const ce = (await page.evaluate(() => window.__SL.debug())).chapterEnd;
+    expect(ce.clearReport.status).toBe('ok');
+    expect(ce.ending.title).toBe('霧中行者');
   });
 
   test('未啟用雲端：章節完成不回報、存檔後不詢問上傳', async ({ page }, testInfo) => {

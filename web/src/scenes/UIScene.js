@@ -5,7 +5,9 @@ import { addText, Button } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { COLLAPSE_MAX } from '../core/echo.js';
 import { echoAvailable } from '../core/interact.js';
-import { echoHud, collapseHud, ammoHud, resonanceHud, partyHud } from '../ui/hud.js';
+import { echoHud, collapseHud, ammoHud, resonanceHud, partyHud, rankHud } from '../ui/hud.js';
+import { promotionStatus } from '../core/promotion.js';
+import { PromotionFx } from '../ui/promotion-fx.js';
 import { partyStatus } from '../core/stats.js';
 import { isDreamMap } from '../core/dream.js';
 import { playBell } from '../ui/bell.js';
@@ -75,7 +77,7 @@ export class UIScene extends Phaser.Scene {
     this.echoText.setText(this.echoView.text);
     const col = collapseHud(s.collapse, COLLAPSE_MAX);
     this.collapseText.setText(col.text);
-    // 崩解條：放在文字左邊
+    // 崩解條：放在文字左邊（collapseText 寬度先定，第二列左邊的文字依它縮放）
     const bw = 64;
     const bx = WIDTH - 10 - this.collapseText.width - 6 - bw;
     const by = 27;
@@ -87,12 +89,23 @@ export class UIScene extends Phaser.Scene {
     g.fillRect(bx + 1, by + 1, Math.round((bw - 2) * col.ratio), 6);
     g.lineStyle(1, COLORS.line, 1);
     g.strokeRect(bx, by, bw, 8);
-    // 子彈與共鳴度（主角的譜系有 show_resonance 時才顯示共鳴度）
+    // 階位名稱（M5）、子彈與共鳴度（主角的譜系有 show_resonance 時才顯示共鳴度；有下一階時顯示門檻）
     const ammo = ammoHud(s.ammo, { hasGun: (s.items?.revolver ?? 0) > 0 });
     const lineageDef = (session.data?.lineages ?? []).find((l) => l?.id === s.lineage?.id);
-    const reso = lineageDef?.show_resonance === true ? resonanceHud(s.resonance) : null;
-    this.hudInfo = { ammo: ammo.show ? ammo.text : null, resonance: reso ? reso.text : null };
-    this.infoText.setText([this.hudInfo.ammo, this.hudInfo.resonance].filter(Boolean).join('　'));
+    let need = 0;
+    try {
+      const st = promotionStatus(s, session.data);
+      need = st.next ? st.resonance.need : 0;
+    } catch (e) {
+      console.warn('promotionStatus 失敗，HUD 不顯示共鳴門檻', e);
+    }
+    const reso = lineageDef?.show_resonance === true ? resonanceHud(s.resonance, need) : null;
+    const rank = rankHud(s, session.data);
+    this.hudInfo = { rank: rank ? rank.text : null, ammo: ammo.show ? ammo.text : null, resonance: reso ? reso.text : null };
+    this.infoText.setText([this.hudInfo.rank, this.hudInfo.ammo, this.hudInfo.resonance].filter(Boolean).join('　'));
+    // 太長時縮小，避免壓到右邊的崩解條
+    const infoRoom = WIDTH - 10 - this.collapseText.width - 6 - 64 - 8 - 10;
+    this.infoText.setScale(this.infoText.width > infoRoom ? infoRoom / this.infoText.width : 1);
     // 隊伍生命
     let party = [];
     try {
@@ -169,6 +182,8 @@ export class UIScene extends Phaser.Scene {
       echoFilled: this.echoView?.filled ?? 0,
       collapse: this.collapseText.text,
       ammo: this.hudInfo?.ammo ?? null,
+      rank: this.hudInfo?.rank ?? null,
+      promotion: this.promo?.debugInfo() ?? null,
       resonance: this.hudInfo?.resonance ?? null,
       party: (this.partyView ?? []).map((m) => m.text),
       toast: this.toastText.visible ? this.toastText.text : null,
@@ -215,6 +230,14 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  // ---------- 晉升演出（M5） ----------
+  /** 喝下靈劑的演出（view 來自 m5-view 的 promotionFxView）；點畫面或按確認鍵關閉。回傳 Promise。 */
+  promotionFx(view) {
+    this.promo?.destroy();
+    this.promo = new PromotionFx(this, view);
+    return this.promo.done.then(() => { this.promo = null; this.refreshHud(); });
+  }
+
   // ---------- 提示 ----------
   toast(msg, ms = 1600) {
     this.toastText.setText(msg).setVisible(true).setAlpha(1);
@@ -233,6 +256,10 @@ export class UIScene extends Phaser.Scene {
 
   onKey(ev) {
     if (ev.repeat && !DIR_KEYS[ev.code]) return;
+    if (this.promo) {
+      if (claimKey(ev)) this.promo.handleKey(ev.code);
+      return;
+    }
     if (this.dialogue.active) {
       if (claimKey(ev) && !this.dialogue.handleKey(ev.code)) { /* 對話中其他按鍵忽略 */ }
       return;

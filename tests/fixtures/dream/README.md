@@ -9,3 +9,6 @@ E2E 以 `?test=1&data=__fixture/dream/` 載入（`web/src/config.js` 的 `dataBa
 - `maps/`、`story/`：新增的檔案；其餘檔案照常讀 `web/data/`。
 
 夢客 id 用 `lamp`，與 Worker 的 E2E 假人設（`tests/worker/fixtures/dream`）相同：`npm run e2e:cloud` 可以用同一份 fixture 對真的本機 Worker 交談。
+
+M5 起夢客以玩家「目前章節」的 story 為準、只往前找（`guestFor`）。`dream-fixture.js` 會把測試夢客 `lamp`
+也加進每一章正式 story 的 `guests`，任何章節的存檔都讀得到它。

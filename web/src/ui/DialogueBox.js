@@ -4,6 +4,7 @@ import { session } from '../session.js';
 import { startDialogue } from '../core/dialogue.js';
 import { graphemes } from '../core/name.js';
 import { addText, ButtonList, fitText } from './widgets.js';
+import { promotionFxView } from './m5-view.js';
 
 const BOX = { x: 8, y: 462, w: WIDTH - 16, h: 170 };
 const CHAR_MS = 28;
@@ -71,21 +72,42 @@ export class DialogueBox {
       }
       let runner;
       try {
-        runner = startDialogue(dlg, session.state);
+        runner = startDialogue(dlg, session.state, session.data);
       } catch (e) {
         console.error(e);
         this.scene.toast('對話資料有問題，已略過');
         resolve();
         return;
       }
+      const before = session.state;
       this.resolve = resolve;
       this.runner = runner;
       session.dialogueBusy = true;
       session.setState(runner.state);
-      if (runner.done) { this.finish(); return; }
-      this.setVisible(true);
-      this.scene.onDialogueVisible(true);
+      this.afterStep(before, true);
+    });
+  }
+
+  /**
+   * 執行器前進之後：對話中喝下靈劑（state.promotions 多了一筆）時，先暫停對話播晉升演出，關掉演出後才繼續。
+   * first：對話第一個節點（對話框還沒顯示過）。
+   */
+  afterStep(before, first = false) {
+    const fx = promotionFxView(before, this.runner.state, session.data);
+    const go = () => {
+      if (!this.runner) return;
+      if (this.runner.done) { this.finish(); return; }
+      if (first || !this.root.visible) { this.setVisible(true); this.scene.onDialogueVisible(true); }
       this.show();
+    };
+    if (!fx || typeof this.scene.promotionFx !== 'function') { go(); return; }
+    this.pausedFx = true;
+    this.clearChoices();
+    this.setVisible(false);
+    this.scene.promotionFx(fx).then(() => {
+      this.pausedFx = false;
+      first = true; // 演出後重新顯示對話框
+      go();
     });
   }
 
@@ -174,26 +196,28 @@ export class DialogueBox {
 
   /** 點擊攔截層：同一畫格剛選過選項（同一次點擊）就忽略。 */
   onPointerConfirm() {
+    if (this.pausedFx) return;
     if (this.scene.game.loop.frame === this.choseFrame) return;
     this.onConfirm();
   }
 
   /** 點擊或確認鍵：逐字中先快轉，否則下一句。 */
   onConfirm() {
-    if (!this.runner) return;
+    if (!this.runner || this.pausedFx) return;
     if (this.typing) { this.finishTyping(); return; }
     if (this.choiceList) return; // 選項節點要選一個，不能 advance()
     this.step(() => this.runner.advance());
   }
 
   choose(index) {
-    if (!this.runner || this.typing || !this.choiceList) return;
+    if (!this.runner || this.pausedFx || this.typing || !this.choiceList) return;
     if (this.scene.game.loop.frame === this.choseFrame) return; // 同一次輸入不選兩次
     this.choseFrame = this.scene.game.loop.frame;
     this.step(() => this.runner.choose(index));
   }
 
   step(fn) {
+    const before = this.runner.state;
     try {
       fn();
     } catch (e) {
@@ -203,11 +227,11 @@ export class DialogueBox {
       return;
     }
     session.setState(this.runner.state);
-    if (this.runner.done) this.finish();
-    else this.show();
+    this.afterStep(before);
   }
 
   finish() {
+    this.pausedFx = false;
     this.typeTimer?.remove();
     this.typeTimer = null;
     this.typing = false;
@@ -226,6 +250,7 @@ export class DialogueBox {
   /** 鍵盤：回傳是否處理。 */
   handleKey(code) {
     if (!this.runner) return false;
+    if (this.pausedFx) return true; // 晉升演出中：按鍵交給演出（UIScene 先處理）
     if (this.choiceList && !this.typing) {
       if (/^Digit[1-9]$/.test(code)) {
         const i = Number(code.slice(5)) - 1;
