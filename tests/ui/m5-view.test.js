@@ -6,7 +6,7 @@ import { applyEffect } from '../../web/src/core/effects.js';
 import { applyTrade } from '../../web/src/core/trade.js';
 import {
   promotionProgress, promotionFxView, promoteFailedDialogue, tradeRows, tradeConfirm, tradeDoneText,
-  endingScreen, resumeScene, fieldTagLabel, CREDITS,
+  endingScreen, resumeScene, fieldTagLabel,
 } from '../../web/src/ui/m5-view.js';
 
 const data = loadDir(M5_FIXTURE_DIR);
@@ -85,6 +85,16 @@ describe('promotionFxView（喝下靈劑的演出）', () => {
     expect(promotionFxView(s, { ...s, flags: { x: true } }, data)).toBeNull();
     expect(promotionFxView(null, s, data)).toBeNull();
   });
+  it('M5 整合：依 pending 的 promoted 判斷，不比對 promotions 長度', () => {
+    const s = base();
+    // promotions 多了一筆、但沒有 promoted pending（例如讀檔換了存檔）→ 不演出
+    expect(promotionFxView(s, { ...s, promotions: [{ lineage: 'trace', rank: 8, forced: false, chapter: 'fx_ch4' }] }, data)).toBeNull();
+    // 只有 promoted pending（promotions 長度不變）→ 演出，內容取自 pending
+    const after = { ...s, lineage: { id: 'trace', rank: 7 }, pending: [{ type: 'promoted', lineage: 'trace', rank: 7, forced: true }] };
+    expect(promotionFxView(s, after, data)).toMatchObject({ rank: 7, name: '換影者', forced: true, abilities: ['換影'] });
+    // 對話開始前就已經在 pending 裡的 promoted 不重播
+    expect(promotionFxView(after, { ...after, flags: { y: true } }, data)).toBeNull();
+  });
 });
 
 describe('promoteFailedDialogue（pending 的 promote_failed）', () => {
@@ -136,9 +146,12 @@ describe('endingScreen（結局畫面）', () => {
   it('有結局：結局名稱＋end_screen.title＋致謝', () => {
     const v = endingScreen('fx_finale', base({ chapter: 'fx_finale', ending: 'fx_fog', chapter_done: ['fx_finale'] }), data);
     expect(v).toMatchObject({ id: 'fx_fog', title: '霧中行者', partTitle: '第一部　霧中鐘聲　完' });
-    expect(v.credits[0]).toBe('致謝');
-    expect(CREDITS.length).toBeGreaterThan(1);
-    expect(v.credits.join('\n')).toContain('艾琳');
+    expect(v.credits).toEqual(['致謝', '（測試）謝謝艾琳陪我們走到這裡。']); // end_screen.credits，{name} 代入
+  });
+  it('M5 整合：end_screen 沒有 credits → 致謝是空陣列（畫面不再寫死致謝）', () => {
+    const d = structuredClone(data);
+    delete d.story.find((s) => s.id === 'fx_finale').end_screen.credits;
+    expect(endingScreen('fx_finale', base({ chapter: 'fx_finale', ending: 'fx_fog', chapter_done: ['fx_finale'] }), d).credits).toEqual([]);
   });
   it('沒有結局或結局 id 不在該章 → null', () => {
     expect(endingScreen('fx_finale', base({ ending: null }), data)).toBeNull();
@@ -160,9 +173,16 @@ describe('resumeScene（讀檔後的畫面）', () => {
 });
 
 describe('fieldTagLabel', () => {
-  it('voice＝借聲、shadow＝換影；不認得的照原樣', () => {
-    expect(fieldTagLabel('voice')).toBe('借聲');
-    expect(fieldTagLabel('shadow')).toBe('換影');
-    expect(fieldTagLabel('zzz')).toBe('zzz');
+  it('M5 整合：名稱來自資料（lineage rank 的 field_labels）；沒有就用標籤 id', () => {
+    expect(fieldTagLabel('voice', data)).toBe('借聲');
+    expect(fieldTagLabel('shadow', data)).toBe('換影');
+    expect(fieldTagLabel('trace', data)).toBe('trace'); // fixture 的 rank 9 沒有 field_labels
+    expect(fieldTagLabel('zzz', data)).toBe('zzz');
+    expect(fieldTagLabel('voice')).toBe('voice'); // 沒有資料
+  });
+  it('正式資料：trace.json 每個階位的探索標籤都有顯示名稱', async () => {
+    const { loadDir: ld, WEB_DATA_DIR } = await import('./load-fixture.js');
+    const web = ld(WEB_DATA_DIR);
+    expect(['trace', 'voice', 'shadow'].map((t) => fieldTagLabel(t, web))).toEqual(['讀痕', '借聲', '換影']);
   });
 });

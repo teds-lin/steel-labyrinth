@@ -1,0 +1,196 @@
+{
+  "id": "uptown",
+  "name": "上城・白石街",
+  "tiles": [
+    "#########+##########",
+    "#o,,,,,,,,,,,,,,,,o#",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "####,,,,,,,,,,,,####",
+    "####,,,,,,,,,,,,#%%#",
+    ",,,,,,,,,,,,,,,,~~~_",
+    ",,o,,,,,,,,,,,,,#%%#",
+    "####,,,,,,,,,,,,####",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "#,,,,,,,,,,,,,,,,,,#",
+    "#o,,,,,,,,,,,,,,,,o#",
+    "####################"
+  ],
+  "legend": {
+    "#": "facade",
+    ",": "cobblestone",
+    "o": "gas_lamp",
+    "%": "fog",
+    "~": "mist",
+    "_": "threshold",
+    "+": "front_door"
+  },
+  "on_enter": "dlg_ch4_uptown_enter",
+  "spawns": [
+    {
+      "id": "from_office",
+      "x": 1,
+      "y": 7,
+      "dir": "right"
+    },
+    {
+      "id": "from_chapel",
+      "x": 9,
+      "y": 1,
+      "dir": "down"
+    },
+    {
+      "id": "from_cloister",
+      "x": 15,
+      "y": 7,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch4_daisy",
+      "x": 3,
+      "y": 2,
+      "sprite": "florist",
+      "solid": true,
+      "look": "dlg_ch4_daisy",
+      "echo": "dlg_ch4_daisy_echo",
+      "if": {
+        "not_flag": "ch4_night"
+      }
+    },
+    {
+      "id": "obj_ch4_peter",
+      "x": 6,
+      "y": 3,
+      "sprite": "newsboy",
+      "solid": true,
+      "look": "dlg_ch4_peter",
+      "if": {
+        "not_flag": "ch4_night"
+      }
+    },
+    {
+      "id": "obj_ch4_hobbs",
+      "x": 14,
+      "y": 3,
+      "sprite": "patrolman",
+      "solid": true,
+      "look": "dlg_ch4_hobbs",
+      "echo": "dlg_ch4_hobbs_echo",
+      "if": {
+        "not_flag": "ch4_night"
+      }
+    },
+    {
+      "id": "obj_ch4_well",
+      "x": 10,
+      "y": 11,
+      "sprite": "old_well",
+      "solid": true,
+      "look": "dlg_ch4_well",
+      "echo": "dlg_ch4_well_echo"
+    }
+  ],
+  "exits": [
+    {
+      "x": 9,
+      "y": 0,
+      "to": "chapel_hall",
+      "spawn": "from_uptown",
+      "requires": {
+        "all": [
+          {
+            "flag": "ch4_heard_service"
+          },
+          {
+            "flag": "ch4_got_moss"
+          },
+          {
+            "not_flag": "ch4_night"
+          }
+        ]
+      },
+      "blocked": "dlg_ch4_chapel_blocked"
+    },
+    {
+      "x": 0,
+      "y": 7,
+      "to": "office_ch4",
+      "spawn": "door",
+      "requires": {
+        "any": [
+          {
+            "not_flag": "ch4_service"
+          },
+          {
+            "flag": "ch4_deduced"
+          }
+        ]
+      },
+      "blocked": "dlg_ch4_deduce"
+    },
+    {
+      "x": 0,
+      "y": 8,
+      "to": "office_ch4",
+      "spawn": "door",
+      "requires": {
+        "any": [
+          {
+            "not_flag": "ch4_service"
+          },
+          {
+            "flag": "ch4_deduced"
+          }
+        ]
+      },
+      "blocked": "dlg_ch4_deduce"
+    },
+    {
+      "x": 19,
+      "y": 7,
+      "to": "chapel_cloister",
+      "spawn": "from_uptown",
+      "requires": {
+        "flag": "ch4_night"
+      },
+      "blocked": "dlg_ch4_alley_blocked"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch4_night_1",
+      "x": 2,
+      "y": 7,
+      "dialogue": "dlg_ch4_uptown_night",
+      "if": {
+        "all": [
+          {
+            "flag": "ch4_night"
+          },
+          {
+            "not_flag": "ch4_night_seen"
+          }
+        ]
+      }
+    },
+    {
+      "id": "trg_ch4_alley",
+      "x": 16,
+      "y": 7,
+      "dialogue": "dlg_ch4_alley",
+      "if": {
+        "all": [
+          {
+            "flag": "ch4_night"
+          },
+          {
+            "not_flag": "ch4_alley_done"
+          }
+        ]
+      }
+    }
+  ]
+}

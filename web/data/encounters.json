@@ -85,5 +85,410 @@
       "dialogue": "dlg_boss_after"
     },
     "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch4_alley",
+    "enemies": [
+      "fogwalker",
+      "fogwalker"
+    ],
+    "bg": "uptown_night",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch4_alley_done"
+        },
+        {
+          "give_item": "fog_pearl"
+        },
+        {
+          "give_item": "fog_pearl"
+        }
+      ],
+      "dialogue": "dlg_ch4_alley_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch4_cloister_1",
+    "enemies": [
+      "hush_acolyte",
+      "hush_acolyte"
+    ],
+    "bg": "chapel",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch4_cloister_1_done"
+        }
+      ]
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch4_cloister_2",
+    "enemies": [
+      "hush_acolyte",
+      "choir_chanter"
+    ],
+    "bg": "chapel",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch4_cloister_2_done"
+        }
+      ]
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch4_boss",
+    "enemies": [
+      "choir_leader",
+      "hush_acolyte",
+      "hush_acolyte"
+    ],
+    "bg": "chapel",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch4_boss_done"
+        }
+      ],
+      "dialogue": "dlg_ch4_boss_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch5_entry",
+    "enemies": [
+      "hushed_one",
+      "hushed_one"
+    ],
+    "bg": "sewer",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch5_entry_done"
+        }
+      ],
+      "dialogue": "dlg_ch5_entry_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch5_canal_1",
+    "enemies": [
+      "fog_eel",
+      "fog_eel"
+    ],
+    "bg": "sewer",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch5_canal_1_done"
+        }
+      ]
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch5_canal_2",
+    "enemies": [
+      "hush_acolyte",
+      "choir_chanter",
+      "hush_acolyte"
+    ],
+    "bg": "sewer",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch5_canal_2_done"
+        }
+      ]
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch5_canal_3",
+    "enemies": [
+      "hushed_one",
+      "fog_eel"
+    ],
+    "bg": "sewer",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch5_canal_3_done"
+        }
+      ]
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch5_cistern_1",
+    "enemies": [
+      "choir_chanter",
+      "choir_chanter"
+    ],
+    "bg": "sewer",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch5_cistern_1_done"
+        },
+        {
+          "give_item": "hush_token"
+        }
+      ],
+      "dialogue": "dlg_ch5_cistern_1_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch5_cistern_2",
+    "enemies": [
+      "hush_acolyte",
+      "hushed_one"
+    ],
+    "bg": "sewer",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch5_cistern_2_done"
+        }
+      ]
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch5_boss",
+    "enemies": [
+      "brother_oswald",
+      "hush_acolyte"
+    ],
+    "bg": "sewer",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch5_boss_done"
+        },
+        {
+          "give_item": "shade_ink"
+        }
+      ],
+      "dialogue": "dlg_ch5_boss_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch6_lane_1",
+    "enemies": [
+      "hush_acolyte",
+      "hush_acolyte"
+    ],
+    "bg": "clockmaker_lane",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch6_lane1_done"
+        }
+      ],
+      "dialogue": "dlg_ch6_lane1_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch6_lane_boss",
+    "enemies": [
+      "hush_monk_elder",
+      "hush_monk_elder"
+    ],
+    "bg": "clockmaker_lane",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch6_lane_boss_done"
+        },
+        {
+          "give_item": "shade_ink"
+        }
+      ],
+      "dialogue": "dlg_ch6_lane_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_harbor_1",
+    "enemies": [
+      "fogwalker",
+      "hushed_one"
+    ],
+    "bg": "harbor_night",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_harbor1_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_harbor1_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_harbor_2",
+    "enemies": [
+      "hush_acolyte",
+      "choir_chanter"
+    ],
+    "bg": "harbor_night",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_harbor2_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_harbor2_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_breakwater",
+    "enemies": [
+      "hush_monk"
+    ],
+    "bg": "breakwater",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_breakwater_done"
+        },
+        {
+          "give_item": "lighthouse_key"
+        }
+      ],
+      "dialogue": "dlg_ch7_bw_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_lighthouse_1",
+    "enemies": [
+      "hush_monk",
+      "choir_chanter"
+    ],
+    "bg": "lighthouse",
+    "can_flee": true,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_lh1_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_lh1_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_priest",
+    "enemies": [
+      "tide_priest",
+      "hush_acolyte"
+    ],
+    "bg": "lighthouse_top",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_priest_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_priest_after"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_omen",
+    "enemies": [
+      "tide_omen"
+    ],
+    "bg": "lighthouse_top",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_omen_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_victory"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_omen_heeded",
+    "enemies": [
+      "tide_omen_waned"
+    ],
+    "bg": "lighthouse_top",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_omen_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_victory"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_omen_nocap",
+    "enemies": [
+      "tide_omen_nocap"
+    ],
+    "bg": "lighthouse_top",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_omen_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_victory"
+    },
+    "on_lose": "retry"
+  },
+  {
+    "id": "enc_ch7_omen_heeded_nocap",
+    "enemies": [
+      "tide_omen_waned_nocap"
+    ],
+    "bg": "lighthouse_top",
+    "can_flee": false,
+    "on_win": {
+      "effects": [
+        {
+          "set_flag": "ch7_omen_done"
+        }
+      ],
+      "dialogue": "dlg_ch7_victory"
+    },
+    "on_lose": "retry"
   }
 ]

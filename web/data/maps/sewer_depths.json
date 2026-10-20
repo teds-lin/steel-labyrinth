@@ -1,0 +1,105 @@
+{
+  "id": "sewer_depths",
+  "name": "地下水道・沉閘",
+  "tiles": [
+    "WWWWWWWWWWWWWWWWWW",
+    "<....WW..........W",
+    "W....WW..........W",
+    "W................W",
+    "W....WW..........W",
+    "WWWWWWW..........W",
+    "WWWWWWW..........W",
+    "WWWWWWW..........W",
+    "WWWWWWW..........W",
+    "WWWWWWW==......==W",
+    "WWWWWWW==......==W",
+    "WWWWWWWWWW....WWWW",
+    "WWWWWWWWWWWW.WWWWW",
+    "WWWWWWWWWWWW>WWWWW"
+  ],
+  "legend": {
+    "W": "sewer_wall",
+    ".": "sewer_walk",
+    "=": "sewer_water",
+    ">": "sewer_grate",
+    "<": "sewer_grate",
+    "^": "stairs_up"
+  },
+  "on_enter": "dlg_ch5_depths_enter",
+  "spawns": [
+    {
+      "id": "from_cistern",
+      "x": 1,
+      "y": 1,
+      "dir": "right"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch5_lamp",
+      "x": 2,
+      "y": 1,
+      "sprite": "rest_lamp",
+      "solid": true,
+      "look": "dlg_ch5_lamp"
+    },
+    {
+      "id": "obj_ch5_wax",
+      "x": 8,
+      "y": 2,
+      "sprite": "wax_drips",
+      "solid": true,
+      "look": "dlg_ch5_wax"
+    },
+    {
+      "id": "obj_ch5_mechanism",
+      "x": 16,
+      "y": 5,
+      "sprite": "sluice_gears",
+      "solid": true,
+      "look": "dlg_ch5_mechanism",
+      "echo": "dlg_ch5_mechanism_echo"
+    },
+    {
+      "id": "obj_ch5_oswald",
+      "x": 12,
+      "y": 11,
+      "sprite": "oswald",
+      "solid": true,
+      "look": "dlg_ch5_oswald",
+      "if": {
+        "not_flag": "ch5_boss_done"
+      }
+    },
+    {
+      "id": "obj_ch5_gate",
+      "x": 12,
+      "y": 12,
+      "sprite": "sewer_gate",
+      "solid": true,
+      "look": "dlg_ch5_gate",
+      "if": {
+        "not_flag": "ch5_boss_done"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 0,
+      "y": 1,
+      "to": "sewer_cistern",
+      "spawn": "from_depths"
+    },
+    {
+      "x": 12,
+      "y": 13,
+      "to": "sewer_outfall",
+      "spawn": "from_depths",
+      "requires": {
+        "flag": "ch5_boss_done"
+      },
+      "blocked": "dlg_ch5_gate"
+    }
+  ],
+  "triggers": []
+}

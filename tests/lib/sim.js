@@ -8,6 +8,7 @@ import { startDialogue } from '../../web/src/core/dialogue.js';
 import { takePending } from '../../web/src/core/effects.js';
 import { evalCondition } from '../../web/src/core/conditions.js';
 import { enterDream, wakeUp, isDreamMap, dreamChoiceDialogue } from '../../web/src/core/dream.js';
+import { resolveEnding } from '../../web/src/core/ending.js';
 
 export const DEFAULT_NAME = '測試員';
 
@@ -55,7 +56,7 @@ export class Sim {
     if (!dlg) throw new Error(`找不到對話「${dlgId}」`);
     if (typeof dlgId === 'object') dlgId = dlg.id;
     this.dialoguesPlayed.push(dlgId);
-    const r = startDialogue(dlg, this.state);
+    const r = startDialogue(dlg, this.state, this.data); // M5：can_promote／promote 需要 data
     let n = 0;
     while (!r.done) {
       if (++n > maxSteps) throw new Error(`對話 ${dlgId} 超過 ${maxSteps} 步仍未結束`);
@@ -84,8 +85,20 @@ export class Sim {
       else if (p.type === 'enter_dream') this.enterDream(p.map, p.spawn);
       else if (p.type === 'wake') this.wake(p.dialogue);
       else if (p.type === 'open_chat') this.chats.push(p.guest);
+      else if (p.type === 'promoted') this.promotedFx = [...(this.promotedFx ?? []), p]; // 畫面的晉升演出（模擬器只記錄）
+      else if (p.type === 'open_trade') this.trades = [...(this.trades ?? []), p.guest];
+      else if (p.type === 'promote_failed') this.promoteFailed = [...(this.promoteFailed ?? []), p];
+      else if (p.type === 'resolve_ending') this.resolveEnding();
       else throw new Error(`未知的 pending「${p.type}」`);
     }
+  }
+
+  /** 結局判定（同 MapScene.doResolveEnding）：寫入 state.ending，再播該結局的對話。 */
+  resolveEnding() {
+    const r = resolveEnding(this.state, this.data);
+    this.state = r.state;
+    this.endings = [...(this.endings ?? []), r.ending.id];
+    this.play(r.ending.dialogue);
   }
 
   goto(map, spawn, dialogue) {
@@ -281,7 +294,8 @@ export class Sim {
 
   /** 走到某個（目前會觸發的）觸發點上。 */
   stepOnTrigger(triggerIdPrefix) {
-    const t = this.activeTriggers().find((x) => x.id.startsWith(triggerIdPrefix));
+    const cands = this.activeTriggers().filter((x) => x.id.startsWith(triggerIdPrefix));
+    const t = cands.find((x) => this.path(x.x, x.y)) ?? cands[0]; // M5：同名一排觸發點時挑走得到的
     if (!t) throw new Error(`地圖 ${this.map.id} 沒有會觸發的「${triggerIdPrefix}*」觸發點`);
     this.walkTo(t.x, t.y);
     return this;
@@ -392,4 +406,210 @@ export function playChapter3(sim, { redream = false } = {}) {
   sim.investigate('obj_ch3_marlo_day');
   sim.choiceRules = [];
   return sim;
+}
+
+// ───────────── M5：第四章～終章 ─────────────
+// 路線改寫自關卡設計師的驗證腳本（scratchpad m5-ch45/play.mjs），並補上第六、七章與終章。
+// 選項規則用「每條只用一次」：規則依序比對，用過就不再用；沒有規則命中時，優先選「沒事／離開」這類結束對話的選項，否則第 0 個。
+
+const BYE = ['沒事', '「我知道了', '再待一會兒'];
+
+/** 在 fn 執行期間，選項依 rules（每條只用一次）決定；結束後恢復原本的選擇方式。 */
+export function withChoices(sim, rules, fn) {
+  const used = new Set();
+  const saved = sim.pick;
+  sim.pick = (cur) => {
+    for (const r of rules) {
+      if (used.has(r)) continue;
+      const hit = cur.choices.find((c) => c.text.includes(r));
+      if (hit) { used.add(r); sim.usedRules.add(r); return hit.index; }
+    }
+    const bye = cur.choices.find((c) => BYE.some((t) => c.text.includes(t)));
+    return bye ? bye.index : 0;
+  };
+  try { return fn(); } finally { sim.pick = saved; }
+}
+
+/** 往 toMap 的出口踏一步（出口還鎖著時會播 blocked 對話）。 */
+function bumpExit(sim, toMap) {
+  for (const e of (sim.map.exits ?? []).filter((x) => x.to === toMap)) {
+    for (const [dir, d] of Object.entries(DIRS)) {
+      const sx = e.x - d.dx;
+      const sy = e.y - d.dy;
+      const onExit = (sim.map.exits ?? []).some((x) => x.x === sx && x.y === sy);
+      if (!onExit && canMove(sim.map, sim.state, sx, sy, sim.data) && sim.path(sx, sy)) return bump(sim, sx, sy, dir);
+    }
+  }
+  throw new Error(`走不到通往 ${toMap} 的出口`);
+}
+
+/** 走到 (x,y) 再往 dir 踏一步（踩出口或觸發點）。 */
+function bump(sim, x, y, dir) {
+  sim.walkTo(x, y);
+  const r = step(sim.map, sim.state, dir, sim.data);
+  sim.state = r.state;
+  sim.handleEvent(r.event);
+}
+
+/**
+ * 第四章。forced：只走必經線索（推理先答錯一次），共鳴不足 → 硬喝晉升階 8；否則選擇性線索全拿、穩穩喝下。
+ * dream：晚上入夢一次（鐘塔、夢客、交換清單）。
+ */
+export function playChapter4(sim, { forced = false, dream = true } = {}) {
+  withChoices(sim, ['前往上城'], () => sim.investigate('obj_ch4_door'));
+  sim.investigate('obj_ch4_peter');
+  if (!forced) {
+    sim.investigate('obj_ch4_daisy'); sim.echoOn('obj_ch4_daisy');
+    sim.investigate('obj_ch4_hobbs'); sim.echoOn('obj_ch4_hobbs'); sim.investigate('obj_ch4_hobbs');
+  }
+  sim.investigate('obj_ch4_well');
+  if (!forced) sim.echoOn('obj_ch4_well');
+  withChoices(sim, ['盯著詩班長'], () => sim.travelTo('chapel_hall'));
+  sim.echoOn('obj_ch4_hymnal');
+  sim.investigate('obj_ch4_hooks');
+  if (!forced) { sim.investigate('obj_ch4_usher'); sim.echoOn('obj_ch4_usher'); sim.investigate('obj_ch4_usher'); }
+  sim.travelTo('uptown');
+  withChoices(sim, forced ? ['回家睡覺', '被記下名字'] : ['被記下名字'], () => bump(sim, 1, 7, 'left'));
+  if (dream) {
+    withChoices(sim, ['躺下'], () => sim.investigate('obj_ch4_sofa'));
+    if (sim.state.location.map !== 'clocktower_ch4') throw new Error('第四章沒有入夢');
+    sim.investigate('obj_ch4_chair_twelve');
+    withChoices(sim, ['上城的禮拜堂', '靜默聖歌會'], () => sim.investigate('obj_ch4_guest_nine'));
+    withChoices(sim, ['沒有聲音的歌', '學別人說話'], () => sim.investigate('obj_ch4_guest_three'));
+    withChoices(sim, ['醒來'], () => sim.investigate('obj_ch4_tower_door'));
+  }
+  withChoices(sim, ['喝下'], () => sim.investigate('obj_ch4_cabinet'));
+  if (sim.state.lineage?.rank !== 8) throw new Error('第四章沒有晉升到階 8');
+  withChoices(sim, ['前往上城（夜）'], () => sim.investigate('obj_ch4_door'));
+  sim.stepOnTrigger('trg_ch4_night');
+  sim.stepOnTrigger('trg_ch4_alley');
+  sim.travelTo('chapel_cloister');
+  sim.investigate('obj_ch4_side_door');
+  sim.stepOnTrigger('trg_ch4_cloister_1');
+  sim.echoOn('obj_ch4_organ');
+  sim.stepOnTrigger('trg_ch4_cloister_2');
+  sim.investigate('obj_ch4_bench');
+  sim.travelTo('chapel_loft');
+  sim.investigate('obj_ch4_loft_door');
+  sim.investigate('obj_ch4_matilda');
+  sim.echoOn('obj_ch4_roster');
+  withChoices(sim, ['開打'], () => sim.investigate('obj_ch4_matilda'));
+  if (!sim.state.chapter_done.includes('chapter4')) throw new Error('第四章沒有走完');
+  return sim;
+}
+
+/** 第五章：老賀伯入隊 → 水道入口 → 主渠（推理、閘門、三場）→ 鐵籠（艾妲離隊）→ 蓄水池 → 沉閘 Boss → 出海口。 */
+export function playChapter5(sim, { forced = false, promise = true } = {}) {
+  withChoices(sim, ['下去吧'], () => sim.investigate('obj_ch5_door'));
+  sim.investigate('obj_ch5_supply');
+  sim.stepOnTrigger('trg_ch5_entry');
+  sim.investigate('obj_ch5_shed_stove');
+  sim.travelTo('sewer_canal');
+  sim.echoOn('obj_ch5_tally');
+  sim.stepOnTrigger('trg_ch5_canal_1');
+  withChoices(sim, forced ? ['往上城', '港口方向'] : ['港口方向'], () => sim.investigate('obj_ch5_fork'));
+  sim.investigate('obj_ch5_rack');
+  sim.investigate('obj_ch5_sluice');
+  sim.stepOnTrigger('trg_ch5_canal_2');
+  sim.stepOnTrigger('trg_ch5_canal_3');
+  sim.investigate('obj_ch5_shaft');
+  sim.investigate('obj_ch5_cage');
+  withChoices(sim, [promise ? '我會回來' : '我們繼續'], () => sim.echoOn('obj_ch5_cage'));
+  sim.travelTo('sewer_cistern');
+  sim.investigate('obj_ch5_stone'); // 回復點 2 就在蓄水池入口旁：兩人隊一進來就先休息
+  if (!forced) { sim.investigate('obj_ch5_kirby'); sim.echoOn('obj_ch5_kirby'); sim.investigate('obj_ch5_kirby'); sim.echoOn('obj_ch5_bell'); }
+  sim.stepOnTrigger('trg_ch5_cistern_1');
+  sim.investigate('obj_ch5_checkpoint');
+  sim.investigate('obj_ch5_cache');
+  sim.stepOnTrigger('trg_ch5_cistern_2');
+  sim.travelTo('sewer_depths');
+  sim.investigate('obj_ch5_wax');
+  sim.echoOn('obj_ch5_mechanism');
+  sim.investigate('obj_ch5_lamp');
+  withChoices(sim, ['讓開'], () => sim.investigate('obj_ch5_oswald'));
+  sim.travelTo('sewer_outfall');
+  if (!sim.state.chapter_done.includes('chapter5')) throw new Error('第五章沒有走完');
+  return sim;
+}
+
+/**
+ * 第六章。statement：'trust'（照實寫、站在隊長這邊 → inspector_convinced）、'report'（簽下陳述 → marlo_reported）、
+ * 'cover'（替隊長說謊，崩解 +5）、'refuse'（不簽）。owen：碼頭支線 'tell'／'borrow'（借卡爾的聲音，崩解 +4）／null（不去）。
+ * letter：'read'／'unread'。trust：鐘下的對話是否「站在你這邊」。dream：深夜入夢一次。forced：只走必經線索。
+ */
+export function playChapter6(sim, { statement = 'trust', owen = 'tell', letter = 'read', trust = statement === 'trust', dream = true, forced = false } = {}) {
+  if (!forced) {
+    sim.investigate('obj_ch6_inspector'); sim.echoOn('obj_ch6_inspector'); sim.investigate('obj_ch6_inspector');
+    sim.investigate('obj_ch6_herb_day'); sim.echoOn('obj_ch6_herb_day'); sim.investigate('obj_ch6_herb_day');
+  }
+  if (owen) {
+    withChoices(sim, ['先去碼頭'], () => sim.investigate('obj_ch6_door'));
+    sim.investigate('obj_ch6_owen');
+    sim.echoOn('obj_ch6_owen');
+    withChoices(sim, [owen === 'borrow' ? '借卡爾的聲音' : '把你看見的'], () => sim.investigate('obj_ch6_owen'));
+    sim.travelTo('hallway_ch6');
+  } else {
+    withChoices(sim, ['回鐵橋街'], () => sim.investigate('obj_ch6_door'));
+  }
+  sim.travelTo('attic_ch6');
+  withChoices(sim, ['借它的聲音'], () => sim.investigate('obj_ch6_mirror'));
+  if (dream) {
+    withChoices(sim, [], () => sim.investigate('obj_ch6_bed')); // 引擎的入夢選項：第 0 個＝入夢
+    if (sim.state.location.map !== 'clocktower_ch6') throw new Error('第六章沒有入夢');
+    sim.investigate('obj_ch6_chair_twelve');
+    withChoices(sim, ['醒來'], () => sim.investigate('obj_ch6_tower_door'));
+  }
+  withChoices(sim, ['走吧'], () => sim.investigate('obj_ch6_herb_attic'));
+  sim.echoOn('obj_ch6_ashtray');
+  withChoices(sim, [letter === 'read' ? '讀。' : '不讀'], () => sim.echoOn('obj_ch6_drawer'));
+  withChoices(sim, ['鐘匠巷'], () => sim.investigate('obj_ch6_herb_night'));
+  if (sim.state.location.map !== 'clockmaker_lane') throw new Error('第六章推理後沒有到鐘匠巷');
+  sim.stepOnTrigger('trg_ch6_lane1');
+  sim.investigate('obj_ch6_lane_box');
+  if (!forced) sim.echoOn('obj_ch6_clock');
+  const talk = letter === 'read' ? '我讀了你的信' : '我沒讀那封信';
+  const stance = trust ? '我站在你這邊' : '我得想一想';
+  const st = { trust: '我照實寫', report: '簽下陳述', cover: '一直在辦公室', refuse: '說不清楚' }[statement];
+  withChoices(sim, ['一起上', talk, stance, st], () => sim.investigate('obj_ch6_marlo_lane'));
+  if (!sim.state.chapter_done.includes('chapter6')) throw new Error('第六章沒有走完');
+  return sim;
+}
+
+/**
+ * 第七章：出發 → 碼頭（夜閘、兩場、脫隊者、推理）→ 沉堤（日誌、一場、落海）→ 鐘塔晉升階 7 → 醒來 → 燈塔（一場、鐵柵、回復點）
+ * → 祭司 → 潮兆。heed：回應潮水（崩解 +20、heeded_tide，打較弱的版本）。forced：只走必經線索。
+ */
+export function playChapter7(sim, { heed = false, forced = false } = {}) {
+  withChoices(sim, ['出發'], () => sim.investigate('obj_ch7_door'));
+  if (sim.state.location.map !== 'harbor_night') throw new Error('第七章沒有出發到碼頭');
+  sim.investigate('obj_ch7_gate');
+  sim.stepOnTrigger('trg_ch7_harbor1');
+  sim.stepOnTrigger('trg_ch7_harbor2');
+  if (!forced) { sim.investigate('obj_ch7_deserter'); sim.echoOn('obj_ch7_deserter'); sim.investigate('obj_ch7_deserter'); }
+  // 推理：往沉堤的出口還沒解開（requires ch7_deduced）時，踩上去會播 blocked＝dlg_ch7_deduce，答對後 goto 沉堤
+  withChoices(sim, ['沉堤'], () => bumpExit(sim, 'breakwater'));
+  if (sim.state.location.map !== 'breakwater') throw new Error('第七章推理後沒有到沉堤');
+  if (!forced) sim.echoOn('obj_ch7_keeper_log');
+  sim.stepOnTrigger('trg_ch7_bw');
+  sim.stepOnTrigger('trg_ch7_drown');
+  if (sim.state.location.map !== 'clocktower_ch7') throw new Error('第七章沒有落海入夢');
+  withChoices(sim, ['喝下'], () => sim.investigate('obj_ch7_chair_twelve'));
+  withChoices(sim, ['抓住那隻手'], () => sim.investigate('obj_ch7_tower_door'));
+  sim.investigate('obj_ch7_outer_grille');
+  sim.travelTo('lighthouse');
+  sim.stepOnTrigger('trg_ch7_lh1');
+  sim.echoOn('obj_ch7_coat');
+  sim.investigate('obj_ch7_inner_grille');
+  sim.investigate('obj_ch7_landing');
+  sim.travelTo('lighthouse_top');
+  withChoices(sim, ['鐘不會停', heed ? '回應它' : '摀住耳朵'], () => sim.investigate('obj_ch7_priest'));
+  if (!sim.state.chapter_done.includes('chapter7')) throw new Error('第七章沒有走完');
+  return sim;
+}
+
+/** 終章：end_screen.continue 帶入開場對話 → resolve_ending → 結局對話（chapter_end: finale）。回傳結局 id。 */
+export function playFinale(sim) {
+  sim.continueChapter();
+  if (!sim.state.chapter_done.includes('finale')) throw new Error('終章沒有走完');
+  return sim.state.ending;
 }

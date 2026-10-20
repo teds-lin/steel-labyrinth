@@ -30,7 +30,7 @@ describe('第 1 節：每位玩家配額與保留通道', () => {
     expect(Number(v.RL_PLAYER_PER_HOUR_V6_48)).toBe(10);
     expect(Number(v.RL_TRANSFER_PER_HOUR_V6_48)).toBe(20);
     expect(Number.isInteger(Number(v.RL_WRITE_GLOBAL_PER_DAY)) && Number(v.RL_WRITE_GLOBAL_PER_DAY) > 0).toBe(true);
-    expect(Number(v.PURGE_BATCH)).toBe(500);
+    expect(Number(v.PURGE_BATCH)).toBe(340); // M5：開放到終章後每人通關紀錄多 5 章，調降以維持每日寫入 < 10 萬
     expect(Number(v.MAX_PLAYER_SECONDS)).toBe(36000);
   });
 

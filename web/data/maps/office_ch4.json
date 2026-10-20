@@ -1,0 +1,123 @@
+{
+  "id": "office_ch4",
+  "name": "白燈保全公司・辦公室",
+  "tiles": [
+    "##ww###L###ww#",
+    "#KKK.......CC#",
+    "#............#",
+    "#.DD....s....#",
+    "#.DD....t....#",
+    "#.......ss...#",
+    "#............#",
+    "#===.........#",
+    "#...........v#",
+    "######+#######"
+  ],
+  "legend": {
+    "#": "wall",
+    "w": "window",
+    "L": "wall_lamp",
+    "K": "bookshelf",
+    ".": "floor",
+    "C": "medicine_cabinet",
+    "D": "desk",
+    "s": "sofa",
+    "t": "tea_table",
+    "=": "counter",
+    "v": "stairs_down",
+    "+": "front_door"
+  },
+  "spawns": [
+    {
+      "id": "door",
+      "x": 6,
+      "y": 8,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch4_sofa",
+      "x": 9,
+      "y": 3,
+      "sprite": "sofa_bed",
+      "solid": true,
+      "look": "dlg_ch4_sofa",
+      "dream": {
+        "if": {
+          "all": [
+            {
+              "flag": "dream_unlocked"
+            },
+            {
+              "flag": "ch4_night"
+            }
+          ]
+        },
+        "map": "clocktower_ch4",
+        "spawn": "center",
+        "prompt": "毯子摺得方方正正。窗外的霧裡，遠遠的鐘聲在叫你的代號。",
+        "yes": "躺下，聽鐘聲",
+        "no": "再醒著一會兒"
+      }
+    },
+    {
+      "id": "obj_ch4_cabinet",
+      "x": 11,
+      "y": 2,
+      "sprite": "potion_cabinet",
+      "solid": true,
+      "look": "dlg_ch4_cabinet"
+    },
+    {
+      "id": "obj_ch4_marlo",
+      "x": 4,
+      "y": 4,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_ch4_marlo"
+    },
+    {
+      "id": "obj_ch4_ada",
+      "x": 10,
+      "y": 6,
+      "sprite": "ada",
+      "solid": true,
+      "look": "dlg_ch4_ada"
+    },
+    {
+      "id": "obj_ch4_herb",
+      "x": 2,
+      "y": 8,
+      "sprite": "herb",
+      "solid": true,
+      "look": "dlg_ch4_herb"
+    },
+    {
+      "id": "obj_ch4_notice",
+      "x": 7,
+      "y": 1,
+      "sprite": "notice_board",
+      "solid": true,
+      "look": "dlg_ch4_notice"
+    },
+    {
+      "id": "obj_ch4_stairs",
+      "x": 12,
+      "y": 8,
+      "sprite": "stairs_dark",
+      "solid": true,
+      "look": "dlg_ch4_stairs"
+    },
+    {
+      "id": "obj_ch4_door",
+      "x": 6,
+      "y": 9,
+      "sprite": "office_door",
+      "solid": true,
+      "look": "dlg_ch4_door"
+    }
+  ],
+  "exits": [],
+  "triggers": []
+}

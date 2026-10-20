@@ -1,0 +1,41 @@
+{
+  "id": "office_dawn",
+  "name": "白燈保全公司・清晨",
+  "tiles": [
+    "##ww###L###ww#",
+    "#KKK.......CC#",
+    "#............#",
+    "#.DD....s....#",
+    "#.DD....t....#",
+    "#.......ss...#",
+    "#............#",
+    "#===.........#",
+    "#...........v#",
+    "######+#######"
+  ],
+  "legend": {
+    "#": "wall",
+    "w": "window",
+    "L": "wall_lamp",
+    "K": "bookshelf",
+    ".": "floor",
+    "C": "medicine_cabinet",
+    "D": "desk",
+    "s": "sofa",
+    "t": "tea_table",
+    "=": "counter",
+    "v": "stairs_down",
+    "+": "front_door"
+  },
+  "spawns": [
+    {
+      "id": "center",
+      "x": 9,
+      "y": 6,
+      "dir": "up"
+    }
+  ],
+  "objects": [],
+  "exits": [],
+  "triggers": []
+}

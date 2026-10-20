@@ -1,0 +1,83 @@
+{
+  "id": "chapel_loft",
+  "name": "灰鴿街禮拜堂・鐘樓",
+  "tiles": [
+    "############",
+    "#....BB....#",
+    "#....BB....#",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "#..........#",
+    "#####.######",
+    "#..........#",
+    "#..........#",
+    "#####_######"
+  ],
+  "legend": {
+    "#": "wall",
+    ".": "floor",
+    "B": "church_bell",
+    "_": "threshold"
+  },
+  "on_enter": "dlg_ch4_loft_enter",
+  "spawns": [
+    {
+      "id": "from_cloister",
+      "x": 5,
+      "y": 10,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch4_loft_door",
+      "x": 5,
+      "y": 8,
+      "sprite": "loft_door",
+      "solid": true,
+      "lock": {
+        "flag": "ch4_loft_open",
+        "solvable_by": [
+          "voice"
+        ],
+        "fallback": "item:loft_key",
+        "on_tag": {
+          "voice": "dlg_ch4_loft_voice"
+        },
+        "on_item": "dlg_ch4_loft_key",
+        "locked": "dlg_ch4_loft_locked"
+      }
+    },
+    {
+      "id": "obj_ch4_roster",
+      "x": 2,
+      "y": 3,
+      "sprite": "roster_lectern",
+      "solid": true,
+      "look": "dlg_ch4_roster",
+      "echo": "dlg_ch4_roster_echo"
+    },
+    {
+      "id": "obj_ch4_matilda",
+      "x": 5,
+      "y": 3,
+      "sprite": "matilda",
+      "solid": true,
+      "look": "dlg_ch4_matilda",
+      "if": {
+        "not_flag": "ch4_boss_done"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 5,
+      "y": 11,
+      "to": "chapel_cloister",
+      "spawn": "from_loft"
+    }
+  ],
+  "triggers": []
+}

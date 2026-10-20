@@ -1,0 +1,69 @@
+{
+  "id": "hallway_ch6",
+  "name": "鐵橋街 17 號・二樓走廊",
+  "on_enter": "dlg_ch6_hall_arrive",
+  "tiles": [
+    "####L####L##M#",
+    "#U...........#",
+    "#............#",
+    "#............#",
+    "#........===.#",
+    "#........=vv.#",
+    "##############"
+  ],
+  "legend": {
+    "#": "wall",
+    ".": "floor",
+    "L": "wall_lamp",
+    "M": "mirror",
+    "U": "stairs_up",
+    "=": "railing",
+    "v": "stairs_down"
+  },
+  "spawns": [
+    {
+      "id": "from_attic",
+      "x": 2,
+      "y": 1,
+      "dir": "right"
+    },
+    {
+      "id": "from_street",
+      "x": 12,
+      "y": 5,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch6_landlady",
+      "x": 6,
+      "y": 2,
+      "sprite": "landlady",
+      "solid": true,
+      "look": "dlg_ch6_landlady"
+    }
+  ],
+  "exits": [
+    {
+      "x": 1,
+      "y": 1,
+      "to": "attic_ch6",
+      "spawn": "from_hallway"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch6_hall_stairs_1",
+      "x": 10,
+      "y": 5,
+      "dialogue": "dlg_ch6_hall_stairs"
+    },
+    {
+      "id": "trg_ch6_hall_stairs_2",
+      "x": 11,
+      "y": 5,
+      "dialogue": "dlg_ch6_hall_stairs"
+    }
+  ]
+}

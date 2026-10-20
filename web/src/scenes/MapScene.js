@@ -363,7 +363,7 @@ export class MapScene extends Phaser.Scene {
    * voice：聲波從主角擴散到門；shadow：主角的影子滑到門那裡、門閃一下；其他標籤：門的位置亮一下。
    */
   playTagFx(tag, obj) {
-    const label = fieldTagLabel(tag);
+    const label = fieldTagLabel(tag, session.data);
     const toast = `【${label}】發動`;
     this.tagFxView = { tag, label, target: obj?.id ?? null, toast };
     this.ui?.toast(toast, 1400);
@@ -447,6 +447,7 @@ export class MapScene extends Phaser.Scene {
         else if (p.type === 'open_trade') await this.doOpenTrade(p.guest);
         else if (p.type === 'resolve_ending') await this.doResolveEnding();
         else if (p.type === 'promote_failed') await this.runDialogue(promoteFailedDialogue(p, session.data));
+        else if (p.type === 'promoted') { /* 晉升演出已在對話中由 DialogueBox 播過（promotionFxView 讀 pending 的 promoted） */ }
         else console.warn('不認得的 pending', p);
       }
     }

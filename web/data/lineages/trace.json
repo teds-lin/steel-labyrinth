@@ -17,6 +17,76 @@
         "hp": 10,
         "sp": 10,
         "will": 4
+      },
+      "field_labels": {
+        "trace": "讀痕"
+      }
+    },
+    {
+      "rank": 8,
+      "name": "借聲者",
+      "field": [
+        "voice"
+      ],
+      "skills": [
+        "whisper"
+      ],
+      "stats": {
+        "hp": 8,
+        "sp": 6,
+        "atk": 1,
+        "will": 3
+      },
+      "potion": {
+        "materials": [
+          {
+            "item": "echo_moss",
+            "count": 2
+          },
+          {
+            "item": "choir_wax",
+            "count": 1
+          }
+        ],
+        "resonance": 8,
+        "forced_collapse": 30
+      },
+      "field_labels": {
+        "voice": "借聲"
+      }
+    },
+    {
+      "rank": 7,
+      "name": "換影者",
+      "field": [
+        "shadow"
+      ],
+      "skills": [
+        "shadow_swap",
+        "shadow_bind"
+      ],
+      "stats": {
+        "hp": 8,
+        "sp": 4,
+        "spd": 1,
+        "will": 3
+      },
+      "potion": {
+        "materials": [
+          {
+            "item": "shade_ink",
+            "count": 2
+          },
+          {
+            "item": "lagging_glass",
+            "count": 1
+          }
+        ],
+        "resonance": 12,
+        "forced_collapse": 35
+      },
+      "field_labels": {
+        "shadow": "換影"
       }
     }
   ]

@@ -1,6 +1,6 @@
 // 效果（DATA-FORMAT「效果」「地圖與對話的擴充」）。一律回傳新 state，不原地修改。未知寫法丟錯。
 // battle／goto／enter_dream／wake／open_chat／open_trade／resolve_ending 不在這裡執行：寫進 state.pending（陣列，依序累加），
-// 由畫面在對話結束後用 takePending 取出處理。promote 失敗時也在 pending 加入 { type:'promote_failed', … }（畫面顯示原因）。
+// 由畫面在對話結束後用 takePending 取出處理。promote 失敗時也在 pending 加入 { type:'promote_failed', … }（畫面顯示原因）；成功時加入 { type:'promoted', lineage, rank, forced }（晉升演出）。
 // M5：applyEffect(effect, state, data)／applyEffects(effects, state, data)。promote 需要遊戲資料（data），沒有時丟錯。
 import { spendEcho, clampCollapse } from './echo.js';
 import { applyPromote } from './promotion.js';
@@ -132,7 +132,7 @@ export function applyEffect(effect, state, data) {
   }
 }
 
-/** 取出對話結束後要處理的事（battle／goto／enter_dream／wake／open_chat／open_trade／resolve_ending／promote_failed），回傳 { state（pending 清成 null）, pending:[…] }。 */
+/** 取出對話結束後要處理的事（battle／goto／enter_dream／wake／open_chat／open_trade／resolve_ending／promote_failed／promoted），回傳 { state（pending 清成 null）, pending:[…] }。 */
 export function takePending(state) {
   const pending = Array.isArray(state?.pending) ? state.pending.map((p) => ({ ...p })) : [];
   return { state: { ...state, pending: null }, pending };

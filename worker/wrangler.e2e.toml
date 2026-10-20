@@ -36,15 +36,15 @@ RL_WRITE_GLOBAL_PER_DAY = "4000"     # （修訂 4）保留通道的全域每日
 # 容量上限：玩家數達到後 POST /api/player 回 503 capacity（5000 × 3 格 × 16 KB ≈ 240 MB，低於 D1 免費 500 MB 的一半）
 MAX_PLAYERS = "5000"
 # Cron 每次最多刪除的玩家數（含其存檔、通關紀錄；修訂 4 第 2 節）
-PURGE_BATCH = "500"
+PURGE_BATCH = "340"
 # 回報通關的遊戲時間上限（秒，10 小時；修訂 4 第 7 節）
 MAX_PLAYER_SECONDS = "36000"
 # 統計：完成人數少於這個數的章節不公開
 STATS_MIN_PLAYERS = "3"
 # 允許回報通關的章節，必須等於 web/data/manifest.json 的 chapters（tests/worker/clear-stats.test.js 把關）
-CHAPTERS = "prologue,chapter1,chapter2,chapter3"
+CHAPTERS = "prologue,chapter1,chapter2,chapter3,chapter4,chapter5,chapter6,chapter7,finale"
 # M5：允許回報的結局 id（逗號分隔），必須等於公開資料所有 story 的 endings[].id（tests/worker/clear-ending.test.js 把關）；空字串＝還沒有結局，ending 只能送 null
-ENDINGS = ""
+ENDINGS = "fog_walker,lamp_kept,dawn"
 
 # ---------- M4 鐘塔之夢（docs/API.md「鐘塔之夢」；模型與 neurons 依 steel-labyrinth-design/plans/M4-model-eval.md） ----------
 # Turnstile：siteverify 回傳的 hostname 必須在清單內（逗號分隔）。本機與 E2E 用 --var 覆寫（見 worker/README.md）。

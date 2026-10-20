@@ -89,7 +89,7 @@ export class DialogueBox {
   }
 
   /**
-   * 執行器前進之後：對話中喝下靈劑（state.promotions 多了一筆）時，先暫停對話播晉升演出，關掉演出後才繼續。
+   * 執行器前進之後：對話中喝下靈劑（引擎在 pending 寫入 { type:'promoted' }）時，先暫停對話播晉升演出，關掉演出後才繼續。
    * first：對話第一個節點（對話框還沒顯示過）。
    */
   afterStep(before, first = false) {

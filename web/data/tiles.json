@@ -211,5 +211,113 @@
     "id": "tower_gate",
     "solid": false,
     "color": "#d8dde4"
+  },
+  {
+    "id": "chapel_floor",
+    "solid": false,
+    "color": "#4e4a52"
+  },
+  {
+    "id": "pew",
+    "solid": true,
+    "color": "#5a4030"
+  },
+  {
+    "id": "stained_glass",
+    "solid": true,
+    "color": "#7a6aa0",
+    "glow": true
+  },
+  {
+    "id": "altar",
+    "solid": true,
+    "color": "#c8c0b0"
+  },
+  {
+    "id": "candle_stand",
+    "solid": true,
+    "color": "#f0d090",
+    "glow": true
+  },
+  {
+    "id": "stone_floor",
+    "solid": false,
+    "color": "#6a6660"
+  },
+  {
+    "id": "cloister_garden",
+    "solid": true,
+    "color": "#4a5a40"
+  },
+  {
+    "id": "organ",
+    "solid": true,
+    "color": "#6a5040"
+  },
+  {
+    "id": "church_bell",
+    "solid": true,
+    "color": "#a08040"
+  },
+  {
+    "id": "sewer_wall",
+    "solid": true,
+    "color": "#2e3330"
+  },
+  {
+    "id": "sewer_walk",
+    "solid": false,
+    "color": "#4f544c"
+  },
+  {
+    "id": "sewer_water",
+    "solid": true,
+    "color": "#2a3a38"
+  },
+  {
+    "id": "sewer_grate",
+    "solid": false,
+    "color": "#3a3f3a"
+  },
+  {
+    "id": "cistern_water",
+    "solid": true,
+    "color": "#23343a"
+  },
+  {
+    "id": "seawall",
+    "solid": false,
+    "color": "#5c6064"
+  },
+  {
+    "id": "stopped_clock",
+    "solid": true,
+    "color": "#8a7c5c"
+  },
+  {
+    "id": "breakwater_stone",
+    "solid": false,
+    "color": "#5b6168"
+  },
+  {
+    "id": "lighthouse_wall",
+    "solid": true,
+    "color": "#3a3f47"
+  },
+  {
+    "id": "lighthouse_floor",
+    "solid": false,
+    "color": "#4c4944"
+  },
+  {
+    "id": "spiral_stair",
+    "solid": false,
+    "color": "#6a6156"
+  },
+  {
+    "id": "lamp_lens",
+    "solid": true,
+    "color": "#9fb3bd",
+    "glow": true
   }
 ]

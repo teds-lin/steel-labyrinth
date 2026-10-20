@@ -415,3 +415,31 @@ web/data/
 5. 交換 id 必須跨夢客唯一；同一夢客在不同章節可以重用同一個 id（`once` 旗標跨章節共用）。
 6. 晉升後新階位的探索標籤（voice、shadow）算免費解法（與喝下讀痕者後的 trace 同理），前提是晉升材料能從免費入口取得（validate 檢查）。
 7. 字串匯出有守門測試：新增任何字串欄位都要在 `tools/lib/strings.mjs` 與測試的 VISIBLE／HIDDEN 清單登記。
+
+## 補充（2026-10-20，M5 整合）
+1. **晉升演出改用 pending**：`promote` 成功時，引擎在 `state.pending` 加入 `{ type: "promoted", lineage, rank, forced }`。
+   畫面（DialogueBox）比較對話每一步前後新增的 `promoted` 播晉升演出，不再比對 `promotions` 的長度；
+   對話結束後 MapScene 取出 pending 時忽略它（演出已經播過）。存檔時 pending 一律為 null，所以不影響存檔格式。
+2. **調查回報解鎖方式**：`investigate(obj, state, data)` 回傳 `unlock`：這次調查解開了鎖時為 `{ via: "tag"|"item", tag }`
+   （`tag` 是用到的探索標籤，用道具時為 null），其他情況 null。`echo()` 也一律回傳 `unlock`（解開時 `{ via: "tag", tag }`）。
+   畫面轉接層（adapters.js）只讀這個欄位，不再自己呼叫 `tryUnlock`。
+3. **殘響鍵（解鎖鍵）的免費標籤規則在 core**：對鎖住、而且 `solvable_by` **不含** `trace` 的物件按【殘響】時，
+   如果主角譜系提供的其他免費標籤（`voice`、`shadow`…）解得開，就直接用那個標籤解開——不看殘響次數、不扣次數、
+   不加崩解、不用道具（道具只在【調查】時使用）。解不開時照舊（沒有殘留痕跡／殘響次數已用盡）。
+4. **結局畫面的致謝**：`end_screen` 可以加 `"credits": ["致謝", "……"]`（選填；至少一行、每行非空字串，可以用 `{name}`）。
+   結局畫面依序顯示；沒有就不顯示致謝。屬於玩家看得到的字串（匯出 `story/<章>.json#end_screen.credits[i]`）。
+5. **探索標籤的顯示名稱**：譜系 rank 可以加 `"field_labels": { "voice": "借聲" }`（選填；鍵必須是該階位 `field` 裡的標籤，
+   值是非空字串）。畫面（HUD、晉升演出、解鎖提示）依資料顯示，找不到就顯示標籤 id。
+   匯出 `lineages/<id>.json#ranks.<階>.field_labels.<標籤>`。
+6. **戰鬥狀態 `silence`（禁聲）**：`status` 積木可以用 `"silence"`。持續期間只能使用不消耗靈性（`cost.sp` 為 0 或沒有）
+   的技能與道具；`commands()` 把消耗靈性的技能標成 `usable: false`、`reason: "silence"`，`act()` 收到時丟錯；
+   敵人的 AI 在禁聲中也不選消耗靈性的技能。機率受目標意志減免（敵對效果，同其他狀態），回合數照一般狀態遞減。
+7. **隊伍上限檢查依劇情順序**（取代規格補充 3 第 3 條的兩兩比對）：validate 從新遊戲開始，依 `manifest.chapters`
+   的順序追蹤「可能的隊伍狀態」：章節開場（上一章 `end_screen.continue` 的對話）一定先播；接續的對話
+   （`goto`／`wake` 的 dialogue、遭遇 `on_win`、結局對話）在原對話之後依序發生；同一章其他自由入口的對話（地圖物件、
+   觸發點等）視為任意順序、可以重播；對話中的分歧依旗標三值求值（只追蹤被 join／leave 所在對話讀取、而且只由效果設定的旗標）。
+   假設：前一章的入隊／離隊對話不會在之後的章節重播；本章含 join／leave 的自由入口對話在章末前至少播過一次。
+   任何可能的時刻人數（含主角）超過 3 就報錯。實作：`web/src/core/party-flow.js`。
+8. **夢客的預寫台詞依章節上傳**：`tools/upload-dream.mjs` 讀全部章節的 story，人設資料帶
+   `scripted`（章節順序最早的一份）與 `scripted_by_chapter`（`{ 章節: 預寫台詞 }`，每章都要有 greeting／fallback／quota／filtered）。
+   Worker 回預寫台詞時，取 `CHAPTERS` 順序中 ≤ 玩家宣稱的章節、最近的一份（當章沒有就往前一章找，不會用到後面章節）。

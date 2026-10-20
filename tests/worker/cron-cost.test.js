@@ -380,7 +380,7 @@ describe('Cron 單次寫入列數上限（修訂 4 第 2、6 節）', () => {
   it('一次最多刪 PURGE_BATCH 人；玩家部分的寫入 ≤ PURGE_BATCH × 實測每人列數', async () => {
     const v = readWranglerConfig().vars;
     const batch = Number(v.PURGE_BATCH);
-    expect(batch).toBe(500);
+    expect(batch).toBe(340); // M5：開放到終章（9 章）後每人列數 22 → 32，由 500 調降以維持每日上限 < 10 萬
     const w = await startWorker();
     try {
       const perPerson = await purgeRowsPerPlayer(w);
@@ -402,7 +402,7 @@ describe('Cron 單次寫入列數上限（修訂 4 第 2、6 節）', () => {
       const deleted = await purge(meter.db, Math.floor(Date.now() / 1000), { batch });
       expect(deleted).toBe(batch);
       expect(meter.written()).toBeLessThanOrEqual(batch * perPerson);
-      expect((await w.db.prepare("SELECT COUNT(*) AS n FROM players WHERE player_id LIKE 'z%'").first()).n).toBe(100);
+      expect((await w.db.prepare("SELECT COUNT(*) AS n FROM players WHERE player_id LIKE 'z%'").first()).n).toBe(600 - batch);
       // scheduled() 用的是 vars 的 PURGE_BATCH
       await w.scheduled(Date.now());
       expect((await w.db.prepare("SELECT COUNT(*) AS n FROM players WHERE player_id LIKE 'z%'").first()).n).toBe(0);

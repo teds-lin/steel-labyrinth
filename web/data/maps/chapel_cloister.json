@@ -1,0 +1,130 @@
+{
+  "id": "chapel_cloister",
+  "name": "灰鴿街禮拜堂・後迴廊",
+  "tiles": [
+    "##################",
+    "#....#ggggggg#..O#",
+    "#....#ggggggg#...#",
+    "#....#ggggggg##.##",
+    "#....#ggggggg#...#",
+    "_................#",
+    "#....#ggggggg#...#",
+    "#....#ggggggg#...#",
+    "#....#ggggggg#...#",
+    "######ggggggg#...#",
+    "##############..._",
+    "##################"
+  ],
+  "legend": {
+    "#": "wall",
+    ".": "stone_floor",
+    "g": "cloister_garden",
+    "O": "organ",
+    "_": "threshold"
+  },
+  "on_enter": "dlg_ch4_cloister_enter",
+  "spawns": [
+    {
+      "id": "from_uptown",
+      "x": 1,
+      "y": 5,
+      "dir": "right"
+    },
+    {
+      "id": "from_loft",
+      "x": 16,
+      "y": 10,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch4_side_door",
+      "x": 5,
+      "y": 5,
+      "sprite": "side_door",
+      "solid": true,
+      "lock": {
+        "flag": "ch4_side_open",
+        "solvable_by": [
+          "voice"
+        ],
+        "fallback": "item:chapel_pass",
+        "on_tag": {
+          "voice": "dlg_ch4_side_voice"
+        },
+        "on_item": "dlg_ch4_side_pass",
+        "locked": "dlg_ch4_side_locked"
+      }
+    },
+    {
+      "id": "obj_ch4_bench",
+      "x": 14,
+      "y": 6,
+      "sprite": "stone_bench",
+      "solid": true,
+      "look": "dlg_ch4_bench"
+    },
+    {
+      "id": "obj_ch4_organ",
+      "x": 15,
+      "y": 1,
+      "sprite": "organ_pedal",
+      "solid": true,
+      "look": "dlg_ch4_organ",
+      "echo": "dlg_ch4_organ_echo"
+    }
+  ],
+  "exits": [
+    {
+      "x": 0,
+      "y": 5,
+      "to": "uptown",
+      "spawn": "from_cloister"
+    },
+    {
+      "x": 17,
+      "y": 10,
+      "to": "chapel_loft",
+      "spawn": "from_cloister"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch4_cloister_1",
+      "x": 8,
+      "y": 5,
+      "dialogue": "dlg_ch4_cloister_1",
+      "if": {
+        "not_flag": "ch4_cloister_1_done"
+      }
+    },
+    {
+      "id": "trg_ch4_cloister_2_14",
+      "x": 14,
+      "y": 8,
+      "dialogue": "dlg_ch4_cloister_2",
+      "if": {
+        "not_flag": "ch4_cloister_2_done"
+      }
+    },
+    {
+      "id": "trg_ch4_cloister_2_15",
+      "x": 15,
+      "y": 8,
+      "dialogue": "dlg_ch4_cloister_2",
+      "if": {
+        "not_flag": "ch4_cloister_2_done"
+      }
+    },
+    {
+      "id": "trg_ch4_cloister_2_16",
+      "x": 16,
+      "y": 8,
+      "dialogue": "dlg_ch4_cloister_2",
+      "if": {
+        "not_flag": "ch4_cloister_2_done"
+      }
+    }
+  ]
+}

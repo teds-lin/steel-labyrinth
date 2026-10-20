@@ -1,0 +1,2680 @@
+{
+  "id": "chapter5",
+  "title": "第五章　地下水道",
+  "end_screen": {
+    "title": "第五章　完",
+    "subtitle": "第六章　隊長的祕密",
+    "continue": {
+      "map": "office_ch6",
+      "spawn": "door",
+      "dialogue": "dlg_ch6_opening"
+    }
+  },
+  "guests": [
+    {
+      "id": "three",
+      "name": "三點",
+      "sprite": "guest_three",
+      "scripted": {
+        "greeting": [
+          "……十二點。你的鞋底有水的味道。",
+          "坐吧。要往下走之前，先把腳步聲數清楚。",
+          "你回來了。路，還記得嗎？",
+          "鐘聲剛停。說吧，我聽著。"
+        ],
+        "fallback": [
+          "霧太濃了，我聽不清楚你說什麼。",
+          "齒輪卡了一下。你再說一次？",
+          "水聲蓋過了你的聲音。等它退了再說吧。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "發條快鬆了。今天就聊到這裡。",
+          "鐘面上的光暗下來了。下次再說，十二點。"
+        ],
+        "filtered": [
+          "……我好像說錯話了，當我沒說。",
+          "這句話的齒輪不太對，我收回。",
+          "換個說法……還是算了，當我沒說。"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "三點看著你，像在等你先開口。可是霧太濃，聲音傳不過來。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和三點自由交談。）"
+        ]
+      }
+    },
+    {
+      "id": "nine",
+      "name": "九點",
+      "sprite": "guest_nine",
+      "scripted": {
+        "greeting": [
+          "十二點！要出遠門？先看看我的貨。",
+          "喲，老主顧。霧珠帶來了嗎？",
+          "來啦？下去之前，多帶點東西才划算。",
+          "十二點！你看起來要去很深的地方。"
+        ],
+        "fallback": [
+          "咦？霧把你的話吹散了，再說一次嘛。",
+          "剛剛那句我沒聽清楚，算我欠你一次。",
+          "鐘聲太吵了！等它敲完再說。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "今天的生意做完囉，明天請早。",
+          "我的嘴巴今天營業到這裡。要回來喔，十二點！"
+        ],
+        "filtered": [
+          "哎呀，剛剛那句不算，當我沒說。",
+          "我收回那句話。做生意的，總要留點退路。",
+          "這句話太貴了，我不賣。換個話題吧？"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "九點朝你比了個手勢，嘴巴動了動，可是你一個字也聽不見。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和九點自由交談。）"
+        ]
+      },
+      "trades": [
+        {
+          "id": "nine_t5_tonic",
+          "label": "兩顆霧珠換一瓶提神藥水。苦是苦了點，很有精神喔。",
+          "give": [
+            {
+              "item": "fog_pearl",
+              "count": 2
+            }
+          ],
+          "get": [
+            {
+              "item": "tonic",
+              "count": 1
+            }
+          ],
+          "if": {
+            "flag": "ch5_started"
+          },
+          "once": false
+        },
+        {
+          "id": "nine_t5_bandage",
+          "label": "一捲黑線換兩捲繃帶。這麼好的生意，只有我做得出來。",
+          "give": [
+            {
+              "item": "hush_thread",
+              "count": 1
+            }
+          ],
+          "get": [
+            {
+              "item": "bandage",
+              "count": 2
+            }
+          ],
+          "if": {
+            "flag": "ch5_started"
+          },
+          "once": false
+        },
+        {
+          "id": "nine_t5_incense",
+          "label": "兩捲繃帶換一支鎮靜香——下去之前，腦袋要清楚。",
+          "give": [
+            {
+              "item": "bandage",
+              "count": 2
+            }
+          ],
+          "get": [
+            {
+              "item": "sedative_incense",
+              "count": 1
+            }
+          ],
+          "if": {
+            "flag": "ch5_started"
+          },
+          "once": false
+        }
+      ]
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "dlg_ch5_opening",
+      "start": "o1",
+      "nodes": [
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "隔天早上。睡了一整晚，身上的傷好多了。辦公室的大桌上，攤著一張發黃的舊城水道圖。",
+          "effects": [
+            {
+              "set_flag": "ch5_started"
+            },
+            {
+              "heal_party": true
+            }
+          ],
+          "next": "o2"
+        },
+        {
+          "id": "o2",
+          "speaker": "老賀伯",
+          "text": "「送往下層」。舊城底下，說得上「下層」的，就只有水道。",
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": "老賀伯",
+          "text": "這張圖是四十年前畫的。不過我比這張圖還清楚——我年輕時在下面修過三年閘門。",
+          "next": "o4"
+        },
+        {
+          "id": "o4",
+          "speaker": "艾妲",
+          "text": "老賀伯在水道工作過？",
+          "next": "o5"
+        },
+        {
+          "id": "o5",
+          "speaker": "老賀伯",
+          "text": "那時候的水道，還沒有這麼多不說話的人。",
+          "next": "o6"
+        },
+        {
+          "id": "o6",
+          "speaker": "馬洛",
+          "text": "我走地面，沿著人孔蓋跟著你們。在「第二豎井」會合。",
+          "next": "o7"
+        },
+        {
+          "id": "o7",
+          "speaker": "馬洛",
+          "text": "下面不能入夢，也沒有沙發。要歇腳，只能找工寮那種地方，而且用一次就沒了。",
+          "next": "o8"
+        },
+        {
+          "id": "o8",
+          "speaker": "老賀伯",
+          "text": "所以這次我跟你們下去。老骨頭了，至少還認得路。",
+          "effects": [
+            {
+              "join_party": "herb"
+            }
+          ],
+          "next": "o9"
+        },
+        {
+          "id": "o9",
+          "speaker": null,
+          "text": "（老賀伯加入了隊伍。）",
+          "next": "o10"
+        },
+        {
+          "id": "o10",
+          "speaker": "老賀伯",
+          "text": "配給：繃帶兩捲、鎮靜香一支、提神藥水一瓶。省著用。",
+          "effects": [
+            {
+              "give_item": "bandage"
+            },
+            {
+              "give_item": "bandage"
+            },
+            {
+              "give_item": "sedative_incense"
+            },
+            {
+              "give_item": "tonic"
+            }
+          ],
+          "next": "o11"
+        },
+        {
+          "id": "o11",
+          "speaker": "馬洛",
+          "text": "子彈也帶上。下面的東西，不一定聽得懂道理。",
+          "effects": [
+            {
+              "give_ammo": 3
+            }
+          ],
+          "next": "o12"
+        },
+        {
+          "id": "o12",
+          "speaker": "艾妲",
+          "text": "沙發……是下去前最後一次能睡的地方了吧。要不要先去鐘塔看看？",
+          "next": "o13"
+        },
+        {
+          "id": "o13",
+          "speaker": null,
+          "text": "（取得繃帶×2、鎮靜香、提神藥水、子彈 3 發。可以先在沙發入夢、整理道具；準備好了，從門口下去。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_door",
+      "start": "d1",
+      "nodes": [
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "門外的人孔蓋已經打開了，一陣潮濕的冷風從底下吹上來。",
+          "next": "d2"
+        },
+        {
+          "id": "d2",
+          "speaker": "老賀伯",
+          "text": "下去之後，就沒有沙發，也沒有鐘塔了。東西都準備好了嗎？",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要下去嗎？",
+          "choices": [
+            {
+              "text": "「下去吧。」",
+              "next": "go"
+            },
+            {
+              "text": "「再等一下。」",
+              "next": "wait"
+            }
+          ]
+        },
+        {
+          "id": "go",
+          "speaker": null,
+          "text": "你們一個接一個爬下鐵梯。頭頂的光，縮成一個小小的圓。",
+          "effects": [
+            {
+              "goto": {
+                "map": "sewer_entry",
+                "spawn": "from_office"
+              }
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "wait",
+          "speaker": "老賀伯",
+          "text": "不急。水道在那裡四十年了，不差這一會兒。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_sofa",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "下去之前，最後一次能好好躺下的地方。毯子還留著昨晚的溫度。",
+          "effects": [
+            {
+              "clear_flag": "dream_rested"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_marlo",
+      "start": "m1",
+      "nodes": [
+        {
+          "id": "m1",
+          "speaker": "馬洛",
+          "text": "第二豎井。記住了。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "馬洛",
+          "text": "撐不住就上來。不要逞強。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_ada",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "蘿絲……我們一定要找到她。黛西還在等。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "艾妲",
+          "text": "下面要是有人睡不著，我會讓他們好好睡一下的。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_notice",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "布告欄上，老賀伯用紅筆寫著：「外勤：舊城水道。歸期未定。茶葉別動。」",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_dream_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "鐘聲停了。鐘塔的石板地涼涼的，比上次更安靜。",
+          "effects": [
+            {
+              "set_flag": "ch5_dreamed"
+            }
+          ],
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "三點",
+          "text": "十二點。你的鞋底有水的味道。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "九點",
+          "text": "要去很深的地方？那先跟我換點東西再走嘛。下去之後，可就找不到我了。",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": null,
+          "text": "（第五章的地下水道裡沒有入夢點。要交換，趁現在。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_three_look",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": "三點",
+          "text": "十二點。這次，你要去的地方很深吧。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和三點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "effects": [
+                {
+                  "open_chat": "three"
+                }
+              ],
+              "next": "chat"
+            },
+            {
+              "text": "「我們要下去很深的地方。」",
+              "next": "q1"
+            },
+            {
+              "text": "「如果同伴倒下了……」",
+              "next": "q2"
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "三點",
+          "text": "說吧。我聽著。",
+          "next": "END"
+        },
+        {
+          "id": "q1",
+          "speaker": "三點",
+          "text": "下得越深，越要記得回來的路。",
+          "next": "q1b"
+        },
+        {
+          "id": "q1b",
+          "speaker": "三點",
+          "text": "錶掉進水裡，撈起來還會走。人掉進去，就不一定了。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "三點",
+          "text": "先顧好自己。累了，就來椅子坐一下。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": "三點",
+          "text": "要不要繼續走，是你的事。我不替你撥指針。",
+          "next": "ask"
+        },
+        {
+          "id": "bye",
+          "speaker": "三點",
+          "text": "嗯。記得回來的路。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_nine_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": "九點",
+          "text": "十二點！要出遠門？那先看看我的貨。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和九點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "effects": [
+                {
+                  "open_chat": "nine"
+                }
+              ],
+              "next": "chat"
+            },
+            {
+              "text": "交換",
+              "effects": [
+                {
+                  "open_trade": "nine"
+                }
+              ],
+              "next": "trade"
+            },
+            {
+              "text": "「舊城的水道，妳知道多少？」",
+              "next": "q1"
+            },
+            {
+              "text": "「妳收霧珠做什麼？」",
+              "next": "q2"
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "九點",
+          "text": "好啊，聊什麼都行。聊完記得交換。",
+          "next": "END"
+        },
+        {
+          "id": "trade",
+          "speaker": "九點",
+          "text": "霧珠、黑線都收。繃帶、藥水都有。下去之前，多帶一點。",
+          "next": "END"
+        },
+        {
+          "id": "q1",
+          "speaker": "九點",
+          "text": "以前有人用它走私。現在啊，連走私的人都不敢下去了。",
+          "next": "q1b"
+        },
+        {
+          "id": "q1b",
+          "speaker": "九點",
+          "text": "……你真的要下去？那欠我一次：累了就先回來坐。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "九點",
+          "text": "它冰冰的、不會乾，很好賣。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": "九點",
+          "text": "賣給誰？這條太貴了，不賣。",
+          "next": "ask"
+        },
+        {
+          "id": "bye",
+          "speaker": "九點",
+          "text": "慢走！回來的時候，記得帶伴手禮。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_chair_twelve",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "dream_rested"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "c1"
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "你在刻著「十二」的椅子上坐下。霧輕輕裹住肩膀，腦中的雜音一點一點退去。",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "collapse": -10
+            },
+            {
+              "set_flag": "dream_rested"
+            }
+          ],
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了，崩解下降了。每次入夢可以在這裡休息一次。）",
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "椅子還留著你的溫度。這一趟夢，已經歇夠了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_chair_six",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "椅背上刻著「六」。你摸了摸，冰冰的，像很久沒人坐過。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_tower_door",
+      "start": "g1",
+      "nodes": [
+        {
+          "id": "g1",
+          "speaker": null,
+          "text": "南邊的門虛掩著。門外，是要往下走的那一邊。",
+          "next": "gask"
+        },
+        {
+          "id": "gask",
+          "speaker": null,
+          "text": "要醒來嗎？",
+          "choices": [
+            {
+              "text": "醒來",
+              "next": "g2"
+            },
+            {
+              "text": "再待一會兒",
+              "next": "stay"
+            }
+          ]
+        },
+        {
+          "id": "g2",
+          "speaker": "九點",
+          "text": "要回來喔，十二點！",
+          "next": "g3"
+        },
+        {
+          "id": "g3",
+          "speaker": null,
+          "text": "你推開門。鐘聲在背後響了一下，光把你整個吞了進去。",
+          "effects": [
+            {
+              "wake": true
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "stay",
+          "speaker": null,
+          "text": "你把手從門把上移開。霧在腳邊慢慢流動。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_entry_enter",
+      "start": "e1",
+      "nodes": [
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "舊城・水道入口。拱形的磚牆往黑暗裡延伸，水聲在很遠的地方迴盪。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": "老賀伯",
+          "text": "那邊是維修工寮。爐子要是還點得著，可以歇一次腳。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": "艾妲",
+          "text": "好臭……可是比想像中安靜。安靜得好像有人在聽。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "（工寮的爐子是回復點，只能用一次。往東過橋，就是主渠。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_ladder",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "鐵梯往上通到人孔。上面已經沒有能好好休息的地方了——隊長說過，下來就別回頭。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_shed_rest",
+      "start": "r0",
+      "nodes": [
+        {
+          "id": "r0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_rest_entry"
+              },
+              "next": "used"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "老賀伯敲了敲爐子，往裡頭塞了幾塊乾柴。火苗一下子竄了起來。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": "老賀伯",
+          "text": "四十年了，還點得著。烤一下手吧，下面會越來越冷。",
+          "next": "rz"
+        },
+        {
+          "id": "rz",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了，崩解下降了。這個回復點已經用掉。）",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "collapse": -10
+            },
+            {
+              "set_flag": "ch5_rest_entry"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "used",
+          "speaker": null,
+          "text": "爐子裡只剩下灰。柴已經燒完了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_supply",
+      "start": "s0",
+      "nodes": [
+        {
+          "id": "s0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_supply_taken"
+              },
+              "next": "empty"
+            }
+          ],
+          "next": "s1"
+        },
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "牆邊有一個生鏽的補給箱。打開來，裡面還有一捲沒拆封的繃帶。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": null,
+          "text": "（取得繃帶。）",
+          "effects": [
+            {
+              "give_item": "bandage"
+            },
+            {
+              "set_flag": "ch5_supply_taken"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "empty",
+          "speaker": null,
+          "text": "補給箱空了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_entry_fight",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "橋的另一頭站著兩個人。他們的皮膚灰白，嘴唇緊緊黏在一起。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": "艾妲",
+          "text": "他們不是信徒……他們是被閉口的人！",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "老賀伯",
+          "text": "跟卡爾一樣。下手輕一點——可是別讓他們靠近你的耳朵。",
+          "effects": [
+            {
+              "battle": "enc_ch5_entry"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_entry_after",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "兩個閉口者倒在地上，像睡著了一樣。艾妲蹲下來，把手放在他們的額頭上。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": "艾妲",
+          "text": "他們在作夢……很淺很淺的夢。等我們回來，再帶他們上去。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_canal_enter",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "地下水道・主渠。黑水在渠道裡慢慢流，兩邊的走道又長又窄。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": "老賀伯",
+          "text": "主渠先往東，再往南折。小心腳下，掉下去可不是洗個澡那麼簡單。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_tally",
+      "start": "t0",
+      "nodes": [
+        {
+          "id": "t0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_clue_tally"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "t1"
+        },
+        {
+          "id": "t1",
+          "speaker": null,
+          "text": "磚牆上刻著一排一排的刻痕。有的很深，有的只是指甲刮出來的白線。",
+          "next": "t2"
+        },
+        {
+          "id": "t2",
+          "speaker": null,
+          "text": "刻痕上纏著細細的銀光。（用【回溯】讀它。）",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "牆上的刻痕還在。每一道，都是一個沒被忘記的名字。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_tally_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_clue_tally"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你把手按在刻痕上。銀光從石縫裡滲出來，水聲退得好遠。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——一列人被押著走過這條走道。他們的嘴都黏住了，眼睛卻還睜著。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "走在最後面的男人，每走幾步，就用指甲在牆上刮一道。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "他的嘴唇在動。沒有聲音，可是你讀得出來：「瑪莎、湯姆、老約翰……」",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "{name}",
+          "text": "（他在數自己還記得的名字。數一個，刻一道。）",
+          "next": "e6"
+        },
+        {
+          "id": "e6",
+          "speaker": "老賀伯",
+          "text": "……人只要還記得名字，就還沒被他們帶走。",
+          "effects": [
+            {
+              "set_flag": "ch5_clue_tally"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那個男人又數了一次名字。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_canal_1",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "黑水裡浮起兩道半透明的影子。它們的身體像霧，游得卻比魚還快。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "老賀伯",
+          "text": "霧鰻！牙齒不大，可是咬住就不放。",
+          "effects": [
+            {
+              "battle": "enc_ch5_canal_1"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_fork",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": "老賀伯",
+          "text": "等一下。前面分成三條路。往哪邊？",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": null,
+          "text": "一條往上，通回上城。一條往下，通往港口那一頭的低處。一條往高處的新蓄水池。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": null,
+          "text": "地上有兩道拖痕。渠道裡的水，往低處慢慢地流。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "你的推理是？",
+          "choices": [
+            {
+              "text": "「往上城，回頭。」",
+              "next": "ng1"
+            },
+            {
+              "text": "「往港口方向的低處。」",
+              "next": "ok1"
+            },
+            {
+              "text": "「往高處的蓄水池。」",
+              "next": "ng2"
+            }
+          ]
+        },
+        {
+          "id": "ng1",
+          "speaker": "老賀伯",
+          "text": "上城？那些人就是從上城被送下來的。再想想。",
+          "effects": [
+            {
+              "set_flag": "ch5_deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ng2",
+          "speaker": "老賀伯",
+          "text": "新蓄水池存的是上城喝的水。往上拖一個人，可比往下拖累多了。再想想。",
+          "effects": [
+            {
+              "set_flag": "ch5_deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ok1",
+          "speaker": "{name}",
+          "text": "拖痕跟水流同一個方向。他們是順著水，把人往港口那邊送。",
+          "branches": [
+            {
+              "if": {
+                "not_flag": "ch5_deduce_wrong"
+              },
+              "next": "ok2"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok2",
+          "speaker": null,
+          "text": "（推理正確。腦中那條線，喀的一聲接上了。）",
+          "effects": [
+            {
+              "resonance": "deduction_correct"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok3",
+          "speaker": "老賀伯",
+          "text": "跟我想的一樣。往下會經過舊蓄水池，再過去是沉閘，最後就是海。",
+          "next": "ok4"
+        },
+        {
+          "id": "ok4",
+          "speaker": "艾妲",
+          "text": "那我們走吧。蘿絲可能就在前面。",
+          "effects": [
+            {
+              "set_flag": "ch5_deduced"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_rack",
+      "start": "r0",
+      "nodes": [
+        {
+          "id": "r0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_got_handle"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "側道盡頭有一個工具架，上面掛著扳手、鐵鉤，還有一根粗大的鐵把手。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": "老賀伯",
+          "text": "閘門把手！以前手動開閘就靠這個。帶著吧，說不定用得上。",
+          "next": "r3"
+        },
+        {
+          "id": "r3",
+          "speaker": null,
+          "text": "（取得閘門把手。）",
+          "effects": [
+            {
+              "give_item": "sluice_handle"
+            },
+            {
+              "set_flag": "ch5_got_handle"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "工具架上只剩幾把鏽到轉不動的扳手。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_sluice_locked",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "水閘擋住了往下的豎道。閘門旁邊，有一根銅製的傳聲管。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": "老賀伯",
+          "text": "這閘只認管理員的聲音。管理員不在了，就得找別的辦法開。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_sluice_voice",
+      "start": "v1",
+      "nodes": [
+        {
+          "id": "v1",
+          "speaker": null,
+          "text": "你把耳朵貼近傳聲管。管子裡還留著一個很舊的聲音，沙啞、慢吞吞的：「開閘。」",
+          "next": "v2"
+        },
+        {
+          "id": "v2",
+          "speaker": "老賀伯",
+          "text": "……是老喬。以前的閘門管理員。他說話就是這個調調，像嘴裡含著石頭。",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": null,
+          "text": "你挑起那條線，用老喬的聲音對著管子說：「開閘。」",
+          "next": "v4"
+        },
+        {
+          "id": "v4",
+          "speaker": null,
+          "text": "管子深處響起一串齒輪聲。水閘慢慢升了起來。",
+          "next": "v5"
+        },
+        {
+          "id": "v5",
+          "speaker": "老賀伯",
+          "text": "你這本事，真教人不舒服。……不過老喬要是聽見了，大概會笑吧。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_sluice_handle",
+      "start": "i1",
+      "nodes": [
+        {
+          "id": "i1",
+          "speaker": null,
+          "text": "你把閘門把手插進閘邊的軸孔，和老賀伯一起使勁轉。",
+          "next": "i2"
+        },
+        {
+          "id": "i2",
+          "speaker": null,
+          "text": "鏽住的齒輪嘎吱嘎吱地響，水閘一寸一寸升了起來。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_canal_2",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "橋上站著三個人影。兩個灰袍信徒，中間一個穿著白詩班袍，嘴張得大大的。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "艾妲",
+          "text": "是吟唱者！先打唱歌的那個——它一唱，旁邊的人就會變兇！",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "老賀伯",
+          "text": "我老了，可沒老到不會打架。上吧！",
+          "effects": [
+            {
+              "battle": "enc_ch5_canal_2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_canal_3",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "前方的走道上，一個閉口者從黑水裡爬了上來。它的身後，水面又浮起一道霧影。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "老賀伯",
+          "text": "豎井就在前面了。打完這一場，就能跟隊長會合！",
+          "effects": [
+            {
+              "battle": "enc_ch5_canal_3"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_cage",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "走道盡頭有一座生鏽的鐵籠。籠子裡蜷著一個穿詩班袍的少女。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "她的袍子太大了，袖子捲了好幾圈。嘴唇黏在一起，只能發出細細的哼聲。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": "艾妲",
+          "text": "蘿絲？妳是蘿絲吧？妳媽媽——黛西在等妳！",
+          "next": "c4"
+        },
+        {
+          "id": "c4",
+          "speaker": null,
+          "text": "少女縮了一下，眼神空空的。她手腕上戴著一個褪色的手環，纏著淡淡的銀光。",
+          "next": "c5"
+        },
+        {
+          "id": "c5",
+          "speaker": null,
+          "text": "（用【回溯】看看那個手環。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_bracelet_echo",
+      "start": "e1",
+      "nodes": [
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你隔著鐵欄碰到手環。銀光像一根細線，把你拉進一段很淡的記憶。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——花攤前。黛西替女兒戴上手環，一邊碎碎念：「唱歌可以，別唱到半夜。」",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "——禮拜堂。詩班長摸著蘿絲的頭，在名冊上寫下她的名字。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "——黑暗裡。蘿絲被抱上一條小船。船在水上走，一直走，一直走。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "{name}",
+          "text": "她是被送下來的。黛西的女兒……我們找到她了。",
+          "effects": [
+            {
+              "set_flag": "ch5_clue_bracelet"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "e6"
+        },
+        {
+          "id": "e6",
+          "speaker": "老賀伯",
+          "text": "籠子的鎖鏽死了，我來撬。艾妲，妳先讓她別那麼怕。",
+          "next": "e7"
+        },
+        {
+          "id": "e7",
+          "speaker": "艾妲",
+          "text": "嗯。我進她的夢裡看看。……很快就好。",
+          "next": "e8"
+        },
+        {
+          "id": "e8",
+          "speaker": null,
+          "text": "艾妲隔著鐵欄握住蘿絲的手，閉上眼睛。蘿絲的哼聲，慢慢變得平穩了。",
+          "next": "e9"
+        },
+        {
+          "id": "e9",
+          "speaker": null,
+          "text": "過了一會兒，艾妲的眉頭皺了起來。",
+          "next": "e10"
+        },
+        {
+          "id": "e10",
+          "speaker": "艾妲",
+          "text": "好多人……好多人在唱歌，沒有聲音……再下面，還有更深的——",
+          "next": "e11"
+        },
+        {
+          "id": "e11",
+          "speaker": null,
+          "text": "艾妲的身體突然一軟，倒在你懷裡。",
+          "next": "e12"
+        },
+        {
+          "id": "e12",
+          "speaker": "{name}",
+          "text": "艾妲！艾妲，醒醒！",
+          "next": "e13"
+        },
+        {
+          "id": "e13",
+          "speaker": null,
+          "text": "她沒有醒。嘴唇在動，你湊過去，才聽見那一點點聲音。",
+          "next": "e14"
+        },
+        {
+          "id": "e14",
+          "speaker": "艾妲",
+          "text": "鐘……他們要讓鐘停下來……燈……",
+          "next": "e15"
+        },
+        {
+          "id": "e15",
+          "speaker": "老賀伯",
+          "text": "她碰到了不該碰的東西。夢太深了，一時半刻醒不過來。",
+          "next": "e16"
+        },
+        {
+          "id": "e16",
+          "speaker": null,
+          "text": "頭頂傳來鐵梯的聲音。第二豎井的光柱裡，馬洛爬了下來。",
+          "next": "e17"
+        },
+        {
+          "id": "e17",
+          "speaker": "馬洛",
+          "text": "我聽見聲音就下來了。……艾妲怎麼了？",
+          "next": "e18"
+        },
+        {
+          "id": "e18",
+          "speaker": "老賀伯",
+          "text": "進了那孩子的夢，被深處的東西擊倒了。命沒事，可是醒不過來。",
+          "next": "e19"
+        },
+        {
+          "id": "e19",
+          "speaker": null,
+          "text": "馬洛沒有多問。他撬開鐵籠，把蘿絲綁在背上，又彎腰把艾妲抱了起來。",
+          "next": "e20"
+        },
+        {
+          "id": "e20",
+          "speaker": "馬洛",
+          "text": "我先送她們上去。你們呢？",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼回答？",
+          "choices": [
+            {
+              "text": "「我們繼續。」",
+              "effects": [
+                {
+                  "set_flag": "ch5_pressed_on"
+                }
+              ],
+              "next": "r1"
+            },
+            {
+              "text": "「隊長，我會回來。」",
+              "effects": [
+                {
+                  "set_flag": "ch5_promised_marlo"
+                }
+              ],
+              "next": "r2"
+            }
+          ]
+        },
+        {
+          "id": "r1",
+          "speaker": "馬洛",
+          "text": "……好。老賀伯，看著他。",
+          "next": "r3"
+        },
+        {
+          "id": "r2",
+          "speaker": "馬洛",
+          "text": "我記住了。是你說的。",
+          "next": "r3"
+        },
+        {
+          "id": "r3",
+          "speaker": "馬洛",
+          "text": "撐不住就上來。不要逞強。",
+          "next": "r4"
+        },
+        {
+          "id": "r4",
+          "speaker": null,
+          "text": "馬洛背著兩個人，一步一步爬上鐵梯。光柱裡的影子，越來越小。",
+          "next": "r5"
+        },
+        {
+          "id": "r5",
+          "speaker": null,
+          "text": "（艾妲離開了隊伍。）",
+          "effects": [
+            {
+              "set_flag": "ch5_ada_down"
+            },
+            {
+              "leave_party": "ada"
+            }
+          ],
+          "next": "r6"
+        },
+        {
+          "id": "r6",
+          "speaker": "老賀伯",
+          "text": "剩我們兩個了。……走吧，小子。她說的「鐘」，我不喜歡。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_shaft",
+      "start": "s0",
+      "nodes": [
+        {
+          "id": "s0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_ada_down"
+              },
+              "next": "after"
+            }
+          ],
+          "next": "s1"
+        },
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "頭頂有一個圓圓的豎井，鐵梯一路往上。上面隱約有光。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": "老賀伯",
+          "text": "第二豎井。隊長說好在這裡會合。",
+          "next": "END"
+        },
+        {
+          "id": "after",
+          "speaker": null,
+          "text": "鐵梯上還滴著水。往上爬就是地面——可是名冊上的「下層」，還在更下面。",
+          "next": "after2"
+        },
+        {
+          "id": "after2",
+          "speaker": "{name}",
+          "text": "（隊長說，撐不住就上來。……現在還撐得住。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_canal_blocked",
+      "start": "b1",
+      "nodes": [
+        {
+          "id": "b1",
+          "speaker": "老賀伯",
+          "text": "前面就是舊蓄水池。……先看看籠子裡的那個孩子。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_cistern_enter",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "地下水道・舊蓄水池。拱頂高得看不見，黑色的池水一動也不動。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "老賀伯在池邊的石台坐下，點起菸斗。火光照亮了他半張臉。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": "老賀伯",
+          "text": "小子，你喝的那兩劑，是讀痕的路子。那些詩班的人喝的，是另一條。",
+          "next": "c4"
+        },
+        {
+          "id": "c4",
+          "speaker": "{name}",
+          "text": "另一條？",
+          "next": "c5"
+        },
+        {
+          "id": "c5",
+          "speaker": "老賀伯",
+          "text": "「聽潮者」。回應深處的呼喚。喝那一路的人，耳朵會越來越好，嘴會越來越緊。",
+          "next": "c6"
+        },
+        {
+          "id": "c6",
+          "speaker": "老賀伯",
+          "text": "聽得太清楚，就不想說話了。一說話，就聽不見那個聲音了。",
+          "branches": [
+            {
+              "if": {
+                "flag": "forced_rank8"
+              },
+              "next": "f1"
+            }
+          ],
+          "next": "c7"
+        },
+        {
+          "id": "f1",
+          "speaker": "{name}",
+          "text": "……我好像也聽得見一點。硬喝那一劑之後，耳朵裡偶爾有潮水的聲音。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": "老賀伯",
+          "text": "那就別去聽它。聽見了，就說點什麼蓋過去。罵我也行。",
+          "next": "c7"
+        },
+        {
+          "id": "c7",
+          "speaker": "老賀伯",
+          "text": "這石台我以前常歇腳。累了就坐一下——一樣，只能一次。",
+          "next": "c8"
+        },
+        {
+          "id": "c8",
+          "speaker": null,
+          "text": "（池邊的石台是回復點，只能用一次。）",
+          "effects": [
+            {
+              "set_flag": "ch5_herb_tide"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_stone",
+      "start": "r0",
+      "nodes": [
+        {
+          "id": "r0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_rest_cistern"
+              },
+              "next": "used"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "你在石台上坐下。老賀伯的菸斗冒著煙，菸草的味道蓋過了水的腥味。",
+          "next": "rz"
+        },
+        {
+          "id": "rz",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了，崩解下降了。這個回復點已經用掉。）",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "collapse": -10
+            },
+            {
+              "set_flag": "ch5_rest_cistern"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "used",
+          "speaker": null,
+          "text": "石台冰冰的。這裡已經歇過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_kirby",
+      "start": "k0",
+      "nodes": [
+        {
+          "id": "k0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_boatman_exposed"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "flag": "ch5_oar"
+              },
+              "next": "x1"
+            },
+            {
+              "if": {
+                "flag": "ch5_kirby_talked"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "k1"
+        },
+        {
+          "id": "k1",
+          "speaker": "寇比",
+          "text": "別看我。我只是撐船的。",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": "{name}",
+          "text": "撐船載誰？這種地方，誰會坐船？",
+          "next": "k3"
+        },
+        {
+          "id": "k3",
+          "speaker": "寇比",
+          "text": "載貨。一箱一箱的貨，從上游運到下游。我不問是什麼，他們也不說。",
+          "next": "k4"
+        },
+        {
+          "id": "k4",
+          "speaker": "老賀伯",
+          "text": "哼，嘴這麼硬，篙子倒是磨得很亮。",
+          "next": "k5"
+        },
+        {
+          "id": "k5",
+          "speaker": null,
+          "text": "寇比把長篙抱得更緊了。篙頭上纏著一圈一圈的銀光。",
+          "effects": [
+            {
+              "set_flag": "ch5_kirby_talked"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": "寇比",
+          "text": "我只是撐船的。真的。",
+          "next": "END"
+        },
+        {
+          "id": "x1",
+          "speaker": "{name}",
+          "text": "寇比，你載的不是貨。是人。一船一船不說話的人。",
+          "next": "x2"
+        },
+        {
+          "id": "x2",
+          "speaker": "寇比",
+          "text": "……",
+          "next": "x3"
+        },
+        {
+          "id": "x3",
+          "speaker": "{name}",
+          "text": "他們坐得整整齊齊，沒有人哭，也沒有人掙扎。你從頭到尾都不敢回頭看。",
+          "next": "x4"
+        },
+        {
+          "id": "x4",
+          "speaker": null,
+          "text": "寇比的手抖了一下。長篙撞到船舷，發出很響的一聲。",
+          "next": "x5"
+        },
+        {
+          "id": "x5",
+          "speaker": "寇比",
+          "text": "……我回頭看過一次。就一次。他們每個人都在看我，可是沒有人開口。",
+          "next": "x6"
+        },
+        {
+          "id": "x6",
+          "speaker": "寇比",
+          "text": "他們付現金，叫我把人送到沉閘，再往港口去。我只是撐船的……",
+          "next": "x7"
+        },
+        {
+          "id": "x7",
+          "speaker": "寇比",
+          "text": "我看他們用手比過：他們在等霧。最濃的那一晚。",
+          "next": "x8"
+        },
+        {
+          "id": "x8",
+          "speaker": "{name}",
+          "text": "（謊言剝落的聲音，清清楚楚。腦中那條線，又對上了一格。）",
+          "effects": [
+            {
+              "resonance": "lie_exposed"
+            },
+            {
+              "set_flag": "ch5_boatman_exposed"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": "寇比",
+          "text": "我不撐了。這條船，我要拿去載別的東西——載什麼都好。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_oar_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_oar"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你盯著寇比手裡的長篙。銀光從磨亮的木頭裡滲出來。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——小船在黑水上滑行。船上坐著十幾個人，排得整整齊齊，嘴唇都黏著。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "寇比低著頭撐篙，一次也不敢回頭。船尾，有一個小小的身影在哼歌。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "{name}",
+          "text": "（他載的不是貨。）",
+          "effects": [
+            {
+              "set_flag": "ch5_oar"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那條小船又划過一次。你已經看過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_bell",
+      "start": "b0",
+      "nodes": [
+        {
+          "id": "b0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_clue_bell"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "b1"
+        },
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "池邊的水很淺。水底沉著一座小鐘，表面長滿了青苔。",
+          "next": "b2"
+        },
+        {
+          "id": "b2",
+          "speaker": "老賀伯",
+          "text": "那是舊城的報時鐘……以前掛在水道口，報漲潮的。怎麼會沉在這裡？",
+          "next": "b3"
+        },
+        {
+          "id": "b3",
+          "speaker": null,
+          "text": "鐘口朝上，裡面空空的，鐘舌不見了。銀光在水底輕輕晃著。",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "沒有舌的鐘沉在水底。它再也響不起來了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_bell_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_clue_bell"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你把手伸進冰冷的水裡，碰到鐘的邊緣。銀光沿著青苔爬上你的手臂。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——幾個灰袍信徒用繩子把鐘從牆上拖下來，丟進池子裡。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "其中一個人跳下水，用鐵鉗夾住鐘舌，一扭、一扯，把它拔了出來。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "鐘最後一次響了。那一聲很悶，像被摀住的嘴。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "{name}",
+          "text": "（他們拔掉了鐘舌。名冊最後一頁的那座鐘……他們想讓鐘閉嘴。）",
+          "effects": [
+            {
+              "set_flag": "ch5_clue_bell"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那一聲悶響又響了一次。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_cistern_1",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "哨口前站著兩個吟唱者。它們張著嘴，一起哼著一段沒有聲音的旋律，一遍又一遍。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "老賀伯",
+          "text": "哨口的暗號，就是那段哼聲吧。……先把它們打下來再說！",
+          "effects": [
+            {
+              "battle": "enc_ch5_cistern_1"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_cistern_1_after",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "吟唱者倒下時，懷裡掉出一塊黑色的符牌，上面刻著那張被封住的嘴。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": "老賀伯",
+          "text": "閉口符牌。拿著它，哨口的人大概就不會多問了。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": null,
+          "text": "（取得閉口符牌。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_checkpoint_locked",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "哨口的鐵柵後面，有人在黑暗裡等著。對不上暗號的人，過不去。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_checkpoint_voice",
+      "start": "v1",
+      "nodes": [
+        {
+          "id": "v1",
+          "speaker": null,
+          "text": "你想起吟唱者一遍又一遍哼著的那段旋律，把它借了過來。",
+          "next": "v2"
+        },
+        {
+          "id": "v2",
+          "speaker": null,
+          "text": "你對著鐵柵哼了一遍。沒有聲音的歌，從你的喉嚨裡流出來，冷得像水。",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": null,
+          "text": "鐵柵後面的人影點了點頭，拉開了門閂。",
+          "next": "v4"
+        },
+        {
+          "id": "v4",
+          "speaker": "老賀伯",
+          "text": "……小子，你剛才哼歌的樣子，跟他們一模一樣。別哼太多次。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_checkpoint_token",
+      "start": "i1",
+      "nodes": [
+        {
+          "id": "i1",
+          "speaker": null,
+          "text": "你把閉口符牌舉到鐵柵前。黑暗裡的人影看了一眼，拉開了門閂。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_cache",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_got_ink_cache"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "c1"
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "哨口後面的牆上，有一塊磚是鬆的。推開來，裡面藏著一個小瓶子。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "瓶子裡的墨黑得不像墨。倒一點在指尖，它不會暈開，只會慢慢往陰影那一側流。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": "老賀伯",
+          "text": "影墨……那些人怎麼會有這種東西？收好，我也是第一次看見。",
+          "next": "c4"
+        },
+        {
+          "id": "c4",
+          "speaker": null,
+          "text": "（取得影墨。）",
+          "effects": [
+            {
+              "give_item": "shade_ink"
+            },
+            {
+              "set_flag": "ch5_got_ink_cache"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "牆上的暗格空了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_cistern_2",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "往下的通道口，一個灰袍信徒領著一個閉口者，像在等人。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "老賀伯",
+          "text": "守門的。打過去，前面就是沉閘了。",
+          "effects": [
+            {
+              "battle": "enc_ch5_cistern_2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_depths_enter",
+      "start": "d1",
+      "nodes": [
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "地下水道・沉閘。前室的牆上掛著一盞舊油燈，燈芯還能點。",
+          "next": "d2"
+        },
+        {
+          "id": "d2",
+          "speaker": "老賀伯",
+          "text": "這裡是沉閘的前室。以前輪班的人都在這裡打盹……最後一次，好好歇一下吧。",
+          "next": "d3"
+        },
+        {
+          "id": "d3",
+          "speaker": null,
+          "text": "（油燈旁是回復點，只能用一次。再往前，就是沉閘。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_lamp",
+      "start": "r0",
+      "nodes": [
+        {
+          "id": "r0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_rest_depths"
+              },
+              "next": "used"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "老賀伯點亮油燈。昏黃的光圈裡，水聲好像也小了一點。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": "老賀伯",
+          "text": "喘口氣。前面那個傢伙，不會讓我們喘第二次。",
+          "next": "rz"
+        },
+        {
+          "id": "rz",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了，崩解下降了。這個回復點已經用掉。）",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "collapse": -10
+            },
+            {
+              "set_flag": "ch5_rest_depths"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "used",
+          "speaker": null,
+          "text": "油燈的燈芯燒短了。這裡已經歇過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_wax",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "通道的石地上，有一串白色的蠟滴，一路滴向沉閘的方向。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": "{name}",
+          "text": "這蠟……是詩班長的。她從排水井逃下來之後，也走過這裡。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": "老賀伯",
+          "text": "蠟已經乾透了。人早就不在了。",
+          "effects": [
+            {
+              "set_flag": "ch5_saw_wax"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_mechanism",
+      "start": "m0",
+      "nodes": [
+        {
+          "id": "m0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_clue_sluice"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "m1"
+        },
+        {
+          "id": "m1",
+          "speaker": null,
+          "text": "牆上嵌著一組巨大的齒輪，連著沉閘的鐵鍊。齒輪上纏著銀光。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "老賀伯",
+          "text": "沉閘的機關。我年輕時修過這玩意兒……可是這些新齒輪，不是我們裝的。",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "齒輪靜靜地咬在一起，等著有人把它轉開。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_mechanism_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch5_clue_sluice"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你把手按在冰冷的齒輪上。銀光沿著鐵鍊，一路往上竄。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——一群信徒在鐵鍊上加裝新的齒輪。戴著鐵口罩的高大修士站在一旁看著。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "修士比了個手勢：一拉。鐵鍊一動，整條水道的水，就往港口的方向灌。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "老賀伯",
+          "text": "這道閘一開，水道裡所有的水都會往港口衝。船也是，人也是。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "{name}",
+          "text": "（他們要把人一次送到港口去。在最濃的那個霧夜。）",
+          "effects": [
+            {
+              "set_flag": "ch5_clue_sluice"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，鐵鍊又被拉動了一次。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_oswald",
+      "start": "o1",
+      "nodes": [
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "沉閘前站著一個高大的修士。深灰色的兜袍，臉的下半部罩著一副鐵口罩。",
+          "next": "o2"
+        },
+        {
+          "id": "o2",
+          "speaker": null,
+          "text": "口罩鑄成一張閉著的嘴。他的腰間掛著一串小鈴，每一個鈴都沒有舌。",
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": "老賀伯",
+          "text": "……那串鈴。跟池子裡那座鐘一樣。這傢伙，就是拔鐘舌的人。",
+          "next": "o4"
+        },
+        {
+          "id": "o4",
+          "speaker": null,
+          "text": "修士沒有出聲。他只是舉起一隻戴著鐵手套的拳頭，慢慢握緊。",
+          "next": "o5"
+        },
+        {
+          "id": "o5",
+          "speaker": "修士歐斯華",
+          "text": "……",
+          "next": "o6"
+        },
+        {
+          "id": "o6",
+          "speaker": "老賀伯",
+          "text": "小子，聽好。他站在閘前，就沒打算讓開。一旦打起來，我們也沒有退路。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要開打嗎？（這場戰鬥無法逃跑。開打前可以先休息、整理道具。）",
+          "choices": [
+            {
+              "text": "「讓開。」（開打）",
+              "next": "go"
+            },
+            {
+              "text": "「先準備一下。」",
+              "next": "wait"
+            }
+          ]
+        },
+        {
+          "id": "wait",
+          "speaker": "老賀伯",
+          "text": "好。前室的油燈要是還沒用，現在正是時候。",
+          "next": "END"
+        },
+        {
+          "id": "go",
+          "speaker": null,
+          "text": "歐斯華踏出一步。腰間的啞鈴一起晃動，卻一點聲音也沒有。",
+          "effects": [
+            {
+              "battle": "enc_ch5_boss"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_gate",
+      "start": "g1",
+      "nodes": [
+        {
+          "id": "g1",
+          "speaker": null,
+          "text": "沉閘緊緊關著。閘門前，那個戴鐵口罩的修士一動也不動。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_boss_phase2",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "歐斯華張開雙臂。一陣沒有聲音的震動掃過沉閘，你的喉嚨像被一隻手掐住。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "老賀伯",
+          "text": "是【禁聲】！喉嚨像被掐住，耗靈性的本事都用不出來……先用拳頭和道具撐住！",
+          "effects": [
+            {
+              "set_flag": "ch5_boss_phase2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_boss_phase3",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "歐斯華的鐵口罩裂開一道縫。黑暗裡，閉口者一個接一個走了過來……",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "老賀伯",
+          "text": "他在叫人！別管小的，打他本人！",
+          "effects": [
+            {
+              "set_flag": "ch5_boss_phase3"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_boss_after",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "歐斯華跪倒在閘前。鐵口罩從他臉上滑落，底下的嘴唇，被黑線縫得密密麻麻。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": null,
+          "text": "他的懷裡滾出一個小瓶子。瓶子裡的墨，正慢慢往陰影那一側流。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": "老賀伯",
+          "text": "又是影墨……喝聽潮那一路的人，用不上這東西。他們是替誰收的？",
+          "next": "w4"
+        },
+        {
+          "id": "w4",
+          "speaker": null,
+          "text": "（取得影墨。）",
+          "next": "w5"
+        },
+        {
+          "id": "w5",
+          "speaker": null,
+          "text": "老賀伯走到齒輪前，看了很久，最後把一根鐵棍卡進了齒縫裡。",
+          "next": "w6"
+        },
+        {
+          "id": "w6",
+          "speaker": "老賀伯",
+          "text": "這下子，至少這道閘開不了了。走吧，出口就在前面。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch5_outfall",
+      "start": "o1",
+      "nodes": [
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "出口是港邊的舊沉堤。海風夾著霧，一下子灌進你的肺裡。",
+          "next": "o2"
+        },
+        {
+          "id": "o2",
+          "speaker": null,
+          "text": "霧裡，堤上站著一排一排的人。他們不說話，也不動，全都面向著海。",
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": "{name}",
+          "text": "老賀伯，那些人——",
+          "next": "o4"
+        },
+        {
+          "id": "o4",
+          "speaker": null,
+          "text": "一陣浪打上堤岸。浪退了，堤上空空的，一個人也沒有。",
+          "next": "o5"
+        },
+        {
+          "id": "o5",
+          "speaker": "老賀伯",
+          "text": "……你也看見了吧？那不是我老眼昏花。",
+          "next": "o6"
+        },
+        {
+          "id": "o6",
+          "speaker": null,
+          "text": "遠處的舊燈塔立在霧裡，黑黑的，沒有光。",
+          "next": "o7"
+        },
+        {
+          "id": "o7",
+          "speaker": null,
+          "text": "堤邊的石階上，有人提著燈在等。是馬洛。",
+          "next": "o8"
+        },
+        {
+          "id": "o8",
+          "speaker": "馬洛",
+          "text": "你們回來了。",
+          "next": "o9"
+        },
+        {
+          "id": "o9",
+          "speaker": "{name}",
+          "text": "隊長。艾妲呢？",
+          "next": "o10"
+        },
+        {
+          "id": "o10",
+          "speaker": "馬洛",
+          "text": "艾妲睡著了，還沒醒。",
+          "next": "o11"
+        },
+        {
+          "id": "o11",
+          "speaker": "馬洛",
+          "text": "蘿絲在黛西那裡，還沒開口。可是她抱著她媽媽，一直不肯放手。",
+          "next": "o12"
+        },
+        {
+          "id": "o12",
+          "speaker": "老賀伯",
+          "text": "隊長，下面那些人在等霧。最濃的那一晚。",
+          "next": "o13"
+        },
+        {
+          "id": "o13",
+          "speaker": "馬洛",
+          "text": "……我知道。",
+          "next": "o14"
+        },
+        {
+          "id": "o14",
+          "speaker": null,
+          "text": "馬洛看著那座沒有光的燈塔，很久沒有說話。霧，又濃了一點。",
+          "effects": [
+            {
+              "chapter_end": "chapter5"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    }
+  ]
+}

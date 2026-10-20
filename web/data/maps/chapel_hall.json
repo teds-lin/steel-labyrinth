@@ -1,0 +1,77 @@
+{
+  "id": "chapel_hall",
+  "name": "灰鴿街禮拜堂・禮拜廳",
+  "tiles": [
+    "####SS#SS#SS####",
+    "#c....aaaa....c#",
+    "#..............#",
+    "#.pppppp.ppppp.#",
+    "#..............#",
+    "#.pppppp.ppppp.#",
+    "#..............#",
+    "#.pppppp.ppppp.#",
+    "#..............#",
+    "#..............#",
+    "#..............#",
+    "########+#######"
+  ],
+  "legend": {
+    "#": "wall",
+    "S": "stained_glass",
+    "c": "candle_stand",
+    "a": "altar",
+    ".": "chapel_floor",
+    "p": "pew",
+    "+": "front_door"
+  },
+  "on_enter": "dlg_ch4_service",
+  "spawns": [
+    {
+      "id": "from_uptown",
+      "x": 8,
+      "y": 10,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch4_hymnal",
+      "x": 5,
+      "y": 4,
+      "sprite": "hymnal",
+      "solid": true,
+      "look": "dlg_ch4_hymnal",
+      "echo": "dlg_ch4_hymnal_echo"
+    },
+    {
+      "id": "obj_ch4_hooks",
+      "x": 1,
+      "y": 9,
+      "sprite": "cloak_hooks",
+      "solid": true,
+      "look": "dlg_ch4_hooks"
+    },
+    {
+      "id": "obj_ch4_usher",
+      "x": 11,
+      "y": 9,
+      "sprite": "usher",
+      "solid": true,
+      "look": "dlg_ch4_usher",
+      "echo": "dlg_ch4_usher_echo"
+    }
+  ],
+  "exits": [
+    {
+      "x": 8,
+      "y": 11,
+      "to": "uptown",
+      "spawn": "from_chapel",
+      "requires": {
+        "flag": "ch4_clue_hymnal"
+      },
+      "blocked": "dlg_ch4_hall_blocked"
+    }
+  ],
+  "triggers": []
+}

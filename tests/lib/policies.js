@@ -37,8 +37,10 @@ export const SMART = Object.freeze({
  * 4. Boss 戰：主角先預兆（Boss 醒著、意圖還沒揭露、迴避增益沒在身上、靈性夠時；useOmen 時），有子彈就開槍；
  *    艾妲對沒睡著的 Boss 催眠（保留鎮魂的靈性）。一般戰不開槍（子彈留給 Boss）、不放催眠。
  * 5. 其他：攻擊生命比例最低的敵人。
+ * M5（useLineage，預設開）：Boss 戰時老賀伯【查閱】、馬洛在隊友生命低於一半時【嘲諷】、換影者【影縛】Boss。
+ * 禁聲中消耗靈性的技能不能用（commands 給 usable false），會自動落到普攻。
  */
-export function makeSmartPolicy({ useItems = true, useOmen = true, useHypnosis = true } = {}) {
+export function makeSmartPolicy({ useItems = true, useOmen = true, useHypnosis = true, useLineage = true, focusAdds = false, reserveSp = SMART.adaReserveSp } = {}) {
   return function smartPolicy(battle, cmds, data) {
     const actor = unitOf(battle, cmds.actor);
     const skill = (id) => cmds.skills.find((s) => s.id === id && s.usable);
@@ -69,11 +71,35 @@ export function makeSmartPolicy({ useItems = true, useOmen = true, useHypnosis =
       if (incoming && skill('guard')) return { type: 'skill', skill: 'guard' };
     }
 
+    // M5：第四章起的隊友與主角新技能（useLineage）。都只在 Boss 戰用，一般戰照舊普攻。
+    if (useLineage && boss && bossUnit) {
+      // 老賀伯：【查閱】看穿 Boss 的下一步並降低防禦（還沒揭露、沒有減防時）
+      if (actor.id === 'herb' && skill('consult') && !bossUnit.revealed && !bossUnit.mods['debuff:def'] && !hasStatus(bossUnit, 'sleep')) {
+        return { type: 'skill', skill: 'consult', target: bossUnit.uid };
+      }
+      // 馬洛：有隊友生命低於一半時【嘲諷】把攻擊拉到自己身上
+      if (actor.id === 'marlo' && skill('taunt') && !hasStatus(actor, 'taunt') && party.some((u) => u !== actor && hpRatio(u) < 0.5)) {
+        return { type: 'skill', skill: 'taunt' };
+      }
+    }
+
     if (boss && bossUnit) {
       // 4. Boss 戰
       if (useOmen && skill('omen') && !actor.mods['buff:eva'] && !bossUnit.revealed && !hasStatus(bossUnit, 'sleep')) return { type: 'skill', skill: 'omen', target: bossUnit.uid };
+      // focusAdds（M5）：Boss 睡著或被影縛時，先清掉小怪（不打醒 Boss）
+      const adds = enemies.filter((u) => u !== bossUnit);
+      if (focusAdds && adds.length && (hasStatus(bossUnit, 'sleep') || hasStatus(bossUnit, 'bind'))) {
+        const t = adds.reduce((a, b) => (hpRatio(b) < hpRatio(a) ? b : a));
+        return { type: 'skill', skill: 'attack', target: t.uid };
+      }
       if (skill('shoot')) return { type: 'skill', skill: 'shoot', target: bossUnit.uid };
-      if (useHypnosis && skill('hypnosis') && !hasStatus(bossUnit, 'sleep') && actor.sp - 6 >= SMART.adaReserveSp) {
+      // 換影者：【影縛】定住 Boss（還沒被縛住、靈性留著下一次預兆時）
+      if (useLineage && skill('shadow_bind') && !hasStatus(bossUnit, 'bind') && !hasStatus(bossUnit, 'sleep') && actor.sp - 7 >= 4) {
+        return { type: 'skill', skill: 'shadow_bind', target: bossUnit.uid };
+      }
+      // focusAdds（M5）：只在有小怪時催眠 Boss（趁 Boss 睡著清小怪）；單獨的 Boss 不催眠（打一下就醒，不划算）
+      const hypnosisWorth = !focusAdds || enemies.length > 1;
+      if (useHypnosis && hypnosisWorth && skill('hypnosis') && !hasStatus(bossUnit, 'sleep') && actor.sp - 6 >= reserveSp) {
         return { type: 'skill', skill: 'hypnosis', target: bossUnit.uid };
       }
     }
@@ -127,3 +153,12 @@ export function hypnosisPolicy(battle, cmds) {
   if (boss && cmds.skills.some((s) => s.id === 'hypnosis' && s.usable)) return { type: 'skill', skill: 'hypnosis', target: boss.uid };
   return { type: 'skill', skill: 'attack', target: chooseTarget(battle, actor, 'enemy') };
 }
+
+// ───────────── M5（第四～七章）的策略 ─────────────
+// 合理策略多一條：Boss 睡著或被影縛時先打小怪（focusAdds）；老賀伯【查閱】、馬洛【嘲諷】、換影者【影縛】（useLineage）。
+// 艾妲只保留一次鎮魂的靈性（6）就催眠（第四章起她的靈性上限較高，有小怪時催眠的價值也較高）。
+const M5 = { focusAdds: true, reserveSp: 6 };
+export const smartM5Policy = makeSmartPolicy(M5);
+export const noItemNoOmenM5Policy = makeSmartPolicy({ ...M5, useItems: false, useOmen: false });
+export const noOmenM5Policy = makeSmartPolicy({ ...M5, useOmen: false });
+export const noHypnosisM5Policy = makeSmartPolicy({ ...M5, useHypnosis: false });

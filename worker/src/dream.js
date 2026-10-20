@@ -321,8 +321,16 @@ export async function loadBlocklist(env, now) {
 
 // ---------- 預寫台詞 ----------
 const SCRIPTED_GROUP = { quota: 'quota', budget: 'quota', ai_error: 'fallback', filtered: 'filtered' };
-export function scriptedLine(persona, reason) {
-  const s = isPlainObject(persona?.scripted) ? persona.scripted : {};
+/**
+ * 預寫台詞。M5：人設帶 scripted_by_chapter（每章一份，tools/upload-dream.mjs 產生）時，取 chapters（CHAPTERS 順序）中
+ * ≤ 玩家章節、最近的那一份（當章沒有就往前一章找；不會用到後面章節的台詞）；都沒有就用 scripted（最早一章／舊格式）。
+ */
+export function scriptedLine(persona, reason, chapter = null, chapters = []) {
+  const byChapter = isPlainObject(persona?.scripted_by_chapter) ? persona.scripted_by_chapter : {};
+  let s = null;
+  const at = Array.isArray(chapters) ? chapters.indexOf(chapter) : -1;
+  for (let i = at; i >= 0 && !s; i--) if (isPlainObject(byChapter[chapters[i]])) s = byChapter[chapters[i]];
+  if (!s) s = isPlainObject(persona?.scripted) ? persona.scripted : {};
   const list = [s[SCRIPTED_GROUP[reason]], s.fallback].find((x) => Array.isArray(x) && x.length > 0) ?? ['……'];
   return list[Math.floor(Math.random() * list.length)];
 }
@@ -442,7 +450,7 @@ export async function chat(env, playerId, body, now, { ipCallBucket = null } = {
     return { ...res, sig: await sign(res.reply) };
   };
   const scripted = (reason, used, check) => finish({
-    reply: stripCcCf(scriptedLine(persona, reason)), source: 'scripted', reason, remaining_today: Math.max(0, L.perDay - used), check,
+    reply: stripCcCf(scriptedLine(persona, reason, req.chapter, chapters)), source: 'scripted', reason, remaining_today: Math.max(0, L.perDay - used), check,
   });
 
   /** 目前的計數；超過每分鐘限制 → 429；句數或呼叫次數用完 → quota；預算不夠一次預扣 → budget；都還有 → null。 */

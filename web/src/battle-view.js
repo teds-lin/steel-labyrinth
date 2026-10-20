@@ -2,9 +2,9 @@
 import { intentOf } from './core/battle/engine.js';
 import { graphemes } from './core/name.js';
 
-export const STATUS_NAMES = Object.freeze({ sleep: '睡眠', confuse: '混亂', taunt: '嘲諷', guard: '防禦' });
+export const STATUS_NAMES = Object.freeze({ sleep: '睡眠', confuse: '混亂', taunt: '嘲諷', guard: '防禦', bind: '影縛', silence: '禁聲' });
 export const STAT_NAMES = Object.freeze({ atk: '攻擊', def: '防禦', spd: '速度', will: '意志', eva: '閃避', hp: '生命', sp: '靈性' });
-export const REASON_TEXT = Object.freeze({ sp: '靈性不足', ammo: '子彈不足', no_target: '沒有可選的目標' });
+export const REASON_TEXT = Object.freeze({ sp: '靈性不足', ammo: '子彈不足', no_target: '沒有可選的目標', silence: '禁聲中，無法使用' });
 export const OUTCOME_TITLE = Object.freeze({ victory: '勝利', defeat: '戰敗', lost_control: '失控', fled: '成功逃脫' });
 
 const findIn = (list, id) => (Array.isArray(list) ? list.find((x) => x && x.id === id) : undefined);
@@ -92,6 +92,7 @@ export function describe(ev, labels, data) {
   switch (ev.type) {
     case 'turn_start': return null;
     case 'sleep_skip': return `${n(ev.uid)}睡著了，無法行動`;
+    case 'bind_skip': return `${n(ev.uid)}被影子縛住，動彈不得`;
     case 'wake': return `${n(ev.uid)}醒過來了！`;
     case 'expire': return null;
     case 'action':

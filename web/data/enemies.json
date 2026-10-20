@@ -155,5 +155,688 @@
       }
     ],
     "drops": []
+  },
+  {
+    "id": "hush_acolyte",
+    "name": "閉口信徒",
+    "sprite": "hush_acolyte",
+    "rank": 9,
+    "summon_text": "從長椅之間站了起來！",
+    "stats": {
+      "hp": 32,
+      "sp": 0,
+      "atk": 8,
+      "def": 3,
+      "spd": 9,
+      "will": 10,
+      "eva": 5
+    },
+    "skills": [
+      "attack",
+      "whisper_minor"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "whisper_minor",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "drops": [
+      {
+        "item": "hush_thread",
+        "chance": 40
+      },
+      {
+        "item": "choir_wax",
+        "chance": 15
+      }
+    ]
+  },
+  {
+    "id": "choir_chanter",
+    "name": "吟唱者",
+    "sprite": "choir_chanter",
+    "rank": 8,
+    "stats": {
+      "hp": 34,
+      "sp": 0,
+      "atk": 7,
+      "def": 3,
+      "spd": 11,
+      "will": 14,
+      "eva": 5
+    },
+    "skills": [
+      "attack",
+      "chorus"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 2
+      },
+      {
+        "skill": "chorus",
+        "weight": 2
+      }
+    ],
+    "drops": [
+      {
+        "item": "hush_thread",
+        "chance": 50
+      }
+    ]
+  },
+  {
+    "id": "choir_leader",
+    "name": "詩班長 瑪蒂達",
+    "sprite": "matilda",
+    "rank": 8,
+    "stats": {
+      "hp": 188,
+      "sp": 0,
+      "atk": 12,
+      "def": 3,
+      "spd": 10,
+      "will": 55,
+      "eva": 5
+    },
+    "skills": [
+      "attack",
+      "chorus",
+      "hauler_whisper",
+      "silent_hymn",
+      "call_acolyte"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 2
+      },
+      {
+        "skill": "hauler_whisper",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      },
+      {
+        "skill": "chorus",
+        "weight": 1
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 50,
+        "add_ai": [
+          {
+            "skill": "call_acolyte",
+            "weight": 2,
+            "if": {
+              "allies_lte": 1
+            }
+          },
+          {
+            "skill": "silent_hymn",
+            "weight": 1
+          }
+        ],
+        "dialogue": "dlg_ch4_boss_phase2"
+      }
+    ],
+    "drops": []
+  },
+  {
+    "id": "hushed_one",
+    "name": "閉口者",
+    "sprite": "hushed_one",
+    "rank": 9,
+    "summon_text": "從黑暗裡走了過來……",
+    "stats": {
+      "hp": 36,
+      "sp": 0,
+      "atk": 8,
+      "def": 3,
+      "spd": 7,
+      "will": 25,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "hushed_grab",
+      "hauler_whisper"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "hushed_grab",
+        "weight": 1,
+        "if": {
+          "turn_gte": 2
+        }
+      },
+      {
+        "skill": "hauler_whisper",
+        "weight": 1,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "drops": [
+      {
+        "item": "fog_pearl",
+        "chance": 20
+      }
+    ]
+  },
+  {
+    "id": "fog_eel",
+    "name": "霧鰻",
+    "sprite": "fog_eel",
+    "rank": 9,
+    "stats": {
+      "hp": 30,
+      "sp": 0,
+      "atk": 9,
+      "def": 2,
+      "spd": 13,
+      "will": 5,
+      "eva": 15
+    },
+    "skills": [
+      "attack",
+      "eel_bite"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 2
+      },
+      {
+        "skill": "eel_bite",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "drops": [
+      {
+        "item": "fog_pearl",
+        "chance": 50
+      }
+    ]
+  },
+  {
+    "id": "brother_oswald",
+    "name": "修士 歐斯華",
+    "sprite": "oswald",
+    "rank": 7,
+    "stats": {
+      "hp": 120,
+      "sp": 0,
+      "atk": 14,
+      "def": 4,
+      "spd": 9,
+      "will": 40,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "iron_fist",
+      "whisper_minor",
+      "silence",
+      "call_hushed"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "iron_fist",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      },
+      {
+        "skill": "whisper_minor",
+        "weight": 2
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 60,
+        "add_ai": [
+          {
+            "skill": "silence",
+            "weight": 2
+          }
+        ],
+        "dialogue": "dlg_ch5_boss_phase2"
+      },
+      {
+        "hp_lte_pct": 25,
+        "add_ai": [
+          {
+            "skill": "call_hushed",
+            "weight": 3,
+            "if": {
+              "allies_lte": 1
+            }
+          }
+        ],
+        "dialogue": "dlg_ch5_boss_phase3"
+      }
+    ],
+    "drops": []
+  },
+  {
+    "id": "hush_monk",
+    "name": "靜默修士",
+    "sprite": "hush_monk",
+    "rank": 7,
+    "stats": {
+      "hp": 64,
+      "sp": 0,
+      "atk": 11,
+      "def": 4,
+      "spd": 9,
+      "will": 25,
+      "eva": 3
+    },
+    "skills": [
+      "attack",
+      "iron_fist",
+      "silence"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "iron_fist",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      },
+      {
+        "skill": "silence",
+        "weight": 1,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "drops": [
+      {
+        "item": "hush_thread",
+        "chance": 50
+      }
+    ]
+  },
+  {
+    "id": "hush_monk_elder",
+    "name": "靜默修士",
+    "sprite": "hush_monk",
+    "rank": 7,
+    "stats": {
+      "hp": 96,
+      "sp": 0,
+      "atk": 17,
+      "def": 4,
+      "spd": 9,
+      "will": 25,
+      "eva": 3
+    },
+    "skills": [
+      "attack",
+      "iron_fist",
+      "silence"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "iron_fist",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      },
+      {
+        "skill": "silence",
+        "weight": 1,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "drops": [
+      {
+        "item": "hush_thread",
+        "chance": 50
+      }
+    ]
+  },
+  {
+    "id": "tide_priest",
+    "name": "潮汐祭司 伊格納",
+    "sprite": "tide_priest",
+    "rank": 6,
+    "stats": {
+      "hp": 150,
+      "sp": 0,
+      "atk": 12,
+      "def": 5,
+      "spd": 10,
+      "will": 35,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "priest_high_tide",
+      "priest_tide_roar",
+      "priest_call_spawn"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "priest_high_tide",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 50,
+        "add_ai": [
+          {
+            "skill": "priest_call_spawn",
+            "weight": 3,
+            "if": {
+              "allies_lte": 2
+            }
+          },
+          {
+            "skill": "priest_tide_roar",
+            "weight": 2
+          }
+        ],
+        "dialogue": "dlg_ch7_priest_phase2"
+      }
+    ],
+    "drops": []
+  },
+  {
+    "id": "tide_spawn",
+    "name": "潮沫",
+    "sprite": "tide_spawn",
+    "rank": 9,
+    "summon_text": "從浪花裡湧了上來！",
+    "stats": {
+      "hp": 28,
+      "sp": 0,
+      "atk": 10,
+      "def": 2,
+      "spd": 11,
+      "will": 5,
+      "eva": 10
+    },
+    "skills": [
+      "attack",
+      "spawn_slap",
+      "whisper_minor"
+    ],
+    "ai": [
+      {
+        "skill": "attack",
+        "weight": 3
+      },
+      {
+        "skill": "spawn_slap",
+        "weight": 1
+      },
+      {
+        "skill": "whisper_minor",
+        "weight": 2,
+        "if": {
+          "turn_gte": 2
+        }
+      }
+    ],
+    "drops": [
+      {
+        "item": "fog_pearl",
+        "chance": 40
+      }
+    ]
+  },
+  {
+    "id": "tide_omen",
+    "name": "潮兆",
+    "sprite": "tide_omen",
+    "rank": 6,
+    "stats": {
+      "hp": 290,
+      "sp": 0,
+      "atk": 17,
+      "def": 6,
+      "spd": 9,
+      "will": 40,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "omen_wave_hand",
+      "omen_call",
+      "omen_silence"
+    ],
+    "ai": [
+      {
+        "skill": "omen_wave_hand",
+        "weight": 3
+      },
+      {
+        "skill": "attack",
+        "weight": 2
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 60,
+        "add_ai": [
+          {
+            "skill": "omen_call",
+            "weight": 3,
+            "if": {
+              "allies_lte": 1
+            }
+          }
+        ],
+        "dialogue": "dlg_ch7_omen_phase2"
+      },
+      {
+        "hp_lte_pct": 25,
+        "add_ai": [
+          {
+            "skill": "omen_silence",
+            "weight": 3
+          }
+        ],
+        "dialogue": "dlg_ch7_thirteenth"
+      }
+    ],
+    "drops": []
+  },
+  {
+    "id": "tide_omen_waned",
+    "name": "潮兆",
+    "sprite": "tide_omen_waned",
+    "rank": 6,
+    "stats": {
+      "hp": 290,
+      "sp": 0,
+      "atk": 17,
+      "def": 5,
+      "spd": 9,
+      "will": 40,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "omen_wave_hand",
+      "omen_call"
+    ],
+    "ai": [
+      {
+        "skill": "omen_wave_hand",
+        "weight": 3
+      },
+      {
+        "skill": "attack",
+        "weight": 2
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 60,
+        "add_ai": [
+          {
+            "skill": "omen_call",
+            "weight": 3,
+            "if": {
+              "allies_lte": 1
+            }
+          }
+        ],
+        "dialogue": "dlg_ch7_omen_phase2"
+      }
+    ],
+    "drops": []
+  },
+  {
+    "id": "tide_omen_nocap",
+    "name": "潮兆",
+    "sprite": "tide_omen",
+    "rank": 6,
+    "stats": {
+      "hp": 210,
+      "sp": 0,
+      "atk": 13,
+      "def": 6,
+      "spd": 9,
+      "will": 40,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "omen_wave_hand",
+      "omen_call",
+      "omen_silence"
+    ],
+    "ai": [
+      {
+        "skill": "omen_wave_hand",
+        "weight": 3
+      },
+      {
+        "skill": "attack",
+        "weight": 2
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 60,
+        "add_ai": [
+          {
+            "skill": "omen_call",
+            "weight": 3,
+            "if": {
+              "allies_lte": 1
+            }
+          }
+        ],
+        "dialogue": "dlg_ch7_omen_phase2"
+      },
+      {
+        "hp_lte_pct": 25,
+        "add_ai": [
+          {
+            "skill": "omen_silence",
+            "weight": 3
+          }
+        ],
+        "dialogue": "dlg_ch7_thirteenth"
+      }
+    ],
+    "drops": []
+  },
+  {
+    "id": "tide_omen_waned_nocap",
+    "name": "潮兆",
+    "sprite": "tide_omen_waned",
+    "rank": 6,
+    "stats": {
+      "hp": 215,
+      "sp": 0,
+      "atk": 12,
+      "def": 5,
+      "spd": 9,
+      "will": 40,
+      "eva": 0
+    },
+    "skills": [
+      "attack",
+      "omen_wave_hand",
+      "omen_call"
+    ],
+    "ai": [
+      {
+        "skill": "omen_wave_hand",
+        "weight": 3
+      },
+      {
+        "skill": "attack",
+        "weight": 2
+      }
+    ],
+    "phases": [
+      {
+        "hp_lte_pct": 60,
+        "add_ai": [
+          {
+            "skill": "omen_call",
+            "weight": 3,
+            "if": {
+              "allies_lte": 1
+            }
+          }
+        ],
+        "dialogue": "dlg_ch7_omen_phase2"
+      }
+    ],
+    "drops": []
   }
 ]

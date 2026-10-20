@@ -1,0 +1,136 @@
+{
+  "id": "sewer_cistern",
+  "name": "地下水道・舊蓄水池",
+  "tiles": [
+    "WWWWWWWWWWWWWWWWWWWWWWWW",
+    "W......................W",
+    "<......................W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W..==============......W",
+    "W......................W",
+    "W......................W",
+    "WWWWWWWWWWWWWWWWWWWW.WWW",
+    "WWWWWWWWWWWWWWWWW......W",
+    "WWWWWWWWWWWWWWWWWWWWWW>W"
+  ],
+  "legend": {
+    "W": "sewer_wall",
+    ".": "sewer_walk",
+    "=": "cistern_water",
+    ">": "sewer_grate",
+    "<": "sewer_grate",
+    "^": "stairs_up"
+  },
+  "on_enter": "dlg_ch5_cistern_enter",
+  "spawns": [
+    {
+      "id": "from_canal",
+      "x": 1,
+      "y": 2,
+      "dir": "right"
+    },
+    {
+      "id": "from_depths",
+      "x": 21,
+      "y": 16,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch5_stone",
+      "x": 1,
+      "y": 8,
+      "sprite": "rest_stone",
+      "solid": true,
+      "look": "dlg_ch5_stone"
+    },
+    {
+      "id": "obj_ch5_kirby",
+      "x": 10,
+      "y": 13,
+      "sprite": "boatman",
+      "solid": true,
+      "look": "dlg_ch5_kirby",
+      "echo": "dlg_ch5_oar_echo"
+    },
+    {
+      "id": "obj_ch5_bell",
+      "x": 8,
+      "y": 2,
+      "sprite": "sunken_bell",
+      "solid": true,
+      "look": "dlg_ch5_bell",
+      "echo": "dlg_ch5_bell_echo"
+    },
+    {
+      "id": "obj_ch5_checkpoint",
+      "x": 20,
+      "y": 15,
+      "sprite": "checkpoint_grille",
+      "solid": true,
+      "lock": {
+        "flag": "ch5_checkpoint_open",
+        "solvable_by": [
+          "voice"
+        ],
+        "fallback": "item:hush_token",
+        "on_tag": {
+          "voice": "dlg_ch5_checkpoint_voice"
+        },
+        "on_item": "dlg_ch5_checkpoint_token",
+        "locked": "dlg_ch5_checkpoint_locked"
+      }
+    },
+    {
+      "id": "obj_ch5_cache",
+      "x": 17,
+      "y": 16,
+      "sprite": "ink_cache",
+      "solid": true,
+      "look": "dlg_ch5_cache"
+    }
+  ],
+  "exits": [
+    {
+      "x": 0,
+      "y": 2,
+      "to": "sewer_canal",
+      "spawn": "from_cistern"
+    },
+    {
+      "x": 22,
+      "y": 17,
+      "to": "sewer_depths",
+      "spawn": "from_cistern"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch5_cistern_1",
+      "x": 20,
+      "y": 14,
+      "dialogue": "dlg_ch5_cistern_1",
+      "if": {
+        "not_flag": "ch5_cistern_1_done"
+      }
+    },
+    {
+      "id": "trg_ch5_cistern_2",
+      "x": 22,
+      "y": 16,
+      "dialogue": "dlg_ch5_cistern_2",
+      "if": {
+        "not_flag": "ch5_cistern_2_done"
+      }
+    }
+  ]
+}

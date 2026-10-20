@@ -1,0 +1,128 @@
+{
+  "id": "clockmaker_lane",
+  "name": "舊城・鐘匠巷",
+  "on_enter": "dlg_ch6_lane_arrive",
+  "tiles": [
+    "####################",
+    "#ffofffof%%ffffQQQf#",
+    "#,,,,,,,,%%,,,,QQQ,#",
+    "#,,,,,,,,%%,,,,,,,,#",
+    "#,,c,,,,,%%,,,,,,,,#",
+    ",,,,,,,,,~~,,,,,,,,#",
+    ",,,,,,,,,~~,,,,,,,,#",
+    "#,,,,,,,,%%,,,,,,,,#",
+    "#,,,,,,,,%%,,,,,,,,#",
+    "#,,c,,,,,%%,,,,,,,,#",
+    "#ffoffffo%%fffoffff#",
+    "####################"
+  ],
+  "legend": {
+    "#": "wall",
+    "f": "facade",
+    "o": "gas_lamp",
+    ",": "cobblestone",
+    "%": "fog",
+    "~": "mist",
+    "c": "crate",
+    "Q": "stopped_clock"
+  },
+  "spawns": [
+    {
+      "id": "entry",
+      "x": 1,
+      "y": 5,
+      "dir": "right"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch6_lane_box",
+      "x": 2,
+      "y": 8,
+      "sprite": "supply_box",
+      "solid": true,
+      "look": "dlg_ch6_lane_box"
+    },
+    {
+      "id": "obj_ch6_clock",
+      "x": 16,
+      "y": 3,
+      "sprite": "clock_plinth",
+      "solid": true,
+      "look": "dlg_ch6_clock_look",
+      "echo": "dlg_ch6_clock_echo"
+    },
+    {
+      "id": "obj_ch6_marlo_lane",
+      "x": 16,
+      "y": 5,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_ch6_marlo_lane",
+      "if": {
+        "not_flag": "ch6_lane_boss_done"
+      }
+    },
+    {
+      "id": "obj_ch6_monk_a",
+      "x": 15,
+      "y": 6,
+      "sprite": "hush_monk",
+      "solid": true,
+      "look": "dlg_ch6_marlo_lane",
+      "if": {
+        "not_flag": "ch6_lane_boss_done"
+      }
+    },
+    {
+      "id": "obj_ch6_monk_b",
+      "x": 17,
+      "y": 6,
+      "sprite": "hush_monk",
+      "solid": true,
+      "look": "dlg_ch6_marlo_lane",
+      "if": {
+        "not_flag": "ch6_lane_boss_done"
+      }
+    }
+  ],
+  "exits": [],
+  "triggers": [
+    {
+      "id": "trg_ch6_lane1_1",
+      "x": 9,
+      "y": 5,
+      "dialogue": "dlg_ch6_lane1_start",
+      "if": {
+        "not_flag": "ch6_lane1_done"
+      }
+    },
+    {
+      "id": "trg_ch6_lane1_2",
+      "x": 10,
+      "y": 5,
+      "dialogue": "dlg_ch6_lane1_start",
+      "if": {
+        "not_flag": "ch6_lane1_done"
+      }
+    },
+    {
+      "id": "trg_ch6_lane1_3",
+      "x": 9,
+      "y": 6,
+      "dialogue": "dlg_ch6_lane1_start",
+      "if": {
+        "not_flag": "ch6_lane1_done"
+      }
+    },
+    {
+      "id": "trg_ch6_lane1_4",
+      "x": 10,
+      "y": 6,
+      "dialogue": "dlg_ch6_lane1_start",
+      "if": {
+        "not_flag": "ch6_lane1_done"
+      }
+    }
+  ]
+}

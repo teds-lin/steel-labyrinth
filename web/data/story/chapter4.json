@@ -1,0 +1,3068 @@
+{
+  "id": "chapter4",
+  "title": "第四章　無聲的唱詩班",
+  "end_screen": {
+    "title": "第四章　完",
+    "subtitle": "第五章　地下水道",
+    "continue": {
+      "map": "office_ch5",
+      "spawn": "door",
+      "dialogue": "dlg_ch5_opening"
+    }
+  },
+  "guests": [
+    {
+      "id": "three",
+      "name": "三點",
+      "sprite": "guest_three",
+      "scripted": {
+        "greeting": [
+          "……十二點。今天的鐘聲，你數到幾下了？",
+          "坐吧。外面的聲音太多，這裡安靜一點。",
+          "你回來了。說話的聲音，還是你自己的嗎？",
+          "鐘聲剛停。說吧，我聽著。"
+        ],
+        "fallback": [
+          "霧太濃了，我聽不清楚你說什麼。",
+          "齒輪卡了一下。你再說一次？",
+          "你的聲音被鐘聲蓋過去了。等它停了再說吧。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "發條快鬆了。今天就聊到這裡。",
+          "鐘面上的光暗下來了。下次再說，十二點。"
+        ],
+        "filtered": [
+          "……我好像說錯話了，當我沒說。",
+          "這句話的齒輪不太對，我收回。",
+          "換個說法……還是算了，當我沒說。"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "三點看著你，像在等你先開口。可是霧太濃，聲音傳不過來。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和三點自由交談。）"
+        ]
+      }
+    },
+    {
+      "id": "nine",
+      "name": "九點",
+      "sprite": "guest_nine",
+      "scripted": {
+        "greeting": [
+          "十二點！今天開張囉，帶了什麼好貨來？",
+          "喲，老主顧上門了。黑線、繃帶，我都收喔。",
+          "來啦？坐坐坐，椅子不收錢，交換才收。",
+          "十二點！你身上有蠟燭的味道，去哪裡了？"
+        ],
+        "fallback": [
+          "咦？霧把你的話吹散了，再說一次嘛。",
+          "剛剛那句我沒聽清楚，算我欠你一次。",
+          "鐘聲太吵了！等它敲完再說。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "今天的生意做完囉，明天請早。",
+          "我的嘴巴今天營業到這裡。下次見，十二點！"
+        ],
+        "filtered": [
+          "哎呀，剛剛那句不算，當我沒說。",
+          "我收回那句話。做生意的，總要留點退路。",
+          "這句話太貴了，我不賣。換個話題吧？"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "九點朝你比了個手勢，嘴巴動了動，可是你一個字也聽不見。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和九點自由交談。）"
+        ]
+      },
+      "trades": [
+        {
+          "id": "nine_t4_incense",
+          "label": "兩捲繃帶換一支鎮靜香——划算吧？",
+          "give": [
+            {
+              "item": "bandage",
+              "count": 2
+            }
+          ],
+          "get": [
+            {
+              "item": "sedative_incense",
+              "count": 1
+            }
+          ],
+          "if": {
+            "flag": "ch4_started"
+          },
+          "once": false
+        },
+        {
+          "id": "nine_t4_moss",
+          "label": "兩捲黑線換一份回聲苔。這種苔，我也是託人摘的。",
+          "give": [
+            {
+              "item": "hush_thread",
+              "count": 2
+            }
+          ],
+          "get": [
+            {
+              "item": "echo_moss",
+              "count": 1
+            }
+          ],
+          "if": {
+            "flag": "ch4_started"
+          },
+          "once": true
+        }
+      ]
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "dlg_ch4_opening",
+      "start": "o1",
+      "nodes": [
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "早上，白燈保全公司。霧還沒散，窗玻璃上結著一層薄薄的水氣。",
+          "effects": [
+            {
+              "set_flag": "ch4_started"
+            }
+          ],
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": null,
+          "text": "馬洛把一份泛黃的卷宗放在桌上。封口壓著暗紅色的蠟封，印著晨燈教會的燈形紋章。",
+          "next": "o4"
+        },
+        {
+          "id": "o4",
+          "speaker": "馬洛",
+          "text": "「閉口記號案」。九年前的事。教會結案之後，就加了這個蠟封。",
+          "next": "o6"
+        },
+        {
+          "id": "o6",
+          "speaker": "馬洛",
+          "text": "今天一早，教會派人傳話：這個記號，別再查了。",
+          "next": "o8"
+        },
+        {
+          "id": "o8",
+          "speaker": "馬洛",
+          "text": "所以我們私下查。傳聞指向上城灰鴿街的禮拜堂，每晚都有「安眠禮拜」。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要問他什麼？",
+          "choices": [
+            {
+              "text": "「教會為什麼不准查？」",
+              "if": {
+                "not_flag": "ch4_q_order"
+              },
+              "effects": [
+                {
+                  "set_flag": "ch4_q_order"
+                }
+              ],
+              "next": "q1"
+            },
+            {
+              "text": "「九年前發生了什麼？」",
+              "if": {
+                "not_flag": "ch4_q_old"
+              },
+              "effects": [
+                {
+                  "set_flag": "ch4_q_old"
+                }
+              ],
+              "next": "q2"
+            },
+            {
+              "text": "「我知道了，出發吧。」",
+              "next": "m1"
+            }
+          ]
+        },
+        {
+          "id": "q1",
+          "speaker": "馬洛",
+          "text": "傳話的人沒說理由。教會不說理由的時候，通常是因為理由不好看。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "馬洛",
+          "text": "……那次我們晚了一步。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": null,
+          "text": "他沒有再說下去。艾妲看了你一眼，輕輕搖了搖頭。",
+          "next": "ask"
+        },
+        {
+          "id": "m1",
+          "speaker": "老賀伯",
+          "text": "等一下，小子。這個拿去。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": null,
+          "text": "老賀伯從抽屜裡拿出一個小紙包。打開來，是一團灰綠色的苔蘚。",
+          "next": "m3"
+        },
+        {
+          "id": "m3",
+          "speaker": "老賀伯",
+          "text": "回聲苔。下一劑的配方我有，材料還缺。苔要兩份，這是一份；另外還差一樣。",
+          "effects": [
+            {
+              "give_item": "echo_moss"
+            }
+          ],
+          "next": "m6"
+        },
+        {
+          "id": "m6",
+          "speaker": "老賀伯",
+          "text": "上城的老井壁上，以前就長著這種苔。至於缺的那一樣，我還在想。",
+          "next": "m7"
+        },
+        {
+          "id": "m7",
+          "speaker": "艾妲",
+          "text": "我跟你去。上城的人，對入夢者比較不會提防。",
+          "next": "m8"
+        },
+        {
+          "id": "m8",
+          "speaker": "馬洛",
+          "text": "我在外面接應。有事就回來，別在教會的地盤上惹事。",
+          "next": "m9"
+        },
+        {
+          "id": "m9",
+          "speaker": null,
+          "text": "（取得回聲苔。從辦公室門口出發，前往上城・白石街。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_door",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "all": [
+                  {
+                    "flag": "ch4_night"
+                  },
+                  {
+                    "rank_lte": 8
+                  }
+                ]
+              },
+              "next": "nt"
+            },
+            {
+              "if": {
+                "flag": "ch4_night"
+              },
+              "next": "nlock"
+            }
+          ],
+          "next": "day"
+        },
+        {
+          "id": "day",
+          "speaker": null,
+          "text": "門外是灰白的晨霧。往上城的電車，十分鐘一班。",
+          "next": "dask"
+        },
+        {
+          "id": "dask",
+          "speaker": null,
+          "text": "要出發嗎？",
+          "choices": [
+            {
+              "text": "前往上城",
+              "next": "dgo"
+            },
+            {
+              "text": "再等一下",
+              "next": "END"
+            }
+          ]
+        },
+        {
+          "id": "dgo",
+          "speaker": null,
+          "text": "你和艾妲跳上了往上城的電車。",
+          "effects": [
+            {
+              "goto": {
+                "map": "uptown",
+                "spawn": "from_office"
+              }
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "nlock",
+          "speaker": "老賀伯",
+          "text": "藥櫃準備好了。喝完再出門，小子。",
+          "next": "END"
+        },
+        {
+          "id": "nt",
+          "speaker": null,
+          "text": "夜霧貼著窗戶。這種晚上，路燈只照得亮自己腳下。",
+          "next": "ntask"
+        },
+        {
+          "id": "ntask",
+          "speaker": null,
+          "text": "要出發嗎？",
+          "choices": [
+            {
+              "text": "前往上城（夜）",
+              "next": "ngo"
+            },
+            {
+              "text": "再等一下",
+              "next": "END"
+            }
+          ]
+        },
+        {
+          "id": "ngo",
+          "speaker": "艾妲",
+          "text": "走吧。這次換我們進去，不等他們出來。",
+          "effects": [
+            {
+              "goto": {
+                "map": "uptown",
+                "spawn": "from_office"
+              }
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_marlo",
+      "start": "m0",
+      "nodes": [
+        {
+          "id": "m0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_promoted"
+              },
+              "next": "np"
+            },
+            {
+              "if": {
+                "flag": "ch4_night"
+              },
+              "next": "nn"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": "馬洛",
+          "text": "我在這裡等消息。記住，在教會的地盤上，別讓人抓到把柄。",
+          "next": "END"
+        },
+        {
+          "id": "nn",
+          "speaker": "馬洛",
+          "text": "那年我們晚了一步。這次，別讓我再晚。",
+          "next": "END"
+        },
+        {
+          "id": "np",
+          "speaker": "馬洛",
+          "text": "去吧。我在外面接應。名冊拿到手，就什麼都不用再等。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_herb",
+      "start": "h0",
+      "nodes": [
+        {
+          "id": "h0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_night"
+              },
+              "next": "nn"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": "老賀伯",
+          "text": "苔還差一份。上城那口老井，我年輕時去打過水。",
+          "next": "END"
+        },
+        {
+          "id": "nn",
+          "speaker": "老賀伯",
+          "text": "藥櫃在那邊。你喝藥，我寫報告——這叫分工。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_ada",
+      "start": "a0",
+      "nodes": [
+        {
+          "id": "a0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_night"
+              },
+              "next": "nn"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": "艾妲",
+          "text": "準備好就走吧。上城的電車很準時，不等人的。",
+          "next": "END"
+        },
+        {
+          "id": "nn",
+          "speaker": "艾妲",
+          "text": "我一直在想黛西的女兒……她現在，會不會也睡不著？",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_notice",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "布告欄上釘著一張教會的便箋，字跡工整：「閉口記號一事，請貴隊停止調查。」",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "便箋底下，馬洛用紅筆畫了一個圈。圈裡什麼也沒寫。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_stairs",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "通往地下練習室的樓梯。今天沒空練習，名冊不會自己跑出來。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_sofa",
+      "start": "s0",
+      "nodes": [
+        {
+          "id": "s0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_night"
+              },
+              "next": "nn"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "舊沙發。大白天的，還不是睡覺的時候。",
+          "next": "END"
+        },
+        {
+          "id": "nn",
+          "speaker": null,
+          "text": "毯子摺得整整齊齊，大概是艾妲摺的。躺下來，也許又能聽見那陣鐘聲。",
+          "effects": [
+            {
+              "clear_flag": "dream_rested"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_uptown_enter",
+      "start": "u1",
+      "nodes": [
+        {
+          "id": "u1",
+          "speaker": null,
+          "text": "上城・白石街。石板路掃得很乾淨，花台裡的花也開得整整齊齊。",
+          "next": "u3"
+        },
+        {
+          "id": "u3",
+          "speaker": "艾妲",
+          "text": "……好怪。這麼多人走在路上，卻沒有一個人說話。",
+          "branches": [
+            {
+              "if": {
+                "flag": "heard_uptown_rumor"
+              },
+              "next": "u4"
+            }
+          ],
+          "next": "u5"
+        },
+        {
+          "id": "u4",
+          "speaker": "{name}",
+          "text": "（九點說過，上城晚上安靜得不對勁。她說的安靜，就是這個。）",
+          "next": "u5"
+        },
+        {
+          "id": "u5",
+          "speaker": "艾妲",
+          "text": "先四處問問吧。報童通常什麼都知道。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_peter",
+      "start": "p0",
+      "nodes": [
+        {
+          "id": "p0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_heard_service"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "p1"
+        },
+        {
+          "id": "p1",
+          "speaker": "彼得",
+          "text": "號外號外——啊，不是號外，是今天的晚報提早到了！要一份嗎？",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "{name}",
+          "text": "我想問點事。這條街一直這麼安靜嗎？",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": "彼得",
+          "text": "自從禮拜堂開了「安眠禮拜」，大家就越來越安靜了。免費的喔，每天晚上。",
+          "next": "p8"
+        },
+        {
+          "id": "p8",
+          "speaker": "彼得",
+          "text": "去過的人回來，都不罵我了。……被罵很討厭，可是不被罵更可怕。",
+          "next": "p9"
+        },
+        {
+          "id": "p9",
+          "speaker": null,
+          "text": "（安眠禮拜就在今晚。準備好了，就從街北的正門進禮拜堂。）",
+          "effects": [
+            {
+              "set_flag": "ch4_heard_service"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": "彼得",
+          "text": "晚報要嗎？今天的頭條是「上城一切平安」。……我自己都不信。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_daisy",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_florist"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "花攤前站著一位圍著圍裙的中年婦人。她的脖子上，掛著一塊小黑板。",
+          "next": "d3"
+        },
+        {
+          "id": "d3",
+          "speaker": null,
+          "text": "她沒有開口，只是拿起粉筆，在黑板上寫字。",
+          "next": "d4"
+        },
+        {
+          "id": "d4",
+          "speaker": "黛西",
+          "text": "「一束三枚銅幣。」",
+          "next": "d7"
+        },
+        {
+          "id": "d7",
+          "speaker": "黛西",
+          "text": "「我女兒去唱詩班，沒回來。」",
+          "next": "d8"
+        },
+        {
+          "id": "d8",
+          "speaker": null,
+          "text": "她的手在發抖。攤子上攤著一本帳本，紙頁被翻得起毛了，邊緣纏著淡淡的銀光。",
+          "next": "d9"
+        },
+        {
+          "id": "d9",
+          "speaker": null,
+          "text": "（用【回溯】，也許能看見帳本記得的事。）",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": "黛西",
+          "text": "「謝謝你們。」黑板上的字，寫得比剛才用力。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_daisy_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_florist"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你的指尖碰到帳本。銀光沿著墨跡爬上來，街上的聲音一下子遠了。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——傍晚。黛西在帳本上記下：「白百合二十束，灰鴿街禮拜堂。」",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "一個穿著詩班袍的少女在攤子邊幫忙包花，一邊包，一邊小聲地唱歌。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "黛西",
+          "text": "蘿絲，別唱了，吵得客人都聽不見我說價錢。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": null,
+          "text": "少女吐了吐舌頭。帳本翻過一頁，日期往後跳了三天。角落寫著一行小字。",
+          "next": "e6"
+        },
+        {
+          "id": "e6",
+          "speaker": null,
+          "text": "「蘿絲說，詩班長要她今晚留下來。」之後的每一頁，都只記帳，不再寫別的。",
+          "next": "e7"
+        },
+        {
+          "id": "e7",
+          "speaker": "{name}",
+          "text": "（她的女兒叫蘿絲。最後一次被看見，是在禮拜堂。）",
+          "effects": [
+            {
+              "set_flag": "ch4_clue_florist"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，少女又唱起了那首歌。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_hobbs",
+      "start": "h0",
+      "nodes": [
+        {
+          "id": "h0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_patrol_exposed"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "flag": "ch4_patrol_notes"
+              },
+              "next": "x1"
+            }
+          ],
+          "next": "h1"
+        },
+        {
+          "id": "h1",
+          "speaker": "霍布斯",
+          "text": "白燈保全？上城一切正常，用不著私人保全插手。",
+          "next": "h2"
+        },
+        {
+          "id": "h2",
+          "speaker": "{name}",
+          "text": "花販太太的女兒失蹤了。你知道嗎？",
+          "next": "h3"
+        },
+        {
+          "id": "h3",
+          "speaker": "霍布斯",
+          "text": "不知道。我們沒接過那種報案。上城沒有人失蹤，大家都過得很好。",
+          "next": "h4"
+        },
+        {
+          "id": "h4",
+          "speaker": null,
+          "text": "他的帽子歪了一邊。說「沒接過」的時候，手按住了胸前口袋裡的記事本。",
+          "next": "h5"
+        },
+        {
+          "id": "h5",
+          "speaker": null,
+          "text": "（記事本上纏著銀光。用【回溯】，看看他寫過什麼。）",
+          "next": "END"
+        },
+        {
+          "id": "x1",
+          "speaker": "{name}",
+          "text": "霍布斯先生，你接過報案。而且不只一件。",
+          "next": "x3"
+        },
+        {
+          "id": "x3",
+          "speaker": "{name}",
+          "text": "你在記事本上寫了「花販黛西，女兒蘿絲，十四歲」，然後把那一頁撕掉了。",
+          "next": "x5"
+        },
+        {
+          "id": "x5",
+          "speaker": "霍布斯",
+          "text": "……局裡說，跟禮拜堂有關的事一律不准登記。是上面的意思。",
+          "next": "x6"
+        },
+        {
+          "id": "x6",
+          "speaker": "霍布斯",
+          "text": "這個月我撕了十一頁。十一個少了人的家。我、我只是照規定……",
+          "next": "x7"
+        },
+        {
+          "id": "x7",
+          "speaker": "{name}",
+          "text": "（謊言剝落的聲音，清清楚楚。腦中那條線，又對上了一格。）",
+          "effects": [
+            {
+              "resonance": "lie_exposed"
+            },
+            {
+              "set_flag": "ch4_patrol_exposed"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": "霍布斯",
+          "text": "那十一頁，我會補回來。至少……記在我自己的本子上。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_hobbs_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_patrol_notes"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你盯著霍布斯胸前的口袋。銀光鑽進記事本的縫隙，紙頁一頁一頁翻開。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "霍布斯一筆一筆抄下來：「花販黛西，女兒蘿絲，十四歲，最後去了禮拜堂。」",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "抄完，他看了一眼牆上的公文，把那一頁撕下來，揉成一團。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "{name}",
+          "text": "（他接過報案。他在說謊。）",
+          "effects": [
+            {
+              "set_flag": "ch4_patrol_notes"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那團紙又被揉了一次。他寫過什麼，你已經知道了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_well",
+      "start": "w0",
+      "nodes": [
+        {
+          "id": "w0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_got_moss"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "w1"
+        },
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "街角有一口老井，井口蓋著鐵柵。井壁上長滿了灰綠色的苔蘚。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": null,
+          "text": "你伸手摘下一片。苔蘚貼近耳邊時，傳來一陣很輕、很遠的哼聲。",
+          "next": "w4"
+        },
+        {
+          "id": "w4",
+          "speaker": null,
+          "text": "（取得回聲苔。）",
+          "effects": [
+            {
+              "give_item": "echo_moss"
+            },
+            {
+              "set_flag": "ch4_got_moss"
+            }
+          ],
+          "next": "w5"
+        },
+        {
+          "id": "w5",
+          "speaker": null,
+          "text": "井繩垂進黑暗裡，上面纏著一圈一圈的銀光。",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "井壁上的苔還在。摘夠了，剩下的就留給這口井吧。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_well_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_well"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你握住井繩。銀光從麻繩的纖維裡滲出來，像水一樣往上爬。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——夜裡。井邊圍著一圈人，有老人、有店員，也有穿睡衣的孩子。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "他們一起張著嘴，哼著同一段旋律。可是旋律沒有聲音，只有嘴唇在動。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "一個人哼完，就閉上嘴，安安靜靜地走回家。下一個人接著哼。",
+          "next": "e7"
+        },
+        {
+          "id": "e7",
+          "speaker": "{name}",
+          "text": "（那段旋律，我記住了。）",
+          "effects": [
+            {
+              "set_flag": "ch4_clue_well"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那段沒有聲音的旋律又響了一遍。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_chapel_blocked",
+      "start": "b0",
+      "nodes": [
+        {
+          "id": "b0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_night"
+              },
+              "next": "night"
+            },
+            {
+              "if": {
+                "not_flag": "ch4_heard_service"
+              },
+              "next": "nb1"
+            },
+            {
+              "if": {
+                "not_flag": "ch4_got_moss"
+              },
+              "next": "nb2"
+            }
+          ],
+          "next": "nb3"
+        },
+        {
+          "id": "night",
+          "speaker": null,
+          "text": "正門上了鎖，門縫裡一點光也沒有。往東的巷子，好像通到禮拜堂的後面。",
+          "next": "END"
+        },
+        {
+          "id": "nb1",
+          "speaker": "艾妲",
+          "text": "禮拜是晚上才開始吧？先問問街上的人。",
+          "next": "END"
+        },
+        {
+          "id": "nb2",
+          "speaker": "艾妲",
+          "text": "等等，老井那邊說不定有回聲苔。進去之前，先去摘吧？",
+          "next": "END"
+        },
+        {
+          "id": "nb3",
+          "speaker": null,
+          "text": "門關著。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_service",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "天黑之後，禮拜堂的門開了。長椅很快就坐滿了人，大家安安靜靜地低著頭。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": null,
+          "text": "祭壇前站著一排穿白袍的詩班。最前面的老婦人戴著白手套，領口是高高的蕾絲。",
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": "艾妲",
+          "text": "（小聲）那是詩班長吧……{name}，她的嘴唇上好像有東西。",
+          "next": "s4"
+        },
+        {
+          "id": "s4",
+          "speaker": null,
+          "text": "招待員提著燭台走過走道，一根一根點亮蠟燭。燭火燒得很旺，卻一點聲音也沒有。",
+          "next": "s5"
+        },
+        {
+          "id": "s5",
+          "speaker": null,
+          "text": "詩班長舉起手。詩班一起張開了嘴——",
+          "next": "s6"
+        },
+        {
+          "id": "s6",
+          "speaker": null,
+          "text": "什麼都沒有。沒有歌聲，沒有呼吸聲。只有幾十張嘴，整整齊齊地一開一合。",
+          "next": "s7"
+        },
+        {
+          "id": "s7",
+          "speaker": null,
+          "text": "坐在你前面的老先生慢慢垂下了頭。旁邊的女人也是。聽眾一個接一個安靜下來。",
+          "next": "s8"
+        },
+        {
+          "id": "s8",
+          "speaker": null,
+          "text": "你的眼皮也越來越重。耳朵裡嗡嗡作響，像有人在很遠的地方說：閉上嘴。",
+          "next": "s9"
+        },
+        {
+          "id": "s9",
+          "speaker": "艾妲",
+          "text": "（在你耳邊輕輕哼著）睡吧，睡吧，燈還亮著……",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼做？",
+          "choices": [
+            {
+              "text": "跟著閉上眼",
+              "effects": [
+                {
+                  "collapse": 3
+                },
+                {
+                  "set_flag": "ch4_closed_eyes"
+                }
+              ],
+              "next": "c1"
+            },
+            {
+              "text": "盯著詩班長",
+              "effects": [
+                {
+                  "set_flag": "ch4_watched_leader"
+                }
+              ],
+              "next": "w1"
+            }
+          ]
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "你閉上眼睛。黑暗裡，沒有聲音的歌反而好清楚，一句一句往腦子裡鑽。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": null,
+          "text": "你猛地睜開眼。額頭全是冷汗，好像差一點就忘了什麼重要的事。",
+          "next": "e1"
+        },
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "你咬著牙，死盯著詩班長。她指揮的手很優雅，嘴唇卻一動也不動。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": null,
+          "text": "燭光一晃，你看清楚了：她的嘴唇封著一層白蠟，薄薄的、亮亮的，像一道封條。",
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "不知過了多久，詩班長放下手。聽眾一個個站起來，像夢遊一樣走向門口。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "詩班退到祭壇後面。招待員吹熄蠟燭，禮拜廳裡幾乎只剩下你們兩個。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "艾妲",
+          "text": "這蠟點著的時候，連燭芯都不出聲。老賀伯說還缺一樣材料，會不會就是它？",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": null,
+          "text": "（取得詩班燭蠟。趁人走光之前，在禮拜廳裡找找看。）",
+          "effects": [
+            {
+              "give_item": "choir_wax"
+            },
+            {
+              "set_flag": "ch4_service"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_hymnal",
+      "start": "h0",
+      "nodes": [
+        {
+          "id": "h0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_hymnal"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "h1"
+        },
+        {
+          "id": "h1",
+          "speaker": null,
+          "text": "長椅上留著一本詩歌本。黑色的布面封面，燙著一個銀色的鐘。",
+          "next": "h2"
+        },
+        {
+          "id": "h2",
+          "speaker": null,
+          "text": "翻開來，每一頁都是空白的五線譜，沒有音符。紙頁之間纏著細細的銀光。",
+          "next": "h3"
+        },
+        {
+          "id": "h3",
+          "speaker": null,
+          "text": "（用【回溯】，看看它記得什麼。）",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "詩歌本的封面內頁，那行字還在：「閉上嘴，就聽不見。」",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_hymnal_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_hymnal"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你翻開封面。銀光從紙頁深處浮上來，禮拜廳的燭火一盞一盞暗下去。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——深夜。燭光下，一隻戴白手套的手，在封面內頁寫下一行端正的字。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "「靜默聖歌會」。字的下面，又寫了一行：「閉上嘴，就聽不見。」",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "艾妲",
+          "text": "靜默聖歌會……{name}，那是誰？",
+          "next": "e6"
+        },
+        {
+          "id": "e6",
+          "speaker": "{name}",
+          "text": "那些不出聲的人。他們有名字了。",
+          "next": "e8"
+        },
+        {
+          "id": "e8",
+          "speaker": "{name}",
+          "text": "（隊長說，他們不會把名字留給我們。可是名字自己留下來了。）",
+          "effects": [
+            {
+              "set_flag": "ch4_clue_hymnal"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那隻手又寫了一次那個名字。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_hooks",
+      "start": "k0",
+      "nodes": [
+        {
+          "id": "k0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_got_pass"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "k1"
+        },
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "牆角的衣帽間掛著一排白袍。最旁邊的掛鉤上，吊著一面小小的木牌。",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": null,
+          "text": "木牌上刻著一個銀色的鐘，背面寫著「詩班出入」。",
+          "next": "k4"
+        },
+        {
+          "id": "k4",
+          "speaker": null,
+          "text": "（取得詩班通行牌。）",
+          "effects": [
+            {
+              "give_item": "chapel_pass"
+            },
+            {
+              "set_flag": "ch4_got_pass"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "掛鉤上只剩下空空的白袍，在穿堂風裡輕輕晃著。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_usher",
+      "start": "u0",
+      "nodes": [
+        {
+          "id": "u0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_usher_exposed"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "flag": "ch4_usher_gloves"
+              },
+              "next": "x1"
+            },
+            {
+              "if": {
+                "flag": "ch4_usher_talked"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "u1"
+        },
+        {
+          "id": "u1",
+          "speaker": "招待員",
+          "text": "禮拜結束了。兩位如果還睡不著，明天晚上請早。",
+          "next": "u2"
+        },
+        {
+          "id": "u2",
+          "speaker": "{name}",
+          "text": "你們是什麼團體？",
+          "next": "u3"
+        },
+        {
+          "id": "u3",
+          "speaker": "招待員",
+          "text": "暮鐘慈善詩班。我們只是慈善詩班，讓睡不著的人好好睡一覺。",
+          "next": "u6"
+        },
+        {
+          "id": "u6",
+          "speaker": null,
+          "text": "他一邊說，一邊拉緊手上的白手套，好像怕被人看見手指。",
+          "effects": [
+            {
+              "set_flag": "ch4_usher_talked"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": "招待員",
+          "text": "我們只是慈善詩班。請回吧。",
+          "next": "END"
+        },
+        {
+          "id": "x1",
+          "speaker": "{name}",
+          "text": "你的手套底下，有黑線勒過的痕跡。你自己也縫過嘴，對吧？",
+          "next": "x2"
+        },
+        {
+          "id": "x2",
+          "speaker": null,
+          "text": "招待員僵住了。他慢慢脫下右手的手套，指縫間是一道一道發黑的舊勒痕。",
+          "next": "x3"
+        },
+        {
+          "id": "x3",
+          "speaker": "招待員",
+          "text": "……縫過一次。拆掉的時候，我才知道自己有多想說話。",
+          "next": "x4"
+        },
+        {
+          "id": "x4",
+          "speaker": "招待員",
+          "text": "可是我已經離不開了。唱完的人，會被「記下名字」。",
+          "next": "x6"
+        },
+        {
+          "id": "x6",
+          "speaker": "招待員",
+          "text": "我只負責點蠟燭。名冊在詩班長那裡……求你，別說是我說的。",
+          "next": "x7"
+        },
+        {
+          "id": "x7",
+          "speaker": "{name}",
+          "text": "（謊言剝落的聲音，清清楚楚。腦中那條線，又對上了一格。）",
+          "effects": [
+            {
+              "resonance": "lie_exposed"
+            },
+            {
+              "set_flag": "ch4_usher_exposed"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "招待員把手套戴回去，低著頭，不再看你。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_usher_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_usher_gloves"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你盯著招待員的白手套。銀光從布料的縫線裡滲了出來。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——一間沒有窗的小房間。招待員咬著牙，用黑線把自己的嘴唇縫起來。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": "{name}",
+          "text": "（他縫過嘴，又拆掉了。可是他還留在這裡。）",
+          "effects": [
+            {
+              "set_flag": "ch4_usher_gloves"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那根黑線又被拆了一次。你已經看過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_hall_blocked",
+      "start": "b1",
+      "nodes": [
+        {
+          "id": "b1",
+          "speaker": "艾妲",
+          "text": "等一下，{name}。長椅上那本詩歌本……你不覺得它在等你翻開嗎？",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_deduce",
+      "start": "d1",
+      "nodes": [
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "散場的人群在霧裡散開。每個人都低著頭，安安靜靜地走回家。",
+          "next": "d2"
+        },
+        {
+          "id": "d2",
+          "speaker": "艾妲",
+          "text": "{name}，我們整理一下吧。去過禮拜的人，最後去了哪裡？",
+          "next": "d3"
+        },
+        {
+          "id": "d3",
+          "speaker": "{name}",
+          "text": "黛西的女兒、沒有聲音的詩班、詩歌本上的那句話……",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "你的推理是？",
+          "choices": [
+            {
+              "text": "「回家睡覺了。」",
+              "next": "ng1"
+            },
+            {
+              "text": "「被記下名字，送去別的地方。」",
+              "next": "ok1"
+            },
+            {
+              "text": "「加入了詩班。」",
+              "next": "ng2"
+            }
+          ]
+        },
+        {
+          "id": "ng1",
+          "speaker": "艾妲",
+          "text": "大部分人是回家了。可是蘿絲沒有回家。再想想？",
+          "effects": [
+            {
+              "set_flag": "ch4_deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ng2",
+          "speaker": "艾妲",
+          "text": "詩班才十幾個人，沒回家的人卻越來越多。人數對不上。再想想？",
+          "effects": [
+            {
+              "set_flag": "ch4_deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ok1",
+          "speaker": "{name}",
+          "text": "唱完的人被記下名字。名字被記下的人，就從上城消失了。",
+          "branches": [
+            {
+              "if": {
+                "not_flag": "ch4_deduce_wrong"
+              },
+              "next": "ok2"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok2",
+          "speaker": null,
+          "text": "（推理正確。腦中那條線，喀的一聲接上了。）",
+          "effects": [
+            {
+              "resonance": "deduction_correct"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok3",
+          "speaker": "艾妲",
+          "text": "那一定有一本名冊。只要找到它，就知道他們被送去哪裡了。",
+          "next": "ok5"
+        },
+        {
+          "id": "ok5",
+          "speaker": null,
+          "text": "你們搭上最後一班電車。窗外，上城的燈一盞一盞熄掉。",
+          "effects": [
+            {
+              "set_flag": "ch4_deduced"
+            },
+            {
+              "goto": {
+                "map": "office_ch4",
+                "spawn": "door",
+                "dialogue": "dlg_ch4_night"
+              }
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_night",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "夜裡，白燈保全公司。馬洛和老賀伯都還沒走。",
+          "effects": [
+            {
+              "set_flag": "ch4_night"
+            }
+          ],
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "{name}",
+          "text": "禮拜堂的那些人，自稱「靜默聖歌會」。門面是暮鐘慈善詩班。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "馬洛",
+          "text": "……九年前也是這樣。先是安靜，然後是失蹤。",
+          "next": "n5"
+        },
+        {
+          "id": "n5",
+          "speaker": "馬洛",
+          "text": "名冊。只要有名冊，就有證據。教會的蠟封也壓不住。",
+          "next": "n6"
+        },
+        {
+          "id": "n6",
+          "speaker": "老賀伯",
+          "text": "那就輪到我了。苔兩份、蠟一塊——缺的那一樣，原來是蠟。",
+          "next": "n7"
+        },
+        {
+          "id": "n7",
+          "speaker": "老賀伯",
+          "text": "藥櫃準備好了。什麼時候喝，你自己決定。",
+          "next": "n9"
+        },
+        {
+          "id": "n9",
+          "speaker": null,
+          "text": "（到藥櫃前找老賀伯。沙發也可以休息、入夢。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_cabinet",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_promoted"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "not_flag": "ch4_night"
+              },
+              "next": "day"
+            }
+          ],
+          "next": "c1"
+        },
+        {
+          "id": "day",
+          "speaker": "老賀伯",
+          "text": "藥櫃？大白天的別亂翻。材料湊齊了，晚上再說。",
+          "next": "END"
+        },
+        {
+          "id": "c1",
+          "speaker": "老賀伯",
+          "text": "坐。苔、蠟，還有我的配方。一劑「借聲者」。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要喝下第二劑靈劑嗎？",
+          "choices": [
+            {
+              "text": "喝下",
+              "if": {
+                "can_promote": 8
+              },
+              "next": "p1"
+            },
+            {
+              "text": "「材料好像不夠……」",
+              "if": {
+                "not": {
+                  "can_promote": 8
+                }
+              },
+              "next": "nm"
+            },
+            {
+              "text": "「再去看看。」",
+              "if": {
+                "not": {
+                  "resonance_gte": 8
+                }
+              },
+              "next": "wait1"
+            },
+            {
+              "text": "「再等一下。」",
+              "next": "wait2"
+            }
+          ]
+        },
+        {
+          "id": "nm",
+          "speaker": "老賀伯",
+          "text": "苔要兩份、蠟要一塊。少了就去找——九點那種地方也行，別問我怎麼知道的。",
+          "next": "END"
+        },
+        {
+          "id": "wait1",
+          "speaker": "老賀伯",
+          "text": "你還沒把上一劑消化完。去把看見的事想清楚，再回來。",
+          "next": "END"
+        },
+        {
+          "id": "wait2",
+          "speaker": "老賀伯",
+          "text": "藥不會跑。你也別跑太遠。",
+          "next": "END"
+        },
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "老賀伯把回聲苔和白蠟放進研缽，一邊磨，一邊對照一張發黃的配方。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": null,
+          "text": "藥劑調好了。灰色的，什麼味道都沒有，像一杯裝在杯子裡的霧。",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": null,
+          "text": "你一口氣喝了下去。",
+          "effects": [
+            {
+              "promote": {
+                "lineage": "trace",
+                "rank": 8
+              }
+            }
+          ],
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": null,
+          "text": "房間裡每一種聲音，都變成了一條線。",
+          "next": "p6"
+        },
+        {
+          "id": "p6",
+          "speaker": null,
+          "text": "茶壺、老賀伯的筆、窗外的電車、艾妲的呼吸。最遠的地方，有鐘聲。",
+          "next": "p7"
+        },
+        {
+          "id": "p7",
+          "speaker": null,
+          "text": "一下、兩下……十一、十二。停了一下——第十三響。",
+          "branches": [
+            {
+              "if": {
+                "promoted_forced": 8
+              },
+              "next": "f1"
+            }
+          ],
+          "next": "k1"
+        },
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "銀光安靜下來。腦中那條線，第一次自己發出了聲音。",
+          "next": "t1"
+        },
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "所有的線一起響了起來。你摀住耳朵，可是聲音是從裡面來的。",
+          "effects": [
+            {
+              "set_flag": "forced_rank8"
+            }
+          ],
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": null,
+          "text": "艾妲的聲音像隔著一層水。過了很久，那些線才一條一條安靜下來。",
+          "next": "f4"
+        },
+        {
+          "id": "f4",
+          "speaker": "老賀伯",
+          "text": "急什麼……下次，等你真的看清楚了再喝。",
+          "next": "t1"
+        },
+        {
+          "id": "t1",
+          "speaker": "艾妲",
+          "text": "上次是只看一條線。這次，你自己挑一條，學著把它說出來。",
+          "next": "t3"
+        },
+        {
+          "id": "t3",
+          "speaker": null,
+          "text": "你一開口，發出來的卻是艾妲的聲音。艾妲嚇了一跳，然後笑出聲來。",
+          "next": "t5"
+        },
+        {
+          "id": "t5",
+          "speaker": null,
+          "text": "你清了清喉嚨，挑了另一條線——馬洛的。",
+          "next": "t6"
+        },
+        {
+          "id": "t6",
+          "speaker": "{name}",
+          "text": "（用馬洛的聲音）賀伯，下個月的茶葉預算，加倍。",
+          "next": "t7"
+        },
+        {
+          "id": "t7",
+          "speaker": "老賀伯",
+          "text": "隊長從來不會說加倍。",
+          "next": "t8"
+        },
+        {
+          "id": "t8",
+          "speaker": null,
+          "text": "老賀伯頭也不抬，筆尖沙沙地繼續寫。窗邊的馬洛，嘴角好像動了一下。",
+          "next": "t9"
+        },
+        {
+          "id": "t9",
+          "speaker": "馬洛",
+          "text": "……學得不錯。進了禮拜堂，就去把名冊拿回來。",
+          "next": "t10"
+        },
+        {
+          "id": "t10",
+          "speaker": null,
+          "text": "（晉升為借聲者。能用【借聲】開啟只認聲音的門，戰鬥中可用【低語】。）",
+          "effects": [
+            {
+              "set_flag": "ch4_promoted"
+            },
+            {
+              "set_flag": "ch4_voice_tried"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": "老賀伯",
+          "text": "藥櫃關上了。下一劑，等你下一次真的看清楚再說。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_uptown_night",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "夜裡的白石街，霧濃得看不見對面的招牌。花攤收了，報童也不見了。",
+          "effects": [
+            {
+              "set_flag": "ch4_night_seen"
+            }
+          ],
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "艾妲",
+          "text": "禮拜堂的正門鎖著。東邊那條巷子，應該通到後迴廊。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "巷口的霧裡，有東西在動。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_alley",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "霧突然濃得像一面牆。兩個灰色的人影，從巷子深處浮了出來。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "艾妲",
+          "text": "霧行者！上城也有……它們是被禮拜堂引過來的嗎？",
+          "effects": [
+            {
+              "battle": "enc_ch4_alley"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_alley_after",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "霧行者散成兩團水氣。石板路上滾著幾顆冰冰的小水珠。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": null,
+          "text": "（取得霧珠×2。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_alley_blocked",
+      "start": "b1",
+      "nodes": [
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "巷底是一道鐵門，掛著「禮拜堂後院，閒人勿入」的牌子。白天有人看守。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_cloister_enter",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "灰鴿街禮拜堂的後院。迴廊圍著一座荒掉的小花園，石柱上爬滿了枯藤。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": null,
+          "text": "前方的側門緊閉著。門後傳來一個沙啞的聲音：「……暗號。」",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_side_locked",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": "看門人",
+          "text": "（門後）只有詩班長的哼聲，才能開這扇門。",
+          "next": "l3"
+        },
+        {
+          "id": "l3",
+          "speaker": "{name}",
+          "text": "（禮拜的時候，她的喉嚨裡好像有一點聲音。要是借得來就好了。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_side_voice",
+      "start": "v1",
+      "nodes": [
+        {
+          "id": "v1",
+          "speaker": null,
+          "text": "你閉上眼，想起禮拜時詩班長喉嚨深處那一點細細的哼聲。",
+          "next": "v2"
+        },
+        {
+          "id": "v2",
+          "speaker": null,
+          "text": "你挑起那條線，把它從自己的喉嚨裡送出去。",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": "看門人",
+          "text": "……詩班長。請進。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_side_pass",
+      "start": "i1",
+      "nodes": [
+        {
+          "id": "i1",
+          "speaker": null,
+          "text": "你把詩班通行牌從門縫塞進去。門後安靜了一會兒。",
+          "next": "i2"
+        },
+        {
+          "id": "i2",
+          "speaker": "看門人",
+          "text": "……詩班的人。請進。",
+          "next": "i3"
+        },
+        {
+          "id": "i3",
+          "speaker": null,
+          "text": "門閂喀啦一聲滑開了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_cloister_1",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "迴廊的轉角，兩個灰袍人轉過身來。口罩上用黑線繡著那張被封住的嘴。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "艾妲",
+          "text": "是信徒……他們看見我們了！",
+          "effects": [
+            {
+              "battle": "enc_ch4_cloister_1"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_cloister_2",
+      "start": "b1",
+      "nodes": [
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "兩個人影擋住去路。一個是灰袍信徒，另一個穿著白詩班袍，嘴張得大大的。",
+          "next": "b3"
+        },
+        {
+          "id": "b3",
+          "speaker": "艾妲",
+          "text": "先打唱歌的那個！",
+          "effects": [
+            {
+              "battle": "enc_ch4_cloister_2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_bench",
+      "start": "r0",
+      "nodes": [
+        {
+          "id": "r0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_rest_cloister"
+              },
+              "next": "used"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "迴廊邊有一張石長椅。坐下來喘口氣，腦中的雜音好像也輕了一點。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了。這張長椅只能休息一次。）",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "set_flag": "ch4_rest_cloister"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "used",
+          "speaker": null,
+          "text": "長椅冰冰涼涼的。已經歇過了，再坐也只是浪費時間。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_organ",
+      "start": "o0",
+      "nodes": [
+        {
+          "id": "o0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_organ"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "o1"
+        },
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "管風琴師的休息室。一架小管風琴靠著牆，琴鍵上積著一層薄灰。",
+          "next": "o2"
+        },
+        {
+          "id": "o2",
+          "speaker": null,
+          "text": "踏板的縫隙裡，纏著淡淡的銀光。",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_nine_loft"
+              },
+              "next": "o3"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "o3",
+          "speaker": "{name}",
+          "text": "（九點說過，鐘樓的鑰匙在管風琴師那裡。）",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "管風琴安安靜靜的。踏板底下的暗格，已經空了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_organ_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_organ"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你踩上踏板。銀光順著木紋爬上來，琴管裡傳出一聲很低、很長的嘆息。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——深夜。一個駝背的管風琴師，把一把小鐵鑰匙塞進踏板底下的暗格。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": "管風琴師",
+          "text": "鐘樓的門，不能再讓他們打開了……他們會把鐘也弄啞的。",
+          "next": "e6"
+        },
+        {
+          "id": "e6",
+          "speaker": null,
+          "text": "（取得鐘樓小門鑰匙。）",
+          "effects": [
+            {
+              "give_item": "loft_key"
+            },
+            {
+              "set_flag": "ch4_clue_organ"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，管風琴師又說了一次「對不起」。你已經看過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_loft_enter",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "窄窄的樓梯往上，盡頭是一扇矮小的門。門板上刻著五條橫線，像一段沒寫音符的譜。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": "艾妲",
+          "text": "門後面就是鐘樓吧。……裡面好像有人。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_loft_locked",
+      "start": "k1",
+      "nodes": [
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "小門紋絲不動。門板上的五條橫線，好像在等一段旋律。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_loft_voice",
+      "start": "v0",
+      "nodes": [
+        {
+          "id": "v0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_well"
+              },
+              "next": "v1"
+            }
+          ],
+          "next": "v1b"
+        },
+        {
+          "id": "v1",
+          "speaker": null,
+          "text": "你想起井邊那些人哼的旋律。沒有聲音的歌，也是歌。",
+          "next": "v2"
+        },
+        {
+          "id": "v1b",
+          "speaker": null,
+          "text": "你想起禮拜時詩班一開一合的嘴型。沒有聲音的歌，也是歌。",
+          "next": "v2"
+        },
+        {
+          "id": "v2",
+          "speaker": null,
+          "text": "你把那段旋律借過來，輕輕哼了出來。門板上的橫線一條一條亮起來。",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": null,
+          "text": "喀。小門自己開了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_loft_key",
+      "start": "i1",
+      "nodes": [
+        {
+          "id": "i1",
+          "speaker": null,
+          "text": "鑰匙插進鎖孔，轉了兩圈。小門吱呀一聲開了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_roster",
+      "start": "r0",
+      "nodes": [
+        {
+          "id": "r0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_roster"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "鐘樓角落有一張小講台，上面攤著一本厚厚的皮面名冊。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": null,
+          "text": "紙頁間的銀光，比這座禮拜堂裡任何東西都濃。（用【回溯】讀它。）",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "名冊已經收進你的口袋。講台上只剩下一圈乾掉的白蠟。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_roster_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch4_clue_roster"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你翻開名冊。銀光從密密麻麻的字跡裡湧出來，整座鐘樓一下子變得好冷。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "翻到其中一頁，你的手停住了。「碼頭，卡爾」——被一道線劃掉，旁邊寫著「已閉口」。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "很多名字後面，都寫著同樣四個字：「送往下層」。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": null,
+          "text": "「蘿絲，十四歲」。她的名字後面，也寫著「送往下層」。",
+          "next": "e7"
+        },
+        {
+          "id": "e7",
+          "speaker": null,
+          "text": "最後一頁沒有名字，只畫著一座鐘。一道橫線，從鐘的正中間劃過去。",
+          "next": "e8"
+        },
+        {
+          "id": "e8",
+          "speaker": "{name}",
+          "text": "（被劃掉的名字，被劃掉的鐘。他們想讓什麼東西閉嘴？）",
+          "next": "e9"
+        },
+        {
+          "id": "e9",
+          "speaker": null,
+          "text": "（取得詩班名冊。）",
+          "effects": [
+            {
+              "set_flag": "ch4_clue_roster"
+            },
+            {
+              "give_item": "choir_roster"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，那座被劃掉的鐘又浮了上來。這條線索，你已經讀過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_matilda",
+      "start": "m0",
+      "nodes": [
+        {
+          "id": "m0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "not_flag": "ch4_clue_roster"
+              },
+              "next": "wt"
+            }
+          ],
+          "next": "m1"
+        },
+        {
+          "id": "wt",
+          "speaker": null,
+          "text": "大鐘下站著一個穿詩班袍的老婦人。她背對著你們，一動也不動。",
+          "next": "wt2"
+        },
+        {
+          "id": "wt2",
+          "speaker": "艾妲",
+          "text": "{name}，先看看那本名冊……她好像在等我們看完。",
+          "next": "END"
+        },
+        {
+          "id": "m1",
+          "speaker": null,
+          "text": "詩班長瑪蒂達轉過身來。她的嘴唇封著白蠟，眼神很溫柔，溫柔得讓人發冷。",
+          "next": "m3"
+        },
+        {
+          "id": "m3",
+          "speaker": null,
+          "text": "字條上寫著：「孩子，安靜一點，就不會痛了。」",
+          "next": "m4"
+        },
+        {
+          "id": "m4",
+          "speaker": null,
+          "text": "兩個灰袍信徒從大鐘的陰影裡走了出來，一左一右擋在樓梯前。",
+          "next": "m5"
+        },
+        {
+          "id": "m5",
+          "speaker": "艾妲",
+          "text": "{name}，一旦打起來，就不能逃了。她不會讓我們走的。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要開打嗎？（這場戰鬥無法逃跑。開打前可以先休息、整理道具。）",
+          "choices": [
+            {
+              "text": "「把名冊上的人還回來。」（開打）",
+              "next": "go"
+            },
+            {
+              "text": "「等一下，先準備。」",
+              "next": "wait"
+            }
+          ]
+        },
+        {
+          "id": "wait",
+          "speaker": "艾妲",
+          "text": "嗯……她不急。她在等我們自己閉上嘴。",
+          "next": "END"
+        },
+        {
+          "id": "go",
+          "speaker": null,
+          "text": "瑪蒂達舉起雙手，像在指揮一首沒有聲音的聖詠。",
+          "effects": [
+            {
+              "battle": "enc_ch4_boss"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_boss_phase2",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "瑪蒂達嘴上的白蠟裂開一道細縫。整座鐘樓同時響起幾十張嘴開合的聲音。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "艾妲",
+          "text": "長椅那邊又有人站起來了！撐住，{name}！",
+          "effects": [
+            {
+              "set_flag": "ch4_boss_phase2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_boss_after",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "瑪蒂達踉蹌了一步，扶住了大鐘的鐘繩。大鐘沒有響。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": null,
+          "text": "她看著你，伸手把嘴上的白蠟抹得更厚、更緊。然後轉身，走向鐘樓底下的排水井。",
+          "next": "w4"
+        },
+        {
+          "id": "w4",
+          "speaker": null,
+          "text": "她跳了下去。井底傳來一陣水聲，然後什麼都沒有了。",
+          "next": "w5"
+        },
+        {
+          "id": "w5",
+          "speaker": null,
+          "text": "樓梯上傳來腳步聲。馬洛提著燈衝了上來，大衣上全是霧水。",
+          "next": "w7"
+        },
+        {
+          "id": "w7",
+          "speaker": "{name}",
+          "text": "跳下去了。這口井，好像通往舊城那一頭。",
+          "next": "w8"
+        },
+        {
+          "id": "w8",
+          "speaker": null,
+          "text": "你把名冊交給馬洛。他翻到最後一頁，看著那座被劃掉的鐘，很久沒有說話。",
+          "next": "w9"
+        },
+        {
+          "id": "w9",
+          "speaker": "馬洛",
+          "text": "……「送往下層」。",
+          "next": "w11"
+        },
+        {
+          "id": "w11",
+          "speaker": "馬洛",
+          "text": "名字還沒被劃掉，就還有機會。回去吧。明天，我們往下走。",
+          "next": "w12"
+        },
+        {
+          "id": "w12",
+          "speaker": null,
+          "text": "遠處的鐘樓敲了一下。霧裡，沒有人開口。",
+          "effects": [
+            {
+              "chapter_end": "chapter4"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_dream_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "鐘聲停了。鐘塔裡的霧比上次淡一些，十二張椅子靜靜地圍成一圈。",
+          "effects": [
+            {
+              "set_flag": "ch4_dreamed"
+            }
+          ],
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "九點",
+          "text": "十二點！你身上有蠟燭的味道。去了什麼好地方？",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": null,
+          "text": "（調查夢客可以交談。從這一章起，九點可以交換東西。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_three_look",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": "三點",
+          "text": "十二點。今天的鐘聲，你數到幾下了？",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和三點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "effects": [
+                {
+                  "open_chat": "three"
+                }
+              ],
+              "next": "chat"
+            },
+            {
+              "text": "「我聽見一首沒有聲音的歌。」",
+              "next": "q1"
+            },
+            {
+              "text": "「我好像能學別人說話了。」",
+              "if": {
+                "rank_lte": 8
+              },
+              "next": "q2"
+            },
+            {
+              "text": "「你聽過『靜默聖歌會』嗎？」",
+              "if": {
+                "flag": "ch4_clue_hymnal"
+              },
+              "effects": [
+                {
+                  "set_flag": "ch4_told_guests_name"
+                }
+              ],
+              "next": "q3b"
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "三點",
+          "text": "說吧。我聽著。",
+          "next": "END"
+        },
+        {
+          "id": "q1",
+          "speaker": "三點",
+          "text": "聽不見的歌，不代表沒有人在聽。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "三點",
+          "text": "借來的聲音，要記得還。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": "三點",
+          "text": "說話的人是誰，自己要記得。錶借給別人戴久了，也會走成別人的時間。",
+          "next": "ask"
+        },
+        {
+          "id": "q3b",
+          "speaker": "三點",
+          "text": "聽過一點傳聞。……在鐘塔外面，別大聲說這個名字。",
+          "next": "ask"
+        },
+        {
+          "id": "bye",
+          "speaker": "三點",
+          "text": "嗯。鐘聲響的時候，我多半都在。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_nine_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": "九點",
+          "text": "十二點！帶了什麼來？先說好，從今天起我正式開張囉。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和九點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "effects": [
+                {
+                  "open_chat": "nine"
+                }
+              ],
+              "next": "chat"
+            },
+            {
+              "text": "交換",
+              "effects": [
+                {
+                  "open_trade": "nine"
+                }
+              ],
+              "next": "trade"
+            },
+            {
+              "text": "「上城的禮拜堂，妳知道些什麼？」",
+              "next": "q1"
+            },
+            {
+              "text": "「『靜默聖歌會』這個名字……」",
+              "if": {
+                "flag": "ch4_clue_hymnal"
+              },
+              "effects": [
+                {
+                  "set_flag": "ch4_told_guests_name"
+                }
+              ],
+              "next": "q2"
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "九點",
+          "text": "好啊，聊什麼都行。聊天不收錢，交換才收。",
+          "next": "END"
+        },
+        {
+          "id": "trade",
+          "speaker": "九點",
+          "text": "來來來，看看今天的貨。繃帶、黑線，我都收。",
+          "next": "END"
+        },
+        {
+          "id": "q1",
+          "speaker": "九點",
+          "text": "我有幾個熟客去過安眠禮拜，回來就不殺價了。不是變大方，是根本不開口。",
+          "next": "q1b"
+        },
+        {
+          "id": "q1b",
+          "speaker": "九點",
+          "text": "這條算你便宜：那間禮拜堂的鐘樓，鑰匙不在司事手上，在管風琴師那裡。",
+          "next": "q1c"
+        },
+        {
+          "id": "q1c",
+          "speaker": "九點",
+          "text": "別問我怎麼知道的。做生意的，耳朵比膽子大。",
+          "effects": [
+            {
+              "set_flag": "ch4_nine_loft"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": null,
+          "text": "九點輕快的語氣，一下子收住了。",
+          "next": "q2b"
+        },
+        {
+          "id": "q2b",
+          "speaker": "九點",
+          "text": "……噓。這裡也別大聲講。我只是個做生意的，不跟那種名字做生意。",
+          "next": "ask"
+        },
+        {
+          "id": "bye",
+          "speaker": "九點",
+          "text": "慢走！下次記得帶貨來，黑線、繃帶都好。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_chair_twelve",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "dream_rested"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "c1"
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "你在刻著「十二」的椅子上坐下。霧輕輕裹住肩膀，腦中的雜音一點一點退去。",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "collapse": -10
+            },
+            {
+              "set_flag": "dream_rested"
+            }
+          ],
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了，崩解下降了。每次入夢可以在這裡休息一次。）",
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "椅子還留著你的溫度。這一趟夢，已經歇夠了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_chair_six",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "椅背上刻著「六」。積著的霧，好像比上次又厚了一點。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch4_tower_door",
+      "start": "g1",
+      "nodes": [
+        {
+          "id": "g1",
+          "speaker": null,
+          "text": "南邊的門虛掩著。門外的光，是醒著的那一邊。",
+          "next": "gask"
+        },
+        {
+          "id": "gask",
+          "speaker": null,
+          "text": "要醒來嗎？",
+          "choices": [
+            {
+              "text": "醒來",
+              "next": "g2"
+            },
+            {
+              "text": "再待一會兒",
+              "next": "stay"
+            }
+          ]
+        },
+        {
+          "id": "g2",
+          "speaker": null,
+          "text": "你推開門。鐘聲在背後響了一下，光把你整個吞了進去。",
+          "effects": [
+            {
+              "wake": true
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "stay",
+          "speaker": null,
+          "text": "你把手從門把上移開。霧在腳邊慢慢流動。",
+          "next": "END"
+        }
+      ]
+    }
+  ]
+}

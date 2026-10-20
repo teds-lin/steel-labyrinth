@@ -267,5 +267,285 @@
         "max": 2
       }
     ]
+  },
+  {
+    "id": "whisper",
+    "name": "低語",
+    "desc": "借來別人的聲音，在一名敵人耳邊低語，讓它分不清敵我。",
+    "cost": {
+      "sp": 5
+    },
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "status",
+        "status": "confuse",
+        "chance": 80,
+        "turns": 2
+      }
+    ]
+  },
+  {
+    "id": "chorus",
+    "name": "齊聲",
+    "desc": "沒有聲音的合唱。聽見的同伴，下手會變得更重。",
+    "target": "ally_all",
+    "effects": [
+      {
+        "type": "buff",
+        "stat": "atk",
+        "pct": 30,
+        "turns": 2
+      }
+    ]
+  },
+  {
+    "id": "silent_hymn",
+    "name": "無聲聖詠",
+    "desc": "幾十張嘴一起開合。聽不見的歌，直接灌進腦子裡。",
+    "target": "enemy_all",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 40
+      },
+      {
+        "type": "collapse",
+        "amount": 5
+      }
+    ],
+    "tags": [
+      "whisper"
+    ]
+  },
+  {
+    "id": "call_acolyte",
+    "name": "召喚信徒",
+    "desc": "詩班長舉起手，長椅之間就有人站起來。",
+    "target": "self",
+    "effects": [
+      {
+        "type": "summon",
+        "enemy": "hush_acolyte",
+        "max": 2
+      }
+    ]
+  },
+  {
+    "id": "hushed_grab",
+    "name": "抓撲",
+    "desc": "張著黏住的嘴撲過來，死命抓住不放。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 140
+      }
+    ]
+  },
+  {
+    "id": "eel_bite",
+    "name": "纏咬",
+    "desc": "霧一樣的身體纏上來，一口咬住，讓人動作變慢。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 120
+      },
+      {
+        "type": "debuff",
+        "stat": "spd",
+        "pct": 20,
+        "turns": 2
+      }
+    ]
+  },
+  {
+    "id": "iron_fist",
+    "name": "鐵拳",
+    "desc": "戴著鐵手套的一拳，沉得像落下的閘門。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 160
+      }
+    ]
+  },
+  {
+    "id": "silence",
+    "name": "禁聲",
+    "desc": "一陣沒有聲音的震動掃過全場，喉嚨像被掐住，一時發不出任何聲音（禁聲：只能用不消耗靈性的技能與道具）。",
+    "target": "enemy_all",
+    "effects": [
+      {
+        "type": "status",
+        "status": "silence",
+        "chance": 100,
+        "turns": 2
+      }
+    ]
+  },
+  {
+    "id": "call_hushed",
+    "name": "呼喚閉口者",
+    "desc": "修士搖響沒有舌的鈴，黑暗裡的閉口者就走了過來。",
+    "target": "self",
+    "effects": [
+      {
+        "type": "summon",
+        "enemy": "hushed_one",
+        "max": 2
+      }
+    ]
+  },
+  {
+    "id": "shadow_swap",
+    "name": "換影",
+    "desc": "和自己的影子互換位置。下一次行動前大幅閃避，受到的傷害減半。",
+    "cost": {
+      "sp": 5
+    },
+    "target": "self",
+    "effects": [
+      {
+        "type": "buff",
+        "stat": "eva",
+        "amount": 60,
+        "turns": 1
+      },
+      {
+        "type": "status",
+        "status": "guard",
+        "chance": 100,
+        "turns": 1
+      }
+    ]
+  },
+  {
+    "id": "shadow_bind",
+    "name": "影縛",
+    "desc": "讓影子纏住一名敵人的腳，使它動彈不得。受到攻擊也不會解除。",
+    "cost": {
+      "sp": 7
+    },
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "status",
+        "status": "bind",
+        "chance": 80,
+        "turns": 2
+      }
+    ]
+  },
+  {
+    "id": "priest_high_tide",
+    "name": "漲潮",
+    "desc": "提燈裡的黑水漲了起來，力量一波比一波強。",
+    "target": "self",
+    "effects": [
+      {
+        "type": "buff",
+        "stat": "atk",
+        "pct": 25,
+        "turns": 3
+      },
+      {
+        "type": "buff",
+        "stat": "def",
+        "pct": 20,
+        "turns": 3
+      }
+    ]
+  },
+  {
+    "id": "priest_tide_roar",
+    "name": "潮聲",
+    "desc": "退潮一樣的低語，從每個人的腳底湧上來。",
+    "target": "enemy_all",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 45
+      },
+      {
+        "type": "collapse",
+        "amount": 6
+      }
+    ],
+    "tags": [
+      "whisper"
+    ]
+  },
+  {
+    "id": "priest_call_spawn",
+    "name": "喚潮",
+    "desc": "把海面的白沫叫上燈室。",
+    "target": "self",
+    "effects": [
+      {
+        "type": "summon",
+        "enemy": "tide_spawn",
+        "max": 2
+      }
+    ]
+  },
+  {
+    "id": "spawn_slap",
+    "name": "拍擊",
+    "desc": "白沫聚成的手掌，又冷又重。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 120
+      }
+    ]
+  },
+  {
+    "id": "omen_wave_hand",
+    "name": "浪手",
+    "desc": "一整道浪凝成的巨手，從玻璃外面拍進來。",
+    "target": "enemy",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 190
+      }
+    ]
+  },
+  {
+    "id": "omen_call",
+    "name": "呼喚",
+    "desc": "它張開一張嘴。沒有聲音，海面上卻湧起了白沫。",
+    "target": "self",
+    "effects": [
+      {
+        "type": "summon",
+        "enemy": "tide_spawn",
+        "max": 2
+      }
+    ]
+  },
+  {
+    "id": "omen_silence",
+    "name": "萬籟俱寂",
+    "desc": "所有的聲音一起被收走。腦子裡只剩下它。",
+    "target": "enemy_all",
+    "effects": [
+      {
+        "type": "damage",
+        "power": 35
+      },
+      {
+        "type": "collapse",
+        "amount": 12
+      }
+    ],
+    "tags": [
+      "whisper"
+    ]
   }
 ]

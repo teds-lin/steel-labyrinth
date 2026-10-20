@@ -1,0 +1,169 @@
+{
+  "id": "office_ch6",
+  "name": "白燈保全公司・辦公室",
+  "tiles": [
+    "##ww###L###ww#",
+    "#KKK.......CC#",
+    "#............#",
+    "#.DD....s....#",
+    "#.DD....t....#",
+    "#.......ss...#",
+    "#............#",
+    "#===.........#",
+    "#...........v#",
+    "######+#######"
+  ],
+  "legend": {
+    "#": "wall",
+    "w": "window",
+    "L": "wall_lamp",
+    "K": "bookshelf",
+    ".": "floor",
+    "C": "medicine_cabinet",
+    "D": "desk",
+    "s": "sofa",
+    "t": "tea_table",
+    "=": "counter",
+    "v": "stairs_down",
+    "+": "front_door"
+  },
+  "spawns": [
+    {
+      "id": "door",
+      "x": 6,
+      "y": 8,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch6_inspector",
+      "x": 4,
+      "y": 4,
+      "sprite": "inspector",
+      "solid": true,
+      "look": "dlg_ch6_inspector",
+      "echo": "dlg_ch6_inspector_echo",
+      "if": {
+        "not_flag": "ch6_left_office"
+      }
+    },
+    {
+      "id": "obj_ch6_marlo_day",
+      "x": 12,
+      "y": 2,
+      "sprite": "marlo",
+      "solid": true,
+      "look": "dlg_ch6_marlo_day",
+      "if": {
+        "not_flag": "ch6_left_office"
+      }
+    },
+    {
+      "id": "obj_ch6_herb_day",
+      "x": 2,
+      "y": 8,
+      "sprite": "herb",
+      "solid": true,
+      "look": "dlg_ch6_herb_day",
+      "echo": "dlg_ch6_herb_echo",
+      "if": {
+        "not_flag": "ch6_marlo_missing"
+      }
+    },
+    {
+      "id": "obj_ch6_herb_night",
+      "x": 5,
+      "y": 6,
+      "sprite": "herb",
+      "solid": true,
+      "look": "dlg_ch6_herb_night",
+      "if": {
+        "flag": "ch6_marlo_missing"
+      }
+    },
+    {
+      "id": "obj_ch6_ashtray",
+      "x": 4,
+      "y": 3,
+      "sprite": "ashtray",
+      "solid": true,
+      "look": "dlg_ch6_ashtray",
+      "echo": "dlg_ch6_ashtray_echo",
+      "if": {
+        "flag": "ch6_marlo_missing"
+      }
+    },
+    {
+      "id": "obj_ch6_drawer",
+      "x": 1,
+      "y": 4,
+      "sprite": "desk_drawer",
+      "solid": true,
+      "look": "dlg_ch6_drawer_look",
+      "lock": {
+        "flag": "ch6_drawer_open",
+        "solvable_by": [
+          "trace"
+        ],
+        "fallback": "item:marlo_drawer_key",
+        "on_tag": {
+          "trace": "dlg_ch6_drawer_trace"
+        },
+        "on_item": "dlg_ch6_drawer_key",
+        "locked": "dlg_ch6_drawer_locked"
+      }
+    },
+    {
+      "id": "obj_ch6_inner_room",
+      "x": 12,
+      "y": 4,
+      "sprite": "room_door",
+      "solid": true,
+      "look": "dlg_ch6_ada_sleep"
+    },
+    {
+      "id": "obj_ch6_sofa",
+      "x": 9,
+      "y": 3,
+      "sprite": "sofa_bed",
+      "solid": true,
+      "look": "dlg_ch6_sofa",
+      "dream": {
+        "if": {
+          "all": [
+            {
+              "flag": "dream_unlocked"
+            },
+            {
+              "flag": "ch6_marlo_missing"
+            }
+          ]
+        },
+        "map": "clocktower_ch6",
+        "spawn": "center",
+        "prompt": "毯子摺得好好的。老賀伯說累了就躺一下。鐘聲從很遠的地方傳過來。",
+        "yes": "躺一下，聽鐘聲",
+        "no": "先看看隊長的桌子"
+      }
+    },
+    {
+      "id": "obj_ch6_notice",
+      "x": 7,
+      "y": 1,
+      "sprite": "notice_board",
+      "solid": true,
+      "look": "dlg_ch6_notice"
+    },
+    {
+      "id": "obj_ch6_door",
+      "x": 6,
+      "y": 9,
+      "sprite": "office_door",
+      "solid": true,
+      "look": "dlg_ch6_door"
+    }
+  ],
+  "exits": [],
+  "triggers": []
+}

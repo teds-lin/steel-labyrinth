@@ -4,10 +4,11 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { loadDir, M5_FIXTURE_DIR, WEB_DATA_DIR } from './load-fixture.js';
 
 let artReport;
+let artLint;
 beforeAll(async () => {
   // textures.js 透過 config.js 讀 window（瀏覽器環境）；node 裡給一個最小的替身
   globalThis.window ??= { location: { search: '', hostname: 'localhost' }, devicePixelRatio: 1 };
-  ({ artReport } = await import('../../web/src/textures.js'));
+  ({ artReport, artLint } = await import('../../web/src/textures.js'));
 });
 
 describe('artReport', () => {
@@ -41,5 +42,8 @@ describe('artReport', () => {
     const r = artReport(d);
     expect(r.sprites).toContain('toString');
     expect(r.tiles).toContain('constructor');
+  });
+  it('所有點陣格式正確：地圖 12×12、Boss 立繪 24×24，顏色代號都在色盤裡', () => {
+    expect(artLint()).toEqual([]);
   });
 });

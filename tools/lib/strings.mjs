@@ -23,7 +23,12 @@ export function collectStrings(bundle) {
   for (const lin of arr(bundle.lineages)) {
     const file = `lineages/${lin.id}.json`;
     add(file, 'nature', lin.nature);
-    for (const r of arr(lin.ranks)) add(file, `ranks.${r?.rank}.name`, r?.name); // 選單顯示「借聲者（階 8）」
+    for (const r of arr(lin.ranks)) {
+      add(file, `ranks.${r?.rank}.name`, r?.name); // 選單顯示「借聲者（階 8）」
+      // M5 整合：探索標籤的顯示名稱
+      const labels = r?.field_labels !== null && typeof r?.field_labels === 'object' ? r.field_labels : {};
+      for (const [tag, label] of Object.entries(labels)) add(file, `ranks.${r?.rank}.field_labels.${tag}`, label);
+    }
   }
   for (const c of arr(bundle.characters)) add('characters.json', `${c.id}.name`, c.name);
   for (const s of arr(bundle.skills)) {
@@ -40,6 +45,7 @@ export function collectStrings(bundle) {
     add(file, 'title', story.title);
     add(file, 'end_screen.title', story.end_screen?.title);
     add(file, 'end_screen.subtitle', story.end_screen?.subtitle);
+    arr(story.end_screen?.credits).forEach((line, i) => add(file, `end_screen.credits[${i}]`, line)); // M5 整合：結局畫面的致謝
     // M4 待辦：夢客名字與全部預寫台詞；M5：交換的說明
     for (const g of arr(story.guests)) {
       const gb = `guests.${g?.id}`;

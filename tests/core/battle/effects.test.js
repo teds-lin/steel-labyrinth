@@ -21,7 +21,7 @@ describe('checkBattleEffect（效果積木的寫法）', () => {
       { type: 'reveal_intent' }, { type: 'collapse', amount: 10 }, { type: 'summon', enemy: 'fogwalker', max: 2 },
     ];
     for (const e of ok) expect(checkBattleEffect(e), JSON.stringify(e)).toEqual([]);
-    expect(BATTLE_STATUSES).toEqual(['sleep', 'confuse', 'taunt', 'guard', 'bind']); // M5：bind（影縛）
+    expect(BATTLE_STATUSES).toEqual(['sleep', 'confuse', 'taunt', 'guard', 'bind', 'silence']); // M5：bind（影縛）、silence（禁聲）
   });
   it('不合法：未知 type、缺欄位、型別錯誤、多餘欄位、原型鍵', () => {
     const bad = [

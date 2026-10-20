@@ -39,7 +39,7 @@ describe('wrangler.toml', () => {
     expect(Number(cfg.vars.RL_TRANSFER_GLOBAL_PER_HOUR)).toBe(120); // 修訂 3a
     expect(Number(cfg.vars.RL_WRITE_GLOBAL_PER_HOUR)).toBe(100); // 修訂 4a（保留通道之外；原 400 在修訂 4 的算式下超過免費額度）
     expect(Number(cfg.vars.RL_WRITE_GLOBAL_PER_DAY)).toBe(4000); // 修訂 4a：保留通道的全域每日預算
-    expect(Number(cfg.vars.PURGE_BATCH)).toBe(500); // 修訂 4 第 2 節
+    expect(Number(cfg.vars.PURGE_BATCH)).toBe(340); // 修訂 4 第 2 節；M5 開放到終章（9 章）後由 500 調降，維持 cron-cost 每日寫入 < 10 萬
     expect(Number(cfg.vars.MAX_PLAYER_SECONDS)).toBe(36000); // 修訂 4 第 7 節
     expect(Number(cfg.vars.MAX_PLAYERS)).toBe(5000); // 修訂 3
     expect(Number(cfg.vars.STATS_MIN_PLAYERS)).toBe(3);

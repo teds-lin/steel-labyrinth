@@ -1,0 +1,211 @@
+{
+  "id": "lighthouse",
+  "name": "舊燈塔・塔身",
+  "on_enter": "dlg_ch7_lh_arrive",
+  "tiles": [
+    "##############",
+    "####..^^..####",
+    "###........###",
+    "##..........##",
+    "#............#",
+    "#............#",
+    "#IIIIII.IIIII#",
+    "#............#",
+    "#............#",
+    "#............#",
+    "##..........##",
+    "###........###",
+    "####.._...####",
+    "##############"
+  ],
+  "legend": {
+    "#": "lighthouse_wall",
+    ".": "lighthouse_floor",
+    "I": "iron_rail",
+    "^": "spiral_stair",
+    "_": "threshold"
+  },
+  "spawns": [
+    {
+      "id": "from_breakwater",
+      "x": 6,
+      "y": 11,
+      "dir": "up"
+    },
+    {
+      "id": "from_top",
+      "x": 6,
+      "y": 2,
+      "dir": "down"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch7_coat",
+      "x": 1,
+      "y": 8,
+      "sprite": "keeper_coat",
+      "solid": true,
+      "look": "dlg_ch7_coat_look",
+      "echo": "dlg_ch7_coat_echo"
+    },
+    {
+      "id": "obj_ch7_inner_grille",
+      "x": 7,
+      "y": 6,
+      "sprite": "iron_grille",
+      "solid": true,
+      "look": "dlg_ch7_inner_look",
+      "lock": {
+        "flag": "ch7_inner_open",
+        "solvable_by": [
+          "shadow"
+        ],
+        "fallback": "item:lantern_key",
+        "on_tag": {
+          "shadow": "dlg_ch7_inner_shadow"
+        },
+        "on_item": "dlg_ch7_inner_key",
+        "locked": "dlg_ch7_inner_locked"
+      }
+    },
+    {
+      "id": "obj_ch7_landing",
+      "x": 3,
+      "y": 4,
+      "sprite": "landing_bench",
+      "solid": true,
+      "look": "dlg_ch7_landing"
+    }
+  ],
+  "exits": [
+    {
+      "x": 6,
+      "y": 12,
+      "to": "breakwater",
+      "spawn": "from_lighthouse"
+    },
+    {
+      "x": 6,
+      "y": 1,
+      "to": "lighthouse_top",
+      "spawn": "from_stairs"
+    },
+    {
+      "x": 7,
+      "y": 1,
+      "to": "lighthouse_top",
+      "spawn": "from_stairs"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch7_lh1_1",
+      "x": 1,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_2",
+      "x": 2,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_3",
+      "x": 3,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_4",
+      "x": 4,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_5",
+      "x": 5,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_6",
+      "x": 6,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_7",
+      "x": 7,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_8",
+      "x": 8,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_9",
+      "x": 9,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_10",
+      "x": 10,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_11",
+      "x": 11,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_lh1_12",
+      "x": 12,
+      "y": 9,
+      "dialogue": "dlg_ch7_lh1_start",
+      "if": {
+        "not_flag": "ch7_lh1_done"
+      }
+    }
+  ]
+}

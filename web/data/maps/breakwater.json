@@ -1,0 +1,167 @@
+{
+  "id": "breakwater",
+  "name": "港口・沉堤",
+  "on_enter": "dlg_ch7_breakwater_arrive",
+  "tiles": [
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    "WWfffWWWWWWWWWWWWWWWWWTTTTWW",
+    "WWfffWWWWWWWWWWWWWWWWTTTTTTW",
+    "SSSSSSSSSoSSSSSSSSoSSTTTTTTW",
+    "SSSSSSSSSSSSSSSSSSSSSS_TTTTW",
+    "SSSSSSSSSoSSSSSSSSoSSTTTTTTW",
+    "WWWWWWWWWWWWWWWWWWWWWTTTTTTW",
+    "WWWWWWWWWWWWWWWWWWWWWWTTTTWW",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+  ],
+  "legend": {
+    "W": "harbor_water",
+    "S": "breakwater_stone",
+    "f": "facade",
+    "o": "gas_lamp",
+    "T": "lighthouse_wall",
+    "_": "threshold"
+  },
+  "spawns": [
+    {
+      "id": "entry",
+      "x": 1,
+      "y": 5,
+      "dir": "right"
+    },
+    {
+      "id": "from_lighthouse",
+      "x": 20,
+      "y": 5,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch7_keeper_log",
+      "x": 3,
+      "y": 4,
+      "sprite": "keeper_log",
+      "solid": true,
+      "look": "dlg_ch7_log_look",
+      "echo": "dlg_ch7_log_echo"
+    },
+    {
+      "id": "obj_ch7_outer_grille",
+      "x": 21,
+      "y": 5,
+      "sprite": "iron_grille",
+      "solid": true,
+      "look": "dlg_ch7_outer_look",
+      "lock": {
+        "flag": "ch7_outer_open",
+        "solvable_by": [
+          "shadow"
+        ],
+        "fallback": "item:lighthouse_key",
+        "on_tag": {
+          "shadow": "dlg_ch7_outer_shadow"
+        },
+        "on_item": "dlg_ch7_outer_key",
+        "locked": "dlg_ch7_outer_locked"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 0,
+      "y": 4,
+      "to": "harbor_night",
+      "spawn": "from_breakwater"
+    },
+    {
+      "x": 0,
+      "y": 6,
+      "to": "harbor_night",
+      "spawn": "from_breakwater"
+    },
+    {
+      "x": 22,
+      "y": 5,
+      "to": "lighthouse",
+      "spawn": "from_breakwater"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch7_bw_4",
+      "x": 12,
+      "y": 4,
+      "dialogue": "dlg_ch7_bw_start",
+      "if": {
+        "not_flag": "ch7_breakwater_done"
+      }
+    },
+    {
+      "id": "trg_ch7_bw_5",
+      "x": 12,
+      "y": 5,
+      "dialogue": "dlg_ch7_bw_start",
+      "if": {
+        "not_flag": "ch7_breakwater_done"
+      }
+    },
+    {
+      "id": "trg_ch7_bw_6",
+      "x": 12,
+      "y": 6,
+      "dialogue": "dlg_ch7_bw_start",
+      "if": {
+        "not_flag": "ch7_breakwater_done"
+      }
+    },
+    {
+      "id": "trg_ch7_drown_4",
+      "x": 16,
+      "y": 4,
+      "dialogue": "dlg_ch7_drown",
+      "if": {
+        "all": [
+          {
+            "flag": "ch7_breakwater_done"
+          },
+          {
+            "not_flag": "ch7_drowned"
+          }
+        ]
+      }
+    },
+    {
+      "id": "trg_ch7_drown_5",
+      "x": 16,
+      "y": 5,
+      "dialogue": "dlg_ch7_drown",
+      "if": {
+        "all": [
+          {
+            "flag": "ch7_breakwater_done"
+          },
+          {
+            "not_flag": "ch7_drowned"
+          }
+        ]
+      }
+    },
+    {
+      "id": "trg_ch7_drown_6",
+      "x": 16,
+      "y": 6,
+      "dialogue": "dlg_ch7_drown",
+      "if": {
+        "all": [
+          {
+            "flag": "ch7_breakwater_done"
+          },
+          {
+            "not_flag": "ch7_drowned"
+          }
+        ]
+      }
+    }
+  ]
+}

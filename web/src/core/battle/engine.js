@@ -198,7 +198,7 @@ function validTargets(battle, actor, targetType) {
 
 /**
  * 目前行動者（我方）可用的指令；不是我方回合時回 null。
- * { actor, skills:[{ id, name, desc, target, cost:{sp,ammo}, usable, reason:null|'sp'|'ammo'|'no_target', targets }],
+ * { actor, skills:[{ id, name, desc, target, cost:{sp,ammo}, usable, reason:null|'silence'|'sp'|'ammo'|'no_target', targets }],
  *   items:[{ id, name, count, target, targets }], canFlee }
  */
 export function commands(battle, data) {
@@ -209,7 +209,8 @@ export function commands(battle, data) {
     const cost = costOf(s);
     const targets = validTargets(battle, actor, s.target);
     let reason = null;
-    if (cost.sp > actor.sp) reason = 'sp';
+    if (cost.sp > 0 && hasStatus(actor, 'silence')) reason = 'silence'; // 禁聲：消耗靈性的技能不能用
+    else if (cost.sp > actor.sp) reason = 'sp';
     else if (cost.ammo > battle.ammo) reason = 'ammo';
     else if (targets.length === 0) reason = 'no_target';
     return { id: s.id, name: s.name ?? s.id, desc: s.desc ?? '', target: s.target, cost, usable: reason === null, reason, targets };
@@ -267,6 +268,7 @@ export function act(battle, command, data) {
       if (!actor.skills.includes(command.skill)) throw new Error(`「${actor.name}」不會技能「${String(command.skill)}」`);
       const skill = skillDef(data, command.skill);
       const cost = costOf(skill);
+      if (cost.sp > 0 && hasStatus(actor, 'silence')) throw new Error(`禁聲中，無法使用消耗靈性的技能「${skill.id}」`);
       if (cost.sp > actor.sp) throw new Error(`靈性不足，無法使用「${skill.id}」`);
       if (cost.ammo > draft.ammo) throw new Error(`子彈不足，無法使用「${skill.id}」`);
       const target = confuseTarget(draft, actor, skill, checkTarget(draft, actor, skill, command.target), log);

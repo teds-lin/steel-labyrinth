@@ -3,6 +3,7 @@
 // - promote 效果：只能升到目前階位的下一階（數字減 1）；材料不足 → 不執行，pending 加入 promote_failed。
 //   共鳴足夠 → 晉升；共鳴不足 → 晉升並增加 potion.forced_collapse（硬喝）。
 // - 晉升紀錄 state.promotions：[{ lineage, rank, forced, chapter }]（存檔 v4，結局判定用）。
+// - 晉升成功時 pending 加入 { type:'promoted', lineage, rank, forced }（畫面播演出用；存檔時 pending 一律為 null）。
 import { clampCollapse } from './echo.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -72,7 +73,9 @@ export function applyPromote(v, state, data) {
   const collapse = forced ? clampCollapse((Number.isInteger(state.collapse) ? state.collapse : 0) + forcedOf(potion)) : state.collapse;
   const promotions = [...(Array.isArray(state.promotions) ? state.promotions : []).map((p) => ({ ...p })),
     { lineage: v.lineage, rank: v.rank, forced, chapter: typeof state.chapter === 'string' ? state.chapter : null }];
-  return { ...state, items, collapse, resonance: {}, lineage: { id: cur.id, rank: v.rank }, promotions };
+  // M5 整合：畫面用 pending 的 promoted 播晉升演出（不再比對 promotions 長度）
+  return pushPending({ ...state, items, collapse, resonance: {}, lineage: { id: cur.id, rank: v.rank }, promotions },
+    { type: 'promoted', lineage: v.lineage, rank: v.rank, forced });
 }
 
 /**

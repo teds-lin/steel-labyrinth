@@ -1,0 +1,210 @@
+{
+  "id": "sewer_canal",
+  "name": "地下水道・主渠",
+  "tiles": [
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+    "W..........................W",
+    "<..........................W",
+    "W..........................W",
+    "W======================....W",
+    "WWWWWWWWWWWWWWWWWWWWWWW.WWWW",
+    "W.......................WWWW",
+    "W.......................WWWW",
+    "W.......................WWWW",
+    "WW.WWWWWWWW.WWWWWWWWWWWWWWWW",
+    "WW.WWWWWW.....WWWWWWWWWWWWWW",
+    "WW.WWWWWW.....WWWWWWWWWWWWWW",
+    "WW.WWWWWWWWWWWWWWWWWWWWWWWWW",
+    "W..........................W",
+    "W..........................W",
+    "W============..============W",
+    "W..........................W",
+    "W..........................>",
+    "W..........................W",
+    "WWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+  ],
+  "legend": {
+    "W": "sewer_wall",
+    ".": "sewer_walk",
+    "=": "sewer_water",
+    ">": "sewer_grate",
+    "<": "sewer_grate",
+    "^": "stairs_up"
+  },
+  "on_enter": "dlg_ch5_canal_enter",
+  "spawns": [
+    {
+      "id": "from_entry",
+      "x": 1,
+      "y": 2,
+      "dir": "right"
+    },
+    {
+      "id": "from_cistern",
+      "x": 26,
+      "y": 17,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch5_tally",
+      "x": 5,
+      "y": 1,
+      "sprite": "tally_marks",
+      "solid": true,
+      "look": "dlg_ch5_tally",
+      "echo": "dlg_ch5_tally_echo"
+    },
+    {
+      "id": "obj_ch5_fork",
+      "x": 23,
+      "y": 5,
+      "sprite": "herb",
+      "solid": true,
+      "look": "dlg_ch5_fork",
+      "if": {
+        "not_flag": "ch5_deduced"
+      }
+    },
+    {
+      "id": "obj_ch5_rack",
+      "x": 13,
+      "y": 11,
+      "sprite": "tool_rack",
+      "solid": true,
+      "look": "dlg_ch5_rack"
+    },
+    {
+      "id": "obj_ch5_sluice",
+      "x": 2,
+      "y": 10,
+      "sprite": "sluice_valve",
+      "solid": true,
+      "lock": {
+        "flag": "ch5_sluice_open",
+        "solvable_by": [
+          "voice"
+        ],
+        "fallback": "item:sluice_handle",
+        "on_tag": {
+          "voice": "dlg_ch5_sluice_voice"
+        },
+        "on_item": "dlg_ch5_sluice_handle",
+        "locked": "dlg_ch5_sluice_locked"
+      }
+    },
+    {
+      "id": "obj_ch5_cage",
+      "x": 24,
+      "y": 17,
+      "sprite": "rose_cage",
+      "solid": true,
+      "look": "dlg_ch5_cage",
+      "echo": "dlg_ch5_bracelet_echo",
+      "if": {
+        "not_flag": "ch5_ada_down"
+      }
+    },
+    {
+      "id": "obj_ch5_shaft",
+      "x": 25,
+      "y": 16,
+      "sprite": "shaft_ladder",
+      "solid": true,
+      "look": "dlg_ch5_shaft"
+    }
+  ],
+  "exits": [
+    {
+      "x": 0,
+      "y": 2,
+      "to": "sewer_entry",
+      "spawn": "from_canal"
+    },
+    {
+      "x": 27,
+      "y": 17,
+      "to": "sewer_cistern",
+      "spawn": "from_canal",
+      "requires": {
+        "flag": "ch5_ada_down"
+      },
+      "blocked": "dlg_ch5_canal_blocked"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch5_canal_1_1",
+      "x": 12,
+      "y": 1,
+      "dialogue": "dlg_ch5_canal_1",
+      "if": {
+        "not_flag": "ch5_canal_1_done"
+      }
+    },
+    {
+      "id": "trg_ch5_canal_1_2",
+      "x": 12,
+      "y": 2,
+      "dialogue": "dlg_ch5_canal_1",
+      "if": {
+        "not_flag": "ch5_canal_1_done"
+      }
+    },
+    {
+      "id": "trg_ch5_canal_1_3",
+      "x": 12,
+      "y": 3,
+      "dialogue": "dlg_ch5_canal_1",
+      "if": {
+        "not_flag": "ch5_canal_1_done"
+      }
+    },
+    {
+      "id": "trg_ch5_canal_2_13",
+      "x": 13,
+      "y": 15,
+      "dialogue": "dlg_ch5_canal_2",
+      "if": {
+        "not_flag": "ch5_canal_2_done"
+      }
+    },
+    {
+      "id": "trg_ch5_canal_2_14",
+      "x": 14,
+      "y": 15,
+      "dialogue": "dlg_ch5_canal_2",
+      "if": {
+        "not_flag": "ch5_canal_2_done"
+      }
+    },
+    {
+      "id": "trg_ch5_canal_3_16",
+      "x": 20,
+      "y": 16,
+      "dialogue": "dlg_ch5_canal_3",
+      "if": {
+        "not_flag": "ch5_canal_3_done"
+      }
+    },
+    {
+      "id": "trg_ch5_canal_3_17",
+      "x": 20,
+      "y": 17,
+      "dialogue": "dlg_ch5_canal_3",
+      "if": {
+        "not_flag": "ch5_canal_3_done"
+      }
+    },
+    {
+      "id": "trg_ch5_canal_3_18",
+      "x": 20,
+      "y": 18,
+      "dialogue": "dlg_ch5_canal_3",
+      "if": {
+        "not_flag": "ch5_canal_3_done"
+      }
+    }
+  ]
+}

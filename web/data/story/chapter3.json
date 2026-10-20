@@ -3,7 +3,12 @@
   "title": "第三章　鐘塔之夢",
   "end_screen": {
     "title": "第三章　完",
-    "subtitle": "第四章　製作中"
+    "subtitle": "第四章　無聲的唱詩班",
+    "continue": {
+      "map": "office_ch4",
+      "spawn": "door",
+      "dialogue": "dlg_ch4_opening"
+    }
   },
   "guests": [
     {

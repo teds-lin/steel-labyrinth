@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { buildDreamSql, readPersonas, validatePersona, readScripted, readLexicon, readBlocklist } from '../../tools/upload-dream.mjs';
+import { buildDreamSql, readPersonas, validatePersona, readScripted, readScriptedByChapter, readLexicon, readBlocklist } from '../../tools/upload-dream.mjs';
 import { startWorker, loadDreamFixtures, DREAM_FIXTURES, ROOT } from './helpers.js';
 
 const PERSONAS = join(DREAM_FIXTURES, 'personas');
@@ -96,6 +96,75 @@ describe('預寫台詞從公開的 story 讀取並合併', () => {
   });
   it('真正的 web/data/story 能讀（目前可能還沒有夢客）', () => {
     expect(() => readScripted(join(ROOT, 'web', 'data', 'story'))).not.toThrow();
+  });
+  it('M5：每章各有一份 guests（故事聖經 0.7）→ 同一夢客取章節順序最早的一份（不把後面章節的台詞送上雲端）', () => {
+    const d = scratchDir('story-multi');
+    const base = JSON.parse(readFileSync(join(STORY, 'fake_chapter.json'), 'utf8'));
+    const later = structuredClone(base);
+    later.id = 'chapter10';
+    later.guests[0].scripted.greeting = ['LATER 後面章節的招呼'];
+    const early = structuredClone(base);
+    early.id = 'chapter9';
+    early.guests[0].scripted.greeting = ['EARLY 前面章節的招呼'];
+    // 檔名排序（chapter10 < chapter9）和章節順序相反：必須依章節順序
+    writeFileSync(join(d, 'chapter10.json'), JSON.stringify(later));
+    writeFileSync(join(d, 'chapter9.json'), JSON.stringify(early));
+    expect(readScripted(d, { chapters: ['chapter9', 'chapter10'] }).get('lamp').greeting).toEqual(['EARLY 前面章節的招呼']);
+    // 同一章檔案裡重複定義仍是錯誤
+    const dup = structuredClone(early);
+    dup.guests.push(structuredClone(dup.guests[0]));
+    writeFileSync(join(d, 'chapter9.json'), JSON.stringify(dup));
+    expect(() => readScripted(d, { chapters: ['chapter9', 'chapter10'] })).toThrow(/重複/);
+  });
+  it('M5：web/data 的三點、九點取第三章的預寫台詞（manifest.chapters 順序）', () => {
+    const m = readScripted(join(ROOT, 'web', 'data', 'story'));
+    const ch3 = JSON.parse(readFileSync(join(ROOT, 'web', 'data', 'story', 'chapter3.json'), 'utf8'));
+    for (const g of ch3.guests) expect(m.get(g.id)).toEqual(g.scripted);
+  });
+});
+
+describe('M5：每章各自的預寫台詞（scripted_by_chapter）', () => {
+  /** 兩章各自定義 lamp 的預寫台詞（第二章、第三章），fallback 不同。 */
+  function twoChapters() {
+    const d = scratchDir('story-by-chapter');
+    const base = JSON.parse(readFileSync(join(STORY, 'fake_chapter.json'), 'utf8'));
+    for (const ch of ['chapter2', 'chapter3']) {
+      const s = structuredClone(base);
+      s.id = ch;
+      s.guests[0].scripted.fallback = [`FALLBACK_${ch}`];
+      writeFileSync(join(d, `${ch}.json`), JSON.stringify(s));
+    }
+    return d;
+  }
+  it('readScriptedByChapter：夢客 → { 章節: 預寫台詞 }，依章節順序', () => {
+    const m = readScriptedByChapter(twoChapters(), { chapters: ['prologue', 'chapter2', 'chapter3'] });
+    expect(Object.keys(m.get('lamp'))).toEqual(['chapter2', 'chapter3']);
+    expect(m.get('lamp').chapter3.fallback).toEqual(['FALLBACK_chapter3']);
+  });
+  it('buildDreamSql：人設資料帶 scripted（最早一章）與 scripted_by_chapter（每章一份），每章都檢查必填台詞', () => {
+    const d = twoChapters();
+    const { sql } = build({ storyDir: d, chapters: ['chapter2', 'chapter3'] });
+    const row = /INSERT INTO dream_personas \(id, data, updated_at\) VALUES \('lamp', '(.*?)', \d+\)/s.exec(sql);
+    const data = JSON.parse(row[1].replace(/''/g, "'"));
+    expect(data.scripted.fallback).toEqual(['FALLBACK_chapter2']);
+    expect(Object.keys(data.scripted_by_chapter)).toEqual(['chapter2', 'chapter3']);
+    expect(data.scripted_by_chapter.chapter3.fallback).toEqual(['FALLBACK_chapter3']);
+    // 其中一章缺必填台詞 → 錯誤（指出章節）
+    const bad = JSON.parse(readFileSync(join(d, 'chapter3.json'), 'utf8'));
+    delete bad.guests[0].scripted.quota;
+    writeFileSync(join(d, 'chapter3.json'), JSON.stringify(bad));
+    expect(() => build({ storyDir: d, chapters: ['chapter2', 'chapter3'] })).toThrow(/chapter3.*quota|quota.*chapter3/);
+  });
+  it('正式的 web/data/story（第三～七章都有 guests）可以整包上傳：三點、九點各帶 chapter3～chapter7 的台詞', () => {
+    const d = scratchDir('personas-real-guests');
+    for (const id of ['three', 'nine']) writeFileSync(join(d, `${id}.json`), JSON.stringify({ ...persona(), id, name: id }));
+    const { sql, guests } = build({ personasDir: d, storyDir: join(ROOT, 'web', 'data', 'story') });
+    expect(guests.sort()).toEqual(['nine', 'three']);
+    for (const id of ['three', 'nine']) {
+      const row = new RegExp(`VALUES \\('${id}', '(.*?)', \\d+\\)`, 's').exec(sql);
+      const data = JSON.parse(row[1].replace(/''/g, "'"));
+      expect(Object.keys(data.scripted_by_chapter)).toEqual(['chapter3', 'chapter4', 'chapter5', 'chapter6', 'chapter7']);
+    }
   });
 });
 

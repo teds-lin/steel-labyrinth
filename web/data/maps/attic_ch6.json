@@ -1,0 +1,98 @@
+{
+  "id": "attic_ch6",
+  "name": "鐵橋街 17 號・閣樓",
+  "tiles": [
+    "####w#######",
+    "#B.....DD.W#",
+    "#B........W#",
+    "#..........#",
+    "#...rrrr..F#",
+    "#...rrrr...#",
+    "#..........#",
+    "######_#####",
+    "######v#####"
+  ],
+  "legend": {
+    "#": "wall",
+    ".": "floor",
+    "w": "window",
+    "B": "bed",
+    "D": "desk",
+    "W": "wardrobe",
+    "F": "stove",
+    "r": "rug",
+    "_": "threshold",
+    "v": "stairs_down"
+  },
+  "spawns": [
+    {
+      "id": "from_hallway",
+      "x": 6,
+      "y": 6,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch6_mirror",
+      "x": 10,
+      "y": 3,
+      "sprite": "standing_mirror",
+      "solid": true,
+      "look": "dlg_ch6_mirror"
+    },
+    {
+      "id": "obj_ch6_bed",
+      "x": 1,
+      "y": 3,
+      "sprite": "bed_foot",
+      "solid": true,
+      "look": "dlg_ch6_bed",
+      "dream": {
+        "if": {
+          "all": [
+            {
+              "flag": "dream_unlocked"
+            },
+            {
+              "flag": "ch6_marlo_missing"
+            }
+          ]
+        },
+        "map": "clocktower_ch6",
+        "spawn": "center",
+        "prompt": "枕頭還是冷的。老賀伯在門外等著，可是鐘聲已經在叫你的代號。",
+        "yes": "閉上眼睛一下",
+        "no": "現在不是睡的時候"
+      }
+    },
+    {
+      "id": "obj_ch6_diary",
+      "x": 6,
+      "y": 1,
+      "sprite": "desk_diary",
+      "solid": true,
+      "look": "dlg_ch6_diary"
+    },
+    {
+      "id": "obj_ch6_herb_attic",
+      "x": 7,
+      "y": 6,
+      "sprite": "herb",
+      "solid": true,
+      "look": "dlg_ch6_herb_attic",
+      "if": {
+        "flag": "ch6_marlo_missing"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 6,
+      "y": 8,
+      "to": "hallway_ch6",
+      "spawn": "from_attic"
+    }
+  ],
+  "triggers": []
+}

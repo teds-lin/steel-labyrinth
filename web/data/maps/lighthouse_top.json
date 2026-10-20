@@ -1,0 +1,62 @@
+{
+  "id": "lighthouse_top",
+  "name": "舊燈塔・燈室",
+  "on_enter": "dlg_ch7_top_arrive",
+  "tiles": [
+    "###wwwwww###",
+    "##........##",
+    "#..........#",
+    "w..........w",
+    "w....LL....w",
+    "w....LL....w",
+    "w..........w",
+    "#..........#",
+    "#..........#",
+    "##........##",
+    "###..^^..###",
+    "############"
+  ],
+  "legend": {
+    "#": "lighthouse_wall",
+    "w": "window",
+    ".": "lighthouse_floor",
+    "L": "lamp_lens",
+    "^": "spiral_stair"
+  },
+  "spawns": [
+    {
+      "id": "from_stairs",
+      "x": 5,
+      "y": 9,
+      "dir": "up"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch7_priest",
+      "x": 6,
+      "y": 2,
+      "sprite": "tide_priest",
+      "solid": true,
+      "look": "dlg_ch7_priest",
+      "if": {
+        "not_flag": "ch7_priest_done"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 5,
+      "y": 10,
+      "to": "lighthouse",
+      "spawn": "from_top"
+    },
+    {
+      "x": 6,
+      "y": 10,
+      "to": "lighthouse",
+      "spawn": "from_top"
+    }
+  ],
+  "triggers": []
+}

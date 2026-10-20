@@ -1,0 +1,97 @@
+{
+  "id": "sewer_entry",
+  "name": "舊城・水道入口",
+  "tiles": [
+    "WWWWWWWWWWWWWWWW",
+    "W^....W#######WW",
+    "W.....W#:::::#WW",
+    "W.....W#:::::#WW",
+    "W.....W##:####WW",
+    "W..............W",
+    "W..............W",
+    "W======..======W",
+    "W..............W",
+    "W..............>",
+    "W..............W",
+    "WWWWWWWWWWWWWWWW"
+  ],
+  "legend": {
+    "W": "sewer_wall",
+    ".": "sewer_walk",
+    "=": "sewer_water",
+    ">": "sewer_grate",
+    "<": "sewer_grate",
+    "^": "stairs_up",
+    "#": "wall",
+    ":": "floor"
+  },
+  "on_enter": "dlg_ch5_entry_enter",
+  "spawns": [
+    {
+      "id": "from_office",
+      "x": 1,
+      "y": 2,
+      "dir": "down"
+    },
+    {
+      "id": "from_canal",
+      "x": 14,
+      "y": 9,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch5_ladder",
+      "x": 1,
+      "y": 1,
+      "sprite": "ladder",
+      "solid": true,
+      "look": "dlg_ch5_ladder"
+    },
+    {
+      "id": "obj_ch5_shed_stove",
+      "x": 10,
+      "y": 2,
+      "sprite": "shed_stove",
+      "solid": true,
+      "look": "dlg_ch5_shed_rest"
+    },
+    {
+      "id": "obj_ch5_supply",
+      "x": 12,
+      "y": 2,
+      "sprite": "supply_box",
+      "solid": true,
+      "look": "dlg_ch5_supply"
+    }
+  ],
+  "exits": [
+    {
+      "x": 15,
+      "y": 9,
+      "to": "sewer_canal",
+      "spawn": "from_entry"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch5_entry_7",
+      "x": 7,
+      "y": 7,
+      "dialogue": "dlg_ch5_entry_fight",
+      "if": {
+        "not_flag": "ch5_entry_done"
+      }
+    },
+    {
+      "id": "trg_ch5_entry_8",
+      "x": 8,
+      "y": 7,
+      "dialogue": "dlg_ch5_entry_fight",
+      "if": {
+        "not_flag": "ch5_entry_done"
+      }
+    }
+  ]
+}

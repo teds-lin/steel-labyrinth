@@ -1,7 +1,7 @@
 {
   "id": "fx_finale",
   "title": "終章（測試）",
-  "end_screen": { "title": "第一部　霧中鐘聲　完", "subtitle": "（測試）霧散了，鐘聲還在耳邊。" },
+  "end_screen": { "title": "第一部　霧中鐘聲　完", "subtitle": "（測試）霧散了，鐘聲還在耳邊。", "credits": ["致謝", "（測試）謝謝{name}陪我們走到這裡。"] },
   "guests": [
     {
       "id": "nine", "name": "九點", "sprite": "guest_nine",

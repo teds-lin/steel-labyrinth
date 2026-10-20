@@ -96,19 +96,28 @@ export function echoAvailable(state, data) {
  * - 對尚未解開、且 solvable_by 含 trace 的 lock 物件 → 以 trace 標籤解開（暫時殘響時扣 1 次）。
  * - 物件有 echo 對話 → 回傳該對話（暫時殘響時扣 1 次）。
  * - 否則 →「沒有殘留痕跡」，不扣次數。
+ * - M5：鎖不吃 trace，但譜系提供的其他免費標籤（voice、shadow）解得開 → 以那個標籤解開（最先判斷；不扣次數、不加崩解、
+ *   不用道具）。回傳值一律帶 unlock：這次解開了鎖時為 { via:'tag', tag }，否則 null。
  */
 export function echo(obj, state, data) {
-  const free = traceIsFree(state, data);
-  if (!free && !hasEcho(state)) return { state, dialogue: null, message: NO_CHARGE_MESSAGE };
-  if (obj.lock && !isUnlocked(obj, state) && (obj.lock.solvable_by ?? []).includes(ECHO_TAG)) {
-    return tryUnlock(obj, state, data, { method: 'tag', tag: ECHO_TAG, allowCost: true });
+  // M5：鎖不吃 trace、但譜系提供的其他免費標籤（voice、shadow…）解得開 → 直接用那個標籤（不用道具、不花代價、不看殘響次數）
+  if (obj.lock && !isUnlocked(obj, state) && !(obj.lock.solvable_by ?? []).includes(ECHO_TAG)) {
+    const r = tryUnlock(obj, state, data, { method: 'tag', allowCost: false });
+    if (r.unlocked) return { ...r, unlock: { via: 'tag', tag: r.tag } };
   }
-  if (typeof obj.echo === 'string') return { state: free ? state : spendEcho(state), dialogue: obj.echo };
-  return { state, dialogue: null, message: NO_TRACE_MESSAGE };
+  const free = traceIsFree(state, data);
+  if (!free && !hasEcho(state)) return { state, dialogue: null, message: NO_CHARGE_MESSAGE, unlock: null };
+  if (obj.lock && !isUnlocked(obj, state) && (obj.lock.solvable_by ?? []).includes(ECHO_TAG)) {
+    const r = tryUnlock(obj, state, data, { method: 'tag', tag: ECHO_TAG, allowCost: true });
+    return { ...r, unlock: r.unlocked ? { via: 'tag', tag: ECHO_TAG } : null };
+  }
+  if (typeof obj.echo === 'string') return { state: free ? state : spendEcho(state), dialogue: obj.echo, unlock: null };
+  return { state, dialogue: null, message: NO_TRACE_MESSAGE, unlock: null };
 }
 
 /**
- * 【調查】：investigate(obj, state, data) → { state, dialogues, unlocked }
+ * 【調查】：investigate(obj, state, data) → { state, dialogues, unlocked, unlock }
+ * unlock（M5）：這次調查解開了鎖時為 { via:'tag'|'item', tag（標籤解開時的標籤，道具時 null） }，否則 null（畫面播借聲／換影演出用）。
  * 調查絕不消耗殘響。dialogues 是依序要播的對話 id（畫面層依序播放，每段用前一段結束後的 state）。
  * - 一般物件：[look]（沒有 look 則空陣列），unlocked 為 null。
  * - 已解開的 lock 物件：[look]，unlocked true。
@@ -136,9 +145,10 @@ export function investigate(obj, state, data) {
 
 function investigateInner(obj, state, data) {
   const lookId = typeof obj?.look === 'string' ? obj.look : null;
-  if (!obj?.lock) return { state, dialogues: lookId ? [lookId] : [], unlocked: null };
-  if (isUnlocked(obj, state)) return { state, dialogues: lookId ? [lookId] : [], unlocked: true };
+  if (!obj?.lock) return { state, dialogues: lookId ? [lookId] : [], unlocked: null, unlock: null };
+  if (isUnlocked(obj, state)) return { state, dialogues: lookId ? [lookId] : [], unlocked: true, unlock: null };
   const r = tryUnlock(obj, state, data, { allowCost: false });
   const dialogues = [lookId, r.dialogue].filter((d) => typeof d === 'string');
-  return { state: r.state, dialogues, unlocked: r.unlocked };
+  const unlock = r.unlocked ? { via: r.via, tag: r.via === 'tag' ? r.tag : null } : null;
+  return { state: r.state, dialogues, unlocked: r.unlocked, unlock };
 }

@@ -16,11 +16,19 @@ const countOf = (state, id) => {
 };
 const rankDef = (data, lineageId, rank) => arr(findById(data?.lineages, lineageId)?.ranks).find((r) => isObj(r) && r.rank === rank) ?? null;
 
-/** 探索標籤的顯示名稱（HUD、晉升演出、解鎖提示）。不認得的照原樣顯示。 */
-export const FIELD_TAG_LABELS = Object.freeze({
-  trace: '讀痕', voice: '借聲', shadow: '換影', dream: '入夢', calm: '安眠', archive: '歸檔',
-});
-export const fieldTagLabel = (tag) => (Object.hasOwn(FIELD_TAG_LABELS, tag) ? FIELD_TAG_LABELS[tag] : String(tag));
+/**
+ * 探索標籤的顯示名稱（HUD、晉升演出、解鎖提示）：資料提供（lineages 的 rank.field_labels，例如 { "voice": "借聲" }），
+ * 沒有提供就照標籤 id 顯示。
+ */
+export function fieldTagLabel(tag, data) {
+  for (const lin of arr(data?.lineages)) {
+    for (const r of arr(lin?.ranks)) {
+      const labels = isObj(r?.field_labels) ? r.field_labels : null;
+      if (labels && Object.hasOwn(labels, tag) && typeof labels[tag] === 'string' && labels[tag] !== '') return labels[tag];
+    }
+  }
+  return String(tag);
+}
 
 // ---------- 晉升 ----------
 
@@ -52,18 +60,18 @@ export function promotionProgress(state, data) {
 }
 
 /**
- * 喝下靈劑的演出：比較對話前後的 state，有新的晉升紀錄時回傳要演出的內容，否則 null。
+ * 喝下靈劑的演出：對話前後的 state 之間，pending 新增了 { type:'promoted' } 時回傳要演出的內容，否則 null。
  * { forced, lineage, rank, name, abilities:[標籤名稱], skills:[技能名稱], collapseGain, collapse, title, lines, warning }
  */
 export function promotionFxView(before, after, data) {
-  const prev = arr(before?.promotions);
-  const next = arr(after?.promotions);
-  if (!isObj(before) || !isObj(after) || next.length <= prev.length) return null;
-  const p = next[next.length - 1];
-  if (!isObj(p)) return null;
+  if (!isObj(before) || !isObj(after)) return null;
+  // M5 整合：引擎晉升成功時在 pending 寫入 { type:'promoted', lineage, rank, forced }；只看這一步新增的那幾筆
+  const fresh = arr(after.pending).slice(arr(before.pending).length).filter((x) => isObj(x) && x.type === 'promoted');
+  const p = fresh[fresh.length - 1];
+  if (!p) return null;
   const def = rankDef(data, p.lineage, p.rank);
   const name = typeof def?.name === 'string' ? def.name : `階 ${p.rank}`;
-  const abilities = arr(def?.field).map(fieldTagLabel);
+  const abilities = arr(def?.field).map((t) => fieldTagLabel(t, data));
   const skills = arr(def?.skills).map((id) => findById(data?.skills, id)?.name ?? id);
   const collapse = Number.isInteger(after.collapse) ? after.collapse : 0;
   const collapseGain = Math.max(0, collapse - (Number.isInteger(before.collapse) ? before.collapse : 0));
@@ -138,16 +146,9 @@ export const tradeDoneText = (c) => `交換完成：得到 ${arr(c?.get).map((g)
 
 // ---------- 結局 ----------
 
-/** 致謝（結局畫面）。{name} 代入主角名字。 */
-export const CREDITS = Object.freeze([
-  '致謝',
-  '謝謝你陪{name}走過霧中的鐘聲。',
-  '也謝謝每一位回報問題、陪我們測試的玩家。',
-]);
-
 /**
  * 結局畫面：該章有 endings、而且 state.ending 是其中之一時回傳
- * { id, title（結局名稱）, partTitle（end_screen.title）, subtitle, credits:[…] }；否則 null（一般章節結束畫面）。
+ * { id, title（結局名稱）, partTitle（end_screen.title）, subtitle, credits:[…]（end_screen.credits，{name} 代入；沒有就空陣列） }；否則 null（一般章節結束畫面）。
  */
 export function endingScreen(chapterId, state, data) {
   const id = state?.ending;
@@ -161,7 +162,7 @@ export function endingScreen(chapterId, state, data) {
     title: typeof e.title === 'string' ? e.title : e.id,
     partTitle: typeof es.title === 'string' ? es.title : `${story?.title ?? chapterId}　完`,
     subtitle: typeof es.subtitle === 'string' ? es.subtitle : '',
-    credits: CREDITS.map((line) => fill(line, state)),
+    credits: arr(es.credits).filter((x) => typeof x === 'string').map((line) => fill(line, state)), // end_screen.credits（選填）
   };
 }
 

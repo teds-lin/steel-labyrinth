@@ -37,8 +37,8 @@ describe('POST /api/dream/chat：驗證與輸入', () => {
     expect(w.aiCalls.length).toBe(before);
   });
 
-  // 真正還沒開放的章節：CHAPTERS 最後一章的下一章（開放新章節後自動往後推）
-  const UNRELEASED = `chapter${Number(String(readWranglerConfig().vars.CHAPTERS).split(',').at(-1).replace(/^chapter/, '')) + 1}`;
+  // 真正還沒開放的章節：CHAPTERS 裡編號最大的 chapterN 的下一章（開放新章節後自動往後推；M5 起最後一章是 finale，不能直接取最後一個）
+  const UNRELEASED = `chapter${Math.max(...String(readWranglerConfig().vars.CHAPTERS).split(',').map((c) => /^chapter(\d+)$/.exec(c.trim())?.[1]).filter(Boolean).map(Number)) + 1}`;
   it('UNRELEASED 確實不在 CHAPTERS 白名單內', () => {
     expect(UNRELEASED).toMatch(/^chapter\d+$/);
     expect(String(readWranglerConfig().vars.CHAPTERS).split(',')).not.toContain(UNRELEASED);
@@ -362,5 +362,48 @@ describe('POST /api/dream/chat：額度與預算', () => {
     } finally {
       await w.close();
     }
+  });
+});
+
+describe('M5：預寫台詞依玩家所在章節（scripted_by_chapter；當章沒有就往前一章找）', () => {
+  it('scriptedLine：取 CHAPTERS 順序中 ≤ 玩家章節、最近的一份；都沒有就用 scripted', async () => {
+    const { scriptedLine } = await import('../../worker/src/dream.js');
+    const persona = {
+      scripted: { fallback: ['DEFAULT'] },
+      scripted_by_chapter: { chapter3: { fallback: ['C3'], quota: ['Q3'] }, chapter5: { fallback: ['C5'] } },
+    };
+    const chapters = ['prologue', 'chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6'];
+    expect(scriptedLine(persona, 'ai_error', 'chapter2', chapters)).toBe('DEFAULT');
+    expect(scriptedLine(persona, 'ai_error', 'chapter3', chapters)).toBe('C3');
+    expect(scriptedLine(persona, 'quota', 'chapter4', chapters)).toBe('Q3');
+    expect(scriptedLine(persona, 'ai_error', 'chapter6', chapters)).toBe('C5');
+    expect(scriptedLine(persona, 'quota', 'chapter6', chapters)).toBe('C5'); // 該章沒有 quota → 該章的 fallback
+    expect(scriptedLine({ scripted: { fallback: ['OLD'] } }, 'ai_error', 'chapter6', chapters)).toBe('OLD'); // 舊格式
+  });
+  it('/api/dream/chat：AI 失敗時回的預寫台詞是玩家所在章節的版本', async () => {
+    const w = await startWorker();
+    try {
+      const { mkdirSync, writeFileSync, readFileSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const { tmpdir } = await import('node:os');
+      const { DREAM_FIXTURES } = await import('./helpers.js');
+      const d = join(tmpdir(), 'steel-labyrinth-dream-chat-test', 'story-by-chapter');
+      mkdirSync(d, { recursive: true });
+      const base = JSON.parse(readFileSync(join(DREAM_FIXTURES, 'story', 'fake_chapter.json'), 'utf8'));
+      for (const ch of ['chapter1', 'chapter2']) {
+        const s = structuredClone(base);
+        s.id = ch;
+        s.guests[0].scripted.fallback = [`FALLBACK_${ch}`];
+        writeFileSync(join(d, `${ch}.json`), JSON.stringify(s));
+      }
+      await loadDreamFixtures(w, { storyDir: d, chapters: ['chapter1', 'chapter2'] });
+      w.setAi(() => { throw new Error('boom'); });
+      for (const [chapter, want] of [['chapter1', 'FALLBACK_chapter1'], ['chapter2', 'FALLBACK_chapter2'], ['chapter3', 'FALLBACK_chapter2']]) {
+        const p = await newPlayer(w);
+        const res = await dreamChat(w, p.token, OK(await getPass(w, p.token), { chapter }));
+        expect(res.status).toBe(200);
+        expect((await res.json()).reply, chapter).toBe(want);
+      }
+    } finally { await w.close(); }
   });
 });

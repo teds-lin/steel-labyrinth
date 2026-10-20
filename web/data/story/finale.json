@@ -1,0 +1,1091 @@
+{
+  "id": "finale",
+  "title": "終章　霧散之後",
+  "end_screen": {
+    "title": "第一部　霧中鐘聲　完",
+    "subtitle": "第二部　製作中",
+    "credits": [
+      "致謝",
+      "劇本、程式、美術：Claude 與 teds-lin",
+      "謝謝你陪{name}走過霧中的鐘聲。",
+      "也謝謝每一位回報問題、陪我們測試的玩家。"
+    ]
+  },
+  "endings": [
+    {
+      "id": "fog_walker",
+      "title": "霧中行者",
+      "if": {
+        "any": [
+          {
+            "flag": "final_frayed"
+          },
+          {
+            "flag": "heeded_tide"
+          }
+        ]
+      },
+      "dialogue": "dlg_end_fog_walker"
+    },
+    {
+      "id": "lamp_kept",
+      "title": "燈火未熄",
+      "if": {
+        "all": [
+          {
+            "flag": "marlo_trusted"
+          },
+          {
+            "flag": "final_calm"
+          }
+        ]
+      },
+      "dialogue": "dlg_end_lamp_kept"
+    },
+    {
+      "id": "dawn",
+      "title": "黎明之前",
+      "dialogue": "dlg_end_dawn"
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "dlg_fin_opening",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "清晨。白燈保全公司的窗戶，透進一點灰白的光。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": null,
+          "text": "霧變薄了。從窗口望出去，第一次看得見對街的屋頂。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": null,
+          "text": "你在沙發上醒來，身上蓋著一條毯子。不記得是誰替你蓋的。",
+          "next": "f3b"
+        },
+        {
+          "id": "f3b",
+          "speaker": null,
+          "text": "茶几上擺著三個杯子。昨晚，有人坐在這裡等你醒來。",
+          "next": "f3c"
+        },
+        {
+          "id": "f3c",
+          "speaker": null,
+          "text": "窗外，有人在掃街。掃帚的聲音一下一下，清清楚楚。",
+          "next": "f4"
+        },
+        {
+          "id": "f4",
+          "speaker": null,
+          "text": "遠處的鐘樓敲了六下。不多，也不少。",
+          "effects": [
+            {
+              "resolve_ending": true
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_end_lamp_kept",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "茶壺在爐子上咕嘟咕嘟響。艾妲踮著腳，把茶葉一匙一匙舀進去。",
+          "next": "l1b"
+        },
+        {
+          "id": "l1b",
+          "speaker": null,
+          "text": "窗外的霧薄得像一層紗。對街麵包店的煙囪，正冒著白煙。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": "艾妲",
+          "text": "早安！你睡了好久。我泡了奶奶的配方，這次不是安眠茶喔。",
+          "next": "l2b"
+        },
+        {
+          "id": "l2b",
+          "speaker": "{name}",
+          "text": "艾妲，妳的手……不抖了。",
+          "next": "l2c"
+        },
+        {
+          "id": "l2c",
+          "speaker": "艾妲",
+          "text": "嗯。這次，是我拉住你的喔。",
+          "next": "l2d"
+        },
+        {
+          "id": "l2d",
+          "speaker": "老賀伯",
+          "text": "對了。我把藥櫃的鑰匙打了一把新的，給你。",
+          "next": "l2e"
+        },
+        {
+          "id": "l2e",
+          "speaker": "老賀伯",
+          "text": "別誤會。是因為我懶得每次都替你開門。",
+          "next": "l3a"
+        },
+        {
+          "id": "l3a",
+          "speaker": "老賀伯",
+          "text": "這份報告，我寫得特別快。好事寫起來，筆都不會卡。",
+          "next": "l3b"
+        },
+        {
+          "id": "l3b",
+          "speaker": "{name}",
+          "text": "老賀伯，你在報告上怎麼寫我？",
+          "next": "l3"
+        },
+        {
+          "id": "l3",
+          "speaker": "老賀伯",
+          "text": "「表現尚可，喝茶太慢。」……開玩笑的。我寫得很好。",
+          "branches": [
+            {
+              "if": {
+                "flag": "inspector_convinced"
+              },
+              "next": "i1"
+            },
+            {
+              "if": {
+                "flag": "covered_marlo"
+              },
+              "next": "c1"
+            }
+          ],
+          "next": "m1"
+        },
+        {
+          "id": "i1",
+          "speaker": null,
+          "text": "桌上躺著燈律院的回信，蓋著歐德莉的印。",
+          "next": "i2"
+        },
+        {
+          "id": "i2",
+          "speaker": null,
+          "text": "「三天的期限，延長。第七小隊繼續調查。——依規定，這不合規定。」",
+          "next": "i3"
+        },
+        {
+          "id": "i3",
+          "speaker": null,
+          "text": "底下還有一行手寫的小字：「那一年，我們晚了一步。這一次沒有。」",
+          "next": "m1"
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "天亮前，歐德莉又來過一次。她沒有坐下，只在門口留了一句話。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": "歐德莉",
+          "text": "下次別替人說謊。……不過，謝謝你們守住了鐘樓。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": null,
+          "text": "她說完就走了。腳步聲，比上次輕了一點。",
+          "next": "m1"
+        },
+        {
+          "id": "m1",
+          "speaker": null,
+          "text": "馬洛坐在他的桌前。他打開抽屜，拿出那個沒有地址的信封。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": null,
+          "text": "他看了很久。你以為他要點火，可是他沒有。",
+          "next": "m3"
+        },
+        {
+          "id": "m3",
+          "speaker": null,
+          "text": "他把信放進門口那個寫著「待寄」的鐵盒，輕輕蓋上蓋子。",
+          "next": "m4"
+        },
+        {
+          "id": "m4",
+          "speaker": "馬洛",
+          "text": "總有一天，會有地址。",
+          "next": "m5"
+        },
+        {
+          "id": "m5",
+          "speaker": "艾妲",
+          "text": "隊長，你剛剛笑了耶。",
+          "next": "m6"
+        },
+        {
+          "id": "m6",
+          "speaker": "馬洛",
+          "text": "……茶太燙了。",
+          "next": "m7"
+        },
+        {
+          "id": "m7",
+          "speaker": "{name}",
+          "text": "隊長，那封信……",
+          "next": "m8"
+        },
+        {
+          "id": "m8",
+          "speaker": "馬洛",
+          "text": "等有了地址，我想自己送去。到時候，你陪我走一趟。",
+          "next": "m9"
+        },
+        {
+          "id": "m9",
+          "speaker": "艾妲",
+          "text": "那我也要去！我想看看，讓隊長寫了九年信的人。",
+          "next": "m10"
+        },
+        {
+          "id": "m10",
+          "speaker": "馬洛",
+          "text": "……再說吧。",
+          "branches": [
+            {
+              "if": {
+                "flag": "owen_spoke"
+              },
+              "next": "o1"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "中午，莉娜帶著歐文來了。歐文抱著一大束白花，說是要來道謝的。",
+          "branches": [
+            {
+              "if": {
+                "flag": "borrowed_karl_voice"
+              },
+              "next": "o4"
+            }
+          ],
+          "next": "o2"
+        },
+        {
+          "id": "o2",
+          "speaker": "歐文",
+          "text": "謝謝你們。……卡爾他娘那邊，我已經去說過了。",
+          "next": "o2b"
+        },
+        {
+          "id": "o2b",
+          "speaker": "莉娜",
+          "text": "他昨晚在睡夢裡唱歌呢。有聲音的那種。",
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": null,
+          "text": "說完，他自己先笑了出來。那是你第一次聽見他笑出聲。",
+          "next": "d1"
+        },
+        {
+          "id": "o4",
+          "speaker": "歐文",
+          "text": "謝謝你。……卡爾那天的聲音，好像一直就在耳邊。",
+          "next": "o5"
+        },
+        {
+          "id": "o5",
+          "speaker": null,
+          "text": "他笑著說。你的心卻往下沉了一下——那個聲音，是你借來的。",
+          "next": "o6"
+        },
+        {
+          "id": "o6",
+          "speaker": "{name}",
+          "text": "（借來的聲音，要記得還。……可是，要還給誰？）",
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "下午，花販黛西牽著蘿絲來了。她脖子上的小黑板，今天一個字都沒寫。",
+          "next": "d2"
+        },
+        {
+          "id": "d2",
+          "speaker": "黛西",
+          "text": "……謝謝你。",
+          "next": "d3"
+        },
+        {
+          "id": "d3",
+          "speaker": null,
+          "text": "她的聲音很啞，像很久沒有用過。蘿絲躲在她身後，小小聲地也說了一次。",
+          "next": "d3b"
+        },
+        {
+          "id": "d3b",
+          "speaker": "黛西",
+          "text": "蘿絲說，她在夢裡聽見好多人在數鐘聲。……她也跟著數了。",
+          "next": "d3c"
+        },
+        {
+          "id": "d3c",
+          "speaker": null,
+          "text": "蘿絲伸出手指，一根一根比給你看。比到第十三根，她借了媽媽的手。",
+          "next": "d4"
+        },
+        {
+          "id": "d4",
+          "speaker": null,
+          "text": "傍晚，報童彼得在樓下大喊：「號外！港口的燈塔，昨晚又亮了！」",
+          "next": "d5"
+        },
+        {
+          "id": "d5",
+          "speaker": "艾妲",
+          "text": "一定是燈律院的人去點的。……真好，終於亮了。",
+          "next": "d6"
+        },
+        {
+          "id": "d6",
+          "speaker": null,
+          "text": "老賀伯把報告收進檔案櫃。最上面一行寫著：「第七小隊，全員歸隊。」",
+          "next": "d7"
+        },
+        {
+          "id": "d7",
+          "speaker": "馬洛",
+          "text": "……全員。",
+          "next": "d8"
+        },
+        {
+          "id": "d8",
+          "speaker": null,
+          "text": "他說得很小聲，像在數人頭。數完了，又數了一次。",
+          "next": "d9"
+        },
+        {
+          "id": "d9",
+          "speaker": null,
+          "text": "晚上，大家都回家了。辦公室的燈，留了一盞。",
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你在沙發上睡著了。鐘聲來接你。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "鐘塔裡的霧散了。三點坐在他的椅子上，像在等你。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": "{name}",
+          "text": "隊長有一封信，寄不出去。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "三點很久沒有回答。鐘面上的長針，慢慢走了一圈。",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "三點",
+          "text": "……有些信，寫的人要先準備好。",
+          "next": "e6"
+        },
+        {
+          "id": "e6",
+          "speaker": "九點",
+          "text": "十二點！說好的伴手禮呢？",
+          "next": "e7"
+        },
+        {
+          "id": "e7",
+          "speaker": "{name}",
+          "text": "……下次一定。",
+          "next": "e8a"
+        },
+        {
+          "id": "e8a",
+          "speaker": "九點",
+          "text": "你每次都這樣說。……不過，你回來了，就先算你一份。",
+          "next": "e8"
+        },
+        {
+          "id": "e8",
+          "speaker": "三點",
+          "text": "去睡吧，十二點。……明天，鐘還會響。",
+          "branches": [
+            {
+              "if": {
+                "item": "pocket_watch"
+              },
+              "next": "w1"
+            }
+          ],
+          "next": "w0"
+        },
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "醒來的時候，口袋裡的懷錶，秒針走了一格。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": null,
+          "text": "然後，又停了。",
+          "next": "z1"
+        },
+        {
+          "id": "w0",
+          "speaker": null,
+          "text": "醒來的時候，窗外的霧又淡了一點。",
+          "next": "z1"
+        },
+        {
+          "id": "z1",
+          "speaker": "{name}",
+          "text": "（城市還在，身邊的人也還在。我的聲音，還是我自己的。）",
+          "branches": [
+            {
+              "if": {
+                "any": [
+                  {
+                    "promoted_forced": 8
+                  },
+                  {
+                    "promoted_forced": 7
+                  }
+                ]
+              },
+              "next": "fz"
+            }
+          ],
+          "next": "z2"
+        },
+        {
+          "id": "fz",
+          "speaker": null,
+          "text": "只是偶爾，耳朵深處還會響起一點潮聲。",
+          "next": "z1b"
+        },
+        {
+          "id": "z1b",
+          "speaker": "艾妲",
+          "text": "明天見，{name}。明天也要來上班喔。",
+          "next": "z1c"
+        },
+        {
+          "id": "z1c",
+          "speaker": "老賀伯",
+          "text": "明天見。記得，喝茶別太慢。",
+          "next": "z2"
+        },
+        {
+          "id": "z2",
+          "speaker": null,
+          "text": "故事還沒有完。……鐘，還在走。",
+          "effects": [
+            {
+              "chapter_end": "finale"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_end_dawn",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "霧退了。可是沉堤上那些不說話的人，有一些沒有醒來。",
+          "next": "a2a"
+        },
+        {
+          "id": "a2a",
+          "speaker": "老賀伯",
+          "text": "救回來的人裡，有三成還不肯開口。醫生說，只能等。",
+          "next": "a2b"
+        },
+        {
+          "id": "a2b",
+          "speaker": "艾妲",
+          "text": "有些人，連家人來接都認不出來。……我進他們的夢，只聽得見潮聲。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "{name}",
+          "text": "（我們守住了鐘樓，也守住了燈塔。可是那些人的聲音……）",
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "r1"
+            }
+          ],
+          "next": "u1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "馬洛的桌子空了。他的白燈徽章，還放在原來的地方。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": null,
+          "text": "燈律院的人說，第十三響晚了幾秒。港邊有一整排房子的人，到現在還不開口。",
+          "next": "r3"
+        },
+        {
+          "id": "r3",
+          "speaker": "艾妲",
+          "text": "如果隊長那天在鐘樓……會不會就不一樣了？",
+          "next": "r4"
+        },
+        {
+          "id": "r4",
+          "speaker": null,
+          "text": "沒有人回答。老賀伯把徽章擦了擦，放回桌上。",
+          "next": "r4b"
+        },
+        {
+          "id": "r4b",
+          "speaker": "艾妲",
+          "text": "隊長會回來的吧？……他的大衣，還掛在這裡。",
+          "next": "r5"
+        },
+        {
+          "id": "r5",
+          "speaker": null,
+          "text": "下午，歐德莉來收走了徽章。她在門口站了很久，什麼都沒說。",
+          "next": "c0"
+        },
+        {
+          "id": "u1",
+          "speaker": null,
+          "text": "馬洛照常上班。他把大衣掛好，給自己倒了一杯咖啡。",
+          "next": "u2"
+        },
+        {
+          "id": "u2",
+          "speaker": null,
+          "text": "那封信還在他的大衣口袋裡。你看得見信封的一角。",
+          "next": "u3"
+        },
+        {
+          "id": "u3",
+          "speaker": "馬洛",
+          "text": "早。",
+          "next": "u4"
+        },
+        {
+          "id": "u4",
+          "speaker": null,
+          "text": "他對你點點頭，客氣得像你第一天來上班。",
+          "next": "u5"
+        },
+        {
+          "id": "u5",
+          "speaker": "{name}",
+          "text": "隊長，那封信……",
+          "next": "u6"
+        },
+        {
+          "id": "u6",
+          "speaker": "馬洛",
+          "text": "我會處理。",
+          "next": "u7"
+        },
+        {
+          "id": "u7",
+          "speaker": null,
+          "text": "他低頭翻開報紙。那一頁，是密密麻麻的尋人啟事。",
+          "next": "u8"
+        },
+        {
+          "id": "u8",
+          "speaker": null,
+          "text": "那天下午，他提早下班了。你從窗口看見他往舊城的方向走。",
+          "next": "c0"
+        },
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "covered_marlo"
+              },
+              "next": "cv"
+            },
+            {
+              "if": {
+                "flag": "ch6_refused_statement"
+              },
+              "next": "rf"
+            },
+            {
+              "if": {
+                "flag": "inspector_convinced"
+              },
+              "next": "ic"
+            }
+          ],
+          "next": "o0"
+        },
+        {
+          "id": "cv",
+          "speaker": null,
+          "text": "歐德莉又來過一次。她沒有找你，只是看了你一眼，就走了。",
+          "next": "o0"
+        },
+        {
+          "id": "rf",
+          "speaker": null,
+          "text": "燈律院寄來一封公文，信封上寫著你的名字。你還沒有拆。",
+          "next": "o0"
+        },
+        {
+          "id": "ic",
+          "speaker": null,
+          "text": "燈律院的回信只有一行：「報告收到。」沒有說延長，也沒有說結案。",
+          "next": "o0"
+        },
+        {
+          "id": "o0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "borrowed_karl_voice"
+              },
+              "next": "ob"
+            },
+            {
+              "if": {
+                "flag": "owen_spoke"
+              },
+              "next": "os"
+            }
+          ],
+          "next": "k1"
+        },
+        {
+          "id": "os",
+          "speaker": null,
+          "text": "莉娜寄了一封信來。歐文會說話了，只是一提起卡爾，就會沉默很久。",
+          "next": "k1"
+        },
+        {
+          "id": "ob",
+          "speaker": null,
+          "text": "莉娜寄了一封信來。信裡說，歐文常常提起卡爾最後的聲音。你不敢回信。",
+          "next": "k1"
+        },
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "黛西的花店重新開張了。小黑板上寫著：「今天有新到的白花。」",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": null,
+          "text": "她還是沒有開口。蘿絲坐在店門口，替她招呼客人。",
+          "branches": [
+            {
+              "if": {
+                "any": [
+                  {
+                    "promoted_forced": 8
+                  },
+                  {
+                    "promoted_forced": 7
+                  }
+                ]
+              },
+              "next": "fz"
+            }
+          ],
+          "next": "k3"
+        },
+        {
+          "id": "fz",
+          "speaker": null,
+          "text": "你的耳朵裡偶爾還有潮聲。夜深的時候，特別清楚。",
+          "next": "k3"
+        },
+        {
+          "id": "k3",
+          "speaker": null,
+          "text": "下午，你去碼頭走了一趟。工頭還站在夜閘邊，一個一個數著回來的人。",
+          "next": "k4"
+        },
+        {
+          "id": "k4",
+          "speaker": "工頭",
+          "text": "還差十七個。……我會等到他們都回來。",
+          "next": "k5"
+        },
+        {
+          "id": "k5",
+          "speaker": "工頭",
+          "text": "你們白燈的人也是。別讓自己變成，要別人等的那一個。",
+          "next": "k6"
+        },
+        {
+          "id": "k6",
+          "speaker": null,
+          "text": "你點點頭，把這句話記在心裡。",
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "晚上，你入夢。鐘塔裡的霧，比以前濃了一點。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": "九點",
+          "text": "十二點，你的臉色跟外面的天一樣，灰灰的。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": "三點",
+          "text": "鐘敲完了，不代表人都回來了。……慢慢數吧。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": "九點",
+          "text": "……三點說得對。今天的伴手禮，就算你人回來了。",
+          "next": "g1"
+        },
+        {
+          "id": "g1",
+          "speaker": null,
+          "text": "醒來的傍晚，你站在窗邊。霧又慢慢從港口那邊回來了。",
+          "next": "g2"
+        },
+        {
+          "id": "g2",
+          "speaker": "{name}",
+          "text": "（我看穿了真相。可是有些話，我沒有讓它被說完。）",
+          "next": "g2b"
+        },
+        {
+          "id": "g2b",
+          "speaker": "艾妲",
+          "text": "{name}，要不要吃點東西？你從早上到現在，一句話都沒說。",
+          "next": "g2c"
+        },
+        {
+          "id": "g2c",
+          "speaker": "{name}",
+          "text": "……嗯。我只是在數。",
+          "next": "g2d"
+        },
+        {
+          "id": "g2d",
+          "speaker": "艾妲",
+          "text": "數什麼？",
+          "next": "g2e"
+        },
+        {
+          "id": "g2e",
+          "speaker": "{name}",
+          "text": "還有幾個人，沒有回來。",
+          "next": "g3"
+        },
+        {
+          "id": "g3",
+          "speaker": null,
+          "text": "天快亮了。但是，還沒有亮。",
+          "effects": [
+            {
+              "chapter_end": "finale"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_end_fog_walker",
+      "start": "b1",
+      "nodes": [
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "清晨。所有人都還睡著。",
+          "next": "b1b"
+        },
+        {
+          "id": "b1b",
+          "speaker": null,
+          "text": "窗外的霧又濃了。昨晚退開的霧，好像只是在等你。",
+          "next": "b2"
+        },
+        {
+          "id": "b2",
+          "speaker": null,
+          "text": "你的耳朵裡全是潮聲。很溫柔，很安靜，一直叫你往海的方向走。",
+          "branches": [
+            {
+              "if": {
+                "flag": "heeded_tide"
+              },
+              "next": "h1"
+            }
+          ],
+          "next": "h2"
+        },
+        {
+          "id": "h1",
+          "speaker": "{name}",
+          "text": "（它說，我聽得見。……那我就去聽。）",
+          "next": "b3"
+        },
+        {
+          "id": "h2",
+          "speaker": "{name}",
+          "text": "（腦袋裡的雜音，已經壓不住了。再待下去，我會傷到他們。）",
+          "next": "b3a"
+        },
+        {
+          "id": "b3a",
+          "speaker": null,
+          "text": "桌上的茶杯還溫著。艾妲的圍巾掛在椅背上，老賀伯的筆還插在墨水瓶裡。",
+          "next": "b3"
+        },
+        {
+          "id": "b3",
+          "speaker": null,
+          "text": "你從桌上撕下一張紙，寫了一行字，壓在茶杯底下。",
+          "next": "b4"
+        },
+        {
+          "id": "b4",
+          "speaker": null,
+          "text": "「如果我忘了，就去找白燈。」",
+          "next": "b4b"
+        },
+        {
+          "id": "b4b",
+          "speaker": null,
+          "text": "字跡歪歪扭扭的，像寫字的手一直在發抖。",
+          "next": "b5"
+        },
+        {
+          "id": "b5",
+          "speaker": null,
+          "text": "寫完你才發現，這一行字，和閣樓那本日記上的，一模一樣。",
+          "next": "b5b"
+        },
+        {
+          "id": "b5b",
+          "speaker": "{name}",
+          "text": "（……我以前，是不是也這樣走進過霧裡？）",
+          "next": "b6"
+        },
+        {
+          "id": "b6",
+          "speaker": null,
+          "text": "你輕輕推開門。門鈴沒有響。霧把你整個吞了進去。",
+          "next": "b6b"
+        },
+        {
+          "id": "b6b",
+          "speaker": null,
+          "text": "霧裡很安靜。安靜得，連自己的腳步聲都聽不見。",
+          "next": "b6c"
+        },
+        {
+          "id": "b6c",
+          "speaker": "{name}",
+          "text": "（這樣也好。……閉上嘴，就聽不見了。）",
+          "next": "b6d"
+        },
+        {
+          "id": "b6d",
+          "speaker": null,
+          "text": "你走過鐵橋街，走過碼頭，走到沉堤的盡頭。燈塔亮著，你沒有回頭。",
+          "next": "b7"
+        },
+        {
+          "id": "b7",
+          "speaker": null,
+          "text": "過了一會兒，艾妲揉著眼睛走出裡間。她看見了茶杯底下的紙條。",
+          "next": "b8"
+        },
+        {
+          "id": "b8",
+          "speaker": "艾妲",
+          "text": "……{name}？",
+          "next": "b8b"
+        },
+        {
+          "id": "b8b",
+          "speaker": null,
+          "text": "艾妲抓起大衣衝出門。霧裡什麼都看不見，她還是一直喊你的名字。",
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "q1"
+            }
+          ],
+          "next": "q2"
+        },
+        {
+          "id": "q1",
+          "speaker": "老賀伯",
+          "text": "去找。……我去燈律院，把隊長叫回來。",
+          "next": "q3"
+        },
+        {
+          "id": "q2",
+          "speaker": "馬洛",
+          "text": "去找。……這一次，我不會再晚一步。",
+          "next": "q3"
+        },
+        {
+          "id": "q3",
+          "speaker": "艾妲",
+          "text": "我去你的夢裡找。就算又鎖起來了，我也要一直敲門。",
+          "next": "q4"
+        },
+        {
+          "id": "q4",
+          "speaker": null,
+          "text": "那一天，白燈保全公司的燈，一整天都沒有關。",
+          "next": "c1"
+        },
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "——鐘塔。",
+          "next": "c2"
+        },
+        {
+          "id": "c2",
+          "speaker": null,
+          "text": "霧很濃。十二張椅子裡，只有三點和九點的椅子上有人。",
+          "next": "c2b"
+        },
+        {
+          "id": "c2b",
+          "speaker": null,
+          "text": "十二點的椅子旁，擺著一個油紙包著的小包裹。是九點準備的伴手禮。",
+          "next": "c3"
+        },
+        {
+          "id": "c3",
+          "speaker": null,
+          "text": "刻著「十二」的那張椅子，第一次積了一層薄薄的霧。",
+          "next": "c4"
+        },
+        {
+          "id": "c4",
+          "speaker": "九點",
+          "text": "……十二點？",
+          "next": "c5"
+        },
+        {
+          "id": "c5",
+          "speaker": null,
+          "text": "沒有人回答。",
+          "next": "c5b"
+        },
+        {
+          "id": "c5b",
+          "speaker": "九點",
+          "text": "……你說過，下次要帶伴手禮的。",
+          "next": "c5c"
+        },
+        {
+          "id": "c5c",
+          "speaker": "九點",
+          "text": "喂，十二點！不要裝睡！你不是說，要數到最後一響嗎？",
+          "next": "c6"
+        },
+        {
+          "id": "c6",
+          "speaker": null,
+          "text": "三點站起來，走到十二點的椅子前，用袖子把霧擦掉。擦掉了，又積上。",
+          "next": "c6b"
+        },
+        {
+          "id": "c6b",
+          "speaker": "三點",
+          "text": "……鐘還沒敲完。",
+          "next": "c6c"
+        },
+        {
+          "id": "c6c",
+          "speaker": "九點",
+          "text": "那、那我們就等。等多久都等。",
+          "next": "c6d"
+        },
+        {
+          "id": "c6d",
+          "speaker": null,
+          "text": "鐘面上的指針，停在十一點五十九分。",
+          "next": "c7"
+        },
+        {
+          "id": "c7",
+          "speaker": null,
+          "text": "遠處，好像有鐘聲。很遠，很遠。",
+          "effects": [
+            {
+              "chapter_end": "finale"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    }
+  ]
+}

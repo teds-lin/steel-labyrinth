@@ -8,7 +8,10 @@ import { simulate, finishBattle, prepareRetry, RETRY_COLLAPSE_CAP } from '../web
 import { migrations, sanitizeLoadedState, serialize, deserialize, CURRENT_VERSION } from '../web/src/core/save.js';
 import { DREAM_CHOICE_ID } from '../web/src/core/dream.js';
 import { deriveStats } from '../web/src/core/stats.js';
-import { Sim as BaseSim, DEFAULT_NAME, playPrologue, playChapter1, playChapter2, playChapter3 } from './lib/sim.js';
+import {
+  Sim as BaseSim, DEFAULT_NAME, playPrologue, playChapter1, playChapter2, playChapter3,
+  playChapter4, playChapter5, playChapter6, playChapter7, playFinale,
+} from './lib/sim.js';
 import { makeSmartPolicy, smartPolicy } from './lib/policies.js';
 
 const DATA_DIR = fileURLToPath(new URL('../web/data/', import.meta.url));
@@ -239,7 +242,7 @@ describe('序章內容：用真實資料模擬遊玩', () => {
 
     // 另外把每一段對話都播一遍（選第 0 個）
     const all = new Sim({ name: NAME, charges: 5 });
-    for (const id of dialogues.keys()) all.playOnly(id, () => 0);
+    for (const id of dialogues.keys()) all.playOnly(id, loopSafe(() => 0));
 
     for (const sim of [keyRun, echoRun, all]) {
       expect(sim.log.length).toBeGreaterThan(0);
@@ -254,6 +257,23 @@ describe('序章內容：用真實資料模擬遊玩', () => {
     }
   });
 
+  /**
+   * M5：推理題答錯會回到同一題再選（第四章起），永遠選同一個錯的選項會繞不出來。
+   * 同一段對話裡同一個選項節點再次出現時，改選下一個還沒選過的選項（玩家答錯後會換答案）。
+   */
+  const loopSafe = (picker) => {
+    const tried = new Map();
+    return (cur) => {
+      const key = `${cur.node ?? cur.id ?? ''}|${cur.text}|${cur.choices.map((c) => c.text).join('|')}`;
+      const used = tried.get(key) ?? new Set();
+      tried.set(key, used);
+      let i = picker(cur);
+      for (let k = 0; used.has(i) && k < cur.choices.length; k++) i = (i + 1) % cur.choices.length;
+      used.add(i);
+      return i;
+    };
+  };
+
   describe('6. 所有對話都能從頭跑到結束（200 步內、不丟錯）', () => {
     const strategies = {
       '每個選項節點都選第 0 個': () => 0,
@@ -265,7 +285,7 @@ describe('序章內容：用真實資料模擬遊玩', () => {
         for (const id of dialogues.keys()) {
           const sim = new Sim({ charges: 5 });
           let steps;
-          expect(() => { steps = sim.playOnly(id, picker, 200); }, `對話 ${id}`).not.toThrow();
+          expect(() => { steps = sim.playOnly(id, loopSafe(picker), 200); }, `對話 ${id}`).not.toThrow();
           expect(steps, `對話 ${id}`).toBeLessThanOrEqual(200);
         }
       });
@@ -524,7 +544,7 @@ function expectChapter3Done(sim) {
 
 describe('M4 內容：第三章（鐘塔之夢）', () => {
   it('第三章已開放：manifest 有 chapter3，鐘塔是夢境地圖，沙發與保溫瓶是入夢點', () => {
-    expect(data.manifest.chapters).toEqual(['prologue', 'chapter1', 'chapter2', 'chapter3']);
+    expect(data.manifest.chapters.slice(0, 4)).toEqual(['prologue', 'chapter1', 'chapter2', 'chapter3']);
     expect(data.maps.find((m) => m.id === 'clocktower').dream).toBe(true);
     const office = data.maps.find((m) => m.id === 'office_ch3');
     for (const id of ['obj_ch3_sofa', 'obj_ch3_thermos']) {
@@ -678,5 +698,142 @@ describe('M4 內容：第三章（鐘塔之夢）', () => {
     playChapter3(sim, { redream: true });
     expectChapter3Done(sim);
     expect(sim.wakes).toEqual([{ relocated: false }, { relocated: false }]);
+  });
+});
+
+// ───────────── M5：第四章～終章，三種結局（P9） ─────────────
+
+const M5_RETRIES = 30;
+
+/**
+ * 第四章起的戰鬥解析器：M5 的合理策略（Boss 睡著或被縛時先清小怪、隊友技能），**不用任何道具**；
+ * 輸了就照遊戲的「重新挑戰」（prepareRetry：全隊回滿、崩解 ≤ 60）換下一個種子再打，最多 M5_RETRIES 次。
+ */
+function noItemResolverM5(record) {
+  const smart = makeSmartPolicy({ useItems: false, focusAdds: true });
+  const policy = (battle, cmds, d) => {
+    const cmd = smart(battle, cmds, d);
+    if (cmd.type === 'item') throw new Error(`策略用了道具：${JSON.stringify(cmd)}`);
+    return cmd;
+  };
+  let seed = CONTENT_SEED;
+  return (encId, state) => {
+    let s = state;
+    for (let attempt = 0; attempt < M5_RETRIES; attempt++) {
+      const r = simulate(encId, s, data, seed++, policy);
+      const f = finishBattle(r.battle, s, data);
+      if (f.next?.type !== 'retry') {
+        // 重新挑戰的崩解寫回 max(戰後, 戰前)（規格補充 3 第 1 條）
+        const st = attempt === 0 ? f.state : { ...f.state, collapse: Math.max(f.state.collapse, state.collapse) };
+        record.push({ encounter: encId, attempts: attempt + 1, outcome: f.outcome });
+        return { ...f, state: st };
+      }
+      s = prepareRetry(state, data);
+    }
+    throw new Error(`戰鬥「${encId}」重新挑戰 ${M5_RETRIES} 次仍然過不了`);
+  };
+}
+
+/** 新遊戲 → 第三章完（不用道具）。 */
+function playToChapter3End(record, prologue = 'key') {
+  const sim = new BaseSim(data, { battle: noItemResolverM5(record) });
+  playPrologue(sim, prologue);
+  sim.continueChapter();
+  playChapter1(sim);
+  sim.continueChapter();
+  playChapter2(sim);
+  sim.continueChapter();
+  playChapter3(sim);
+  sim.continueChapter();
+  return sim;
+}
+
+/** 第四章～終章。route：{ ch4, ch5, ch6, ch7 } 傳給各章的路線函式。回傳結局 id。 */
+function playChapters4ToEnd(sim, route = {}) {
+  const fights = sim.battles.length;
+  playChapter4(sim, route.ch4);
+  sim.continueChapter();
+  playChapter5(sim, route.ch5);
+  sim.continueChapter();
+  playChapter6(sim, route.ch6);
+  sim.continueChapter();
+  playChapter7(sim, route.ch7);
+  expect(sim.battles.length - fights).toBe(19); // 第四～七章的戰鬥都打過（不用道具：解析器禁止）
+  return playFinale(sim);
+}
+
+/** 通關後的共同檢查：章節、結局畫面、存檔可讀、/api/clear 白名單。 */
+function expectFinished(sim, endingId) {
+  const s = sim.state;
+  expect(s.chapter_done).toEqual(['prologue', 'chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6', 'chapter7', 'finale']);
+  expect(s.ending).toBe(endingId);
+  const fin = data.story.find((st) => st.id === 'finale');
+  expect(fin.endings.map((e) => e.id)).toContain(endingId);
+  expect(sim.dialoguesPlayed.at(-1)).toBe(fin.endings.find((e) => e.id === endingId).dialogue);
+  expect(s.lineage.id).toBe('trace');
+  const back = reload(serialize(s));
+  expect(back.state.ending).toBe(endingId);
+  expect(back.state.promotions.map((p) => p.rank)).toEqual(s.promotions.map((p) => p.rank));
+}
+
+describe('M5 內容：從新遊戲一路玩到三種結局（不使用任何道具）', () => {
+  it('燈火未熄（lamp_kept）：照實陳述、站在隊長這邊、摀住耳朵，崩解壓在 40 以下', () => {
+    const record = [];
+    const sim = playToChapter3End(record);
+    const ending = playChapters4ToEnd(sim, { ch4: { dream: true }, ch6: { statement: 'trust', owen: 'tell', dream: true } });
+    expect(sim.state.flags).toMatchObject({ marlo_trusted: true, inspector_convinced: true, final_calm: true });
+    expect(sim.state.flags.heeded_tide).toBeUndefined();
+    expect(sim.state.promotions.map((p) => [p.rank, p.forced])).toEqual([[8, false], [7, false]]);
+    expectFinished(sim, 'lamp_kept');
+    expect(ending).toBe('lamp_kept');
+    expect(record.every((r) => r.attempts <= M5_RETRIES)).toBe(true);
+  });
+
+  it('黎明之前（dawn）：簽下陳述舉報隊長（馬洛離隊、老賀伯同行到最後）', () => {
+    const record = [];
+    const sim = playToChapter3End(record, 'echo');
+    const ending = playChapters4ToEnd(sim, { ch6: { statement: 'report', owen: null, letter: 'unread' } });
+    expect(sim.state.flags.marlo_reported).toBe(true);
+    expect(sim.state.flags.marlo_trusted).toBeUndefined();
+    expect(sim.battles.some((b) => b.encounter === 'enc_ch7_omen_nocap')).toBe(true);
+    expect(sim.state.party.map((m) => m.id).sort()).toEqual(['ada', 'herb', 'hero']);
+    expectFinished(sim, 'dawn');
+    expect(ending).toBe('dawn');
+  });
+
+  it('霧中行者（fog_walker）：硬喝兩次（階 8、階 7 都共鳴不足）＋回應潮水', () => {
+    const record = [];
+    const sim = playToChapter3End(record);
+    const ending = playChapters4ToEnd(sim, {
+      ch4: { forced: true, dream: false }, ch5: { forced: true }, ch6: { forced: true, dream: false, owen: null }, ch7: { forced: true, heed: true },
+    });
+    expect(sim.state.promotions.map((p) => [p.rank, p.forced])).toEqual([[8, true], [7, true]]);
+    expect(sim.state.flags).toMatchObject({ forced_rank8: true, forced_rank7: true, heeded_tide: true });
+    expect(sim.battles.some((b) => b.encounter === 'enc_ch7_omen_heeded')).toBe(true);
+    expectFinished(sim, 'fog_walker');
+    expect(ending).toBe('fog_walker');
+  });
+
+  it('v3 存檔（第三章完）遷移到 v4 後，可以接著從第三章結束畫面玩到結局', () => {
+    const ch3 = playToChapter3End([]);
+    // continueChapter 已經進了第四章；回到第三章完的狀態重做一份 v3 存檔
+    const sim0 = new BaseSim(data, { battle: noItemResolverM5([]) });
+    playPrologue(sim0, 'key'); sim0.continueChapter(); playChapter1(sim0); sim0.continueChapter(); playChapter2(sim0); sim0.continueChapter(); playChapter3(sim0);
+    expect(ch3.state.chapter).toBe('chapter4');
+    const { promotions: _p, ending: _e, ...v3Fields } = sim0.state;
+    const v3 = { ...JSON.parse(JSON.stringify(v3Fields)), schema_version: 3, pending: null };
+    expect(v3.chapter_done).toEqual(['prologue', 'chapter1', 'chapter2', 'chapter3']);
+    const v4 = migrations[3](structuredClone(v3));
+    expect(v4).toMatchObject({ schema_version: 4, promotions: [], ending: null });
+    const loaded = reload(JSON.stringify(v3)); // deserialize 會自動跑 migrations[3]
+    expect(loaded.state.schema_version).toBe(CURRENT_VERSION);
+
+    const sim = new BaseSim(data, { state: loaded.state, battle: noItemResolverM5([]) });
+    sim.continueChapter();
+    expect(sim.state.location.map).toBe('office_ch4');
+    const ending = playChapters4ToEnd(sim, { ch6: { statement: 'cover' } });
+    expect(sim.state.flags.covered_marlo).toBe(true);
+    expect(['dawn', 'lamp_kept', 'fog_walker']).toContain(ending);
+    expectFinished(sim, ending);
   });
 });

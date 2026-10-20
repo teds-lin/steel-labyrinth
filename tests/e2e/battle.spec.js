@@ -6,6 +6,9 @@ import { test, expect, game, TEST_URL, makeSave, seedSaves } from './helpers.js'
 const isTouch = (testInfo) => testInfo.project.name === 'mobile';
 const readData = (rel) => JSON.parse(readFileSync(new URL(`../../web/data/${rel}`, import.meta.url), 'utf8'));
 const STORY = Object.fromEntries(['prologue', 'chapter1', 'chapter2'].map((id) => [id, readData(`story/${id}.json`)]));
+// M5：下一階（借聲者）的靈劑門檻開放後，HUD 顯示「共鳴 目前／門檻」；門檻從資料讀
+const RANK8_NEED = readData('lineages/trace.json').ranks.find((r) => r.rank === 8)?.potion?.resonance ?? null;
+const resonanceText = (n) => (RANK8_NEED === null ? `共鳴 ${n}` : `共鳴 ${n}/${RANK8_NEED}`);
 const sl = (page, fn, arg) => page.evaluate(fn, arg);
 
 /**
@@ -150,7 +153,7 @@ test.describe('M2 戰鬥', () => {
     expect(s.lineage).toEqual({ id: 'trace', rank: 9 });
     let hud = await sl(page, () => window.__SL.hud());
     expect(hud.echo).toBe('回溯 ∞');
-    expect(hud.resonance).toMatch(/^共鳴 \d+$/);
+    expect(hud.resonance).toMatch(RANK8_NEED === null ? /^共鳴 \d+$/ : new RegExp(`^共鳴 \\d+/${RANK8_NEED}$`));
     expect(hud.party.length).toBe(1);
 
     // 練習室 → 教學戰
@@ -239,7 +242,7 @@ test.describe('M2 戰鬥', () => {
     await page.goto(`${TEST_URL}&seed=11`);
     await loadSlot(g, 1);
     await g.waitScene('Map');
-    expect((await sl(page, () => window.__SL.hud())).resonance).toBe('共鳴 4');
+    expect((await sl(page, () => window.__SL.hud())).resonance).toBe(resonanceText(4));
     await useSeedFor(page, 'enc_boss');
     await g.act('investigate');
     await g.waitDialogue();

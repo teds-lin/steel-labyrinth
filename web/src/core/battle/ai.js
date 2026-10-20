@@ -107,7 +107,9 @@ export function decideIntentMut(draft, unit, data) {
     return { rule, skill, target, ok };
   });
   const passing = cands.filter((c) => c.ok);
-  const affordable = passing.filter((c) => costSp(c.skill) <= unit.sp);
+  // 禁聲中：消耗靈性的技能視同付不起（只能用不耗靈性的技能）
+  const silenced = hasStatus(unit, 'silence');
+  const affordable = passing.filter((c) => costSp(c.skill) <= unit.sp && !(silenced && costSp(c.skill) > 0));
   const pool = affordable.length ? affordable : passing.length ? passing : cands;
   const total = pool.reduce((n, c) => n + (isNum(c.rule.weight) && c.rule.weight > 0 ? c.rule.weight : 0), 0);
   let r;

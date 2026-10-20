@@ -13,7 +13,7 @@ const fixture = () => ({
   items: [{ id: 'echo_moss', name: '回聲苔', desc: '會發出低語的苔。' }],
   lineages: [{ id: 'trace', source: 'mirror', nature: '看穿真相', ranks: [
     { rank: 9, name: '讀痕者', field: ['trace'] },
-    { rank: 8, name: '借聲者', field: ['voice'], potion: { materials: [{ item: 'echo_moss', count: 2 }], resonance: 12, forced_collapse: 40 } },
+    { rank: 8, name: '借聲者', field: ['voice'], field_labels: { voice: '借聲' }, potion: { materials: [{ item: 'echo_moss', count: 2 }], resonance: 12, forced_collapse: 40 } },
   ] }],
   maps: [{ id: 'room', name: '房間', tiles: ['..'], legend: { '.': 'floor' }, spawns: [{ id: 'd', x: 0, y: 0, dir: 'down' }],
     objects: [{ id: 'bed', x: 1, y: 0, dream: { map: 'room', spawn: 'd', prompt: '睏了。', yes: '睡', no: '不睡' } }] }],
@@ -23,7 +23,7 @@ const fixture = () => ({
         greeting: ['……你來了。', '鐘還在走。'], fallback: ['霧太濃了。'], quota: ['今天先到這裡。'], filtered: ['當我沒說。'], not_open: ['（啟用雲端存檔後可以交談。）'] },
         trades: [{ id: 'nine_moss', label: '兩包鎮靜香換一份回聲苔', give: [{ item: 'echo_moss', count: 2 }], get: [{ item: 'echo_moss', count: 1 }], if: { flag: 'x' }, once: true }] }],
       dialogues: [{ id: 'dlg_a', start: 'n1', nodes: [{ id: 'n1', speaker: '九點', text: '要換嗎？', effects: [{ open_trade: 'nine' }], next: 'END' }] }] },
-    { id: 'finale', title: '霧散之後', end_screen: { title: '第一部　完', subtitle: '感謝遊玩' },
+    { id: 'finale', title: '霧散之後', end_screen: { title: '第一部　完', subtitle: '感謝遊玩', credits: ['致謝', '謝謝遊玩'] },
       endings: [{ id: 'lamp_kept', title: '燈火未熄', if: { collapse_lte: 40 }, dialogue: 'dlg_a' }, { id: 'dawn', title: '黎明之前', dialogue: 'dlg_a' }],
       dialogues: [] },
   ],
@@ -51,6 +51,9 @@ describe('collectStrings：M5 新欄位與 M4 待辦', () => {
     ['lineages/trace.json#nature', '看穿真相'],
     ['lineages/trace.json#ranks.9.name', '讀痕者'],
     ['lineages/trace.json#ranks.8.name', '借聲者'],
+    ['lineages/trace.json#ranks.8.field_labels.voice', '借聲'],
+    ['story/finale.json#end_screen.credits[0]', '致謝'],
+    ['story/finale.json#end_screen.credits[1]', '謝謝遊玩'],
   ])('%s', (id, text) => {
     expect(byId.get(id)).toBe(text);
   });
@@ -81,7 +84,8 @@ const VISIBLE = [
   /^items\[\]\.(name|desc)$/,
   /^lineages\[\]\.nature$/, /^lineages\[\]\.ranks\[\]\.name$/,
   /^characters\[\]\.name$/, /^skills\[\]\.(name|desc)$/, /^enemies\[\]\.(name|summon_text)$/,
-  /^story\[\]\.title$/, /^story\[\]\.end_screen\.(title|subtitle)$/,
+  /^story\[\]\.title$/, /^story\[\]\.end_screen\.(title|subtitle)$/, /^story\[\]\.end_screen\.credits\[\]$/,
+  /^lineages\[\]\.ranks\[\]\.field_labels\.[a-z_]+$/,
   /^story\[\]\.guests\[\]\.name$/, /^story\[\]\.guests\[\]\.scripted\.[a-z_]+\[\]$/, /^story\[\]\.guests\[\]\.trades\[\]\.label$/,
   /^story\[\]\.endings\[\]\.title$/,
   /^story\[\]\.dialogues\[\]\.nodes\[\]\.(speaker|text)$/, /^story\[\]\.dialogues\[\]\.nodes\[\]\.choices\[\]\.text$/,

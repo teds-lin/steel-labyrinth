@@ -1,0 +1,180 @@
+{
+  "id": "harbor_night",
+  "name": "碼頭區・最濃的霧夜",
+  "on_enter": "dlg_ch7_harbor_arrive",
+  "tiles": [
+    "WWWWWWWWWWWWWWWWWWWWWWWW",
+    "WWWWWWWWWWWWWWWWWWWWWWWW",
+    "PPPPbPPPIPPP%PPPP%PPPbPP",
+    ",,o,,,,,I,,,%,,,,%,,,o,,",
+    ",,,,,,,,I,,,%,c,,%,,,,,,",
+    ",,,,,,,,I,,,%,,,,%,,,,,,",
+    "========I===~====~======",
+    ",,,,,,,,,,,,~,,,,~,,,,,,",
+    ",,,,,,,,I,,,~,,,,~,,,,,,",
+    ",,c,,,,,I,,,%,,o,%,,,,,,",
+    ",,,,,,,,I,,,%,,,,%,,,c,,",
+    ",,,,,,,,I,,,%,,,,%,,,,,,",
+    ",,o,,,,,I,,,%,,,,%,,,o,,",
+    "DDDDDDDDIDDDDDDDDDDDDDDD",
+    "DDDDDDDDDDDDDDDDDDDDDDDD",
+    "DDDDDDDDDDDDDDDDDDDDDDDD"
+  ],
+  "legend": {
+    "W": "harbor_water",
+    "P": "pier",
+    "b": "bollard",
+    ",": "cobblestone",
+    "o": "gas_lamp",
+    "%": "fog",
+    "~": "mist",
+    "=": "rail_track",
+    "c": "crate",
+    "D": "warehouse_wall",
+    "I": "iron_rail"
+  },
+  "spawns": [
+    {
+      "id": "entry",
+      "x": 1,
+      "y": 7,
+      "dir": "right"
+    },
+    {
+      "id": "from_breakwater",
+      "x": 22,
+      "y": 7,
+      "dir": "left"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch7_foreman",
+      "x": 6,
+      "y": 8,
+      "sprite": "foreman",
+      "solid": true,
+      "look": "dlg_ch7_foreman"
+    },
+    {
+      "id": "obj_ch7_gate",
+      "x": 8,
+      "y": 7,
+      "sprite": "night_gate",
+      "solid": true,
+      "look": "dlg_ch7_gate_look",
+      "lock": {
+        "flag": "ch7_gate_open",
+        "solvable_by": [
+          "voice"
+        ],
+        "fallback": "item:dock_gate_key",
+        "on_tag": {
+          "voice": "dlg_ch7_gate_voice"
+        },
+        "on_item": "dlg_ch7_gate_key",
+        "locked": "dlg_ch7_gate_locked"
+      }
+    },
+    {
+      "id": "obj_ch7_deserter",
+      "x": 15,
+      "y": 10,
+      "sprite": "deserter",
+      "solid": true,
+      "look": "dlg_ch7_deserter",
+      "echo": "dlg_ch7_deserter_echo",
+      "if": {
+        "not_flag": "ch7_deserter_exposed"
+      }
+    }
+  ],
+  "exits": [
+    {
+      "x": 23,
+      "y": 6,
+      "to": "breakwater",
+      "spawn": "entry",
+      "requires": {
+        "flag": "ch7_deduced"
+      },
+      "blocked": "dlg_ch7_deduce"
+    },
+    {
+      "x": 23,
+      "y": 7,
+      "to": "breakwater",
+      "spawn": "entry",
+      "requires": {
+        "flag": "ch7_deduced"
+      },
+      "blocked": "dlg_ch7_deduce"
+    },
+    {
+      "x": 23,
+      "y": 8,
+      "to": "breakwater",
+      "spawn": "entry",
+      "requires": {
+        "flag": "ch7_deduced"
+      },
+      "blocked": "dlg_ch7_deduce"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trg_ch7_harbor1_6",
+      "x": 12,
+      "y": 6,
+      "dialogue": "dlg_ch7_harbor1_start",
+      "if": {
+        "not_flag": "ch7_harbor1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_harbor1_7",
+      "x": 12,
+      "y": 7,
+      "dialogue": "dlg_ch7_harbor1_start",
+      "if": {
+        "not_flag": "ch7_harbor1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_harbor1_8",
+      "x": 12,
+      "y": 8,
+      "dialogue": "dlg_ch7_harbor1_start",
+      "if": {
+        "not_flag": "ch7_harbor1_done"
+      }
+    },
+    {
+      "id": "trg_ch7_harbor2_6",
+      "x": 17,
+      "y": 6,
+      "dialogue": "dlg_ch7_harbor2_start",
+      "if": {
+        "not_flag": "ch7_harbor2_done"
+      }
+    },
+    {
+      "id": "trg_ch7_harbor2_7",
+      "x": 17,
+      "y": 7,
+      "dialogue": "dlg_ch7_harbor2_start",
+      "if": {
+        "not_flag": "ch7_harbor2_done"
+      }
+    },
+    {
+      "id": "trg_ch7_harbor2_8",
+      "x": 17,
+      "y": 8,
+      "dialogue": "dlg_ch7_harbor2_start",
+      "if": {
+        "not_flag": "ch7_harbor2_done"
+      }
+    }
+  ]
+}

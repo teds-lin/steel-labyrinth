@@ -52,8 +52,8 @@ describe('POST /api/clear', () => {
     expect((await clear(p.token, noEnding)).status).toBe(200);
   });
 
-  // 真正還沒開放的章節：CHAPTERS 最後一章的下一章（開放新章節後自動往後推）
-  const UNRELEASED = `chapter${Number(String(readWranglerConfig().vars.CHAPTERS).split(',').at(-1).replace(/^chapter/, '')) + 1}`;
+  // 真正還沒開放的章節：CHAPTERS 裡編號最大的 chapterN 的下一章（開放新章節後自動往後推；M5 起最後一章是 finale，不能直接取最後一個）
+  const UNRELEASED = `chapter${Math.max(...String(readWranglerConfig().vars.CHAPTERS).split(',').map((c) => /^chapter(\d+)$/.exec(c.trim())?.[1]).filter(Boolean).map(Number)) + 1}`;
   it('UNRELEASED 確實不在 CHAPTERS 白名單內', () => {
     expect(UNRELEASED).toMatch(/^chapter\d+$/);
     expect(String(readWranglerConfig().vars.CHAPTERS).split(',')).not.toContain(UNRELEASED);

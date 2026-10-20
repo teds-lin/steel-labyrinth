@@ -58,7 +58,7 @@ describe('echo（殘響）', () => {
   it('沒有殘響內容：回「沒有殘留痕跡」且不扣次數', () => {
     const s = st();
     const r = echo(plain, s, data);
-    expect(r).toEqual({ state: s, dialogue: null, message: NO_TRACE_MESSAGE });
+    expect(r).toEqual({ state: s, dialogue: null, message: NO_TRACE_MESSAGE, unlock: null }); // M5 整合：一律帶 unlock
     expect(NO_TRACE_MESSAGE).toBe('沒有殘留痕跡');
   });
   it('次數為 0：不丟錯，回傳訊息，不改 state', () => {
@@ -191,12 +191,12 @@ describe('echo：譜系已提供 trace 時免費', () => {
 describe('investigate（調查）', () => {
   it('一般物件：只播 look，unlocked 為 null', () => {
     const s = st();
-    expect(investigate(vial, s, data)).toEqual({ state: s, dialogues: ['dlg_vial_look'], unlocked: null });
-    expect(investigate({ id: 'x' }, s, data)).toEqual({ state: s, dialogues: [], unlocked: null });
+    expect(investigate(vial, s, data)).toEqual({ state: s, dialogues: ['dlg_vial_look'], unlocked: null, unlock: null });
+    expect(investigate({ id: 'x' }, s, data)).toEqual({ state: s, dialogues: [], unlocked: null, unlock: null });
   });
   it('鎖著且沒有免費解法：look → locked，絕不扣殘響', () => {
     const s = st();
-    expect(investigate(door, s, data)).toEqual({ state: s, dialogues: ['dlg_door_look', 'dlg_door_locked'], unlocked: false });
+    expect(investigate(door, s, data)).toEqual({ state: s, dialogues: ['dlg_door_look', 'dlg_door_locked'], unlocked: false, unlock: null });
   });
   it('鎖著但有鑰匙：look → on_item，設旗標', () => {
     const r = investigate(door, st({ items: { attic_key: 1 } }), data);
@@ -216,7 +216,7 @@ describe('investigate（調查）', () => {
   });
   it('已解開：只播 look', () => {
     const s = st({ flags: { door_open: true } });
-    expect(investigate(door, s, data)).toEqual({ state: s, dialogues: ['dlg_door_look'], unlocked: true });
+    expect(investigate(door, s, data)).toEqual({ state: s, dialogues: ['dlg_door_look'], unlocked: true, unlock: null });
   });
 });
 
@@ -233,8 +233,8 @@ import { investigate } from '../../web/src/core/interact.js';
 describe('調查有 battle 的物件', () => {
   it('先播 look，再開戰：回傳值帶 battle；沒有 battle 的物件不帶這個鍵', () => {
     const foe = { id: 'obj_foe', x: 1, y: 0, solid: true, look: 'dlg_foe', battle: 'enc_one' };
-    expect(investigate(foe, st(), data)).toEqual({ state: st(), dialogues: ['dlg_foe'], unlocked: null, battle: 'enc_one' });
-    expect(investigate({ ...foe, look: undefined }, st(), data)).toEqual({ state: st(), dialogues: [], unlocked: null, battle: 'enc_one' });
+    expect(investigate(foe, st(), data)).toEqual({ state: st(), dialogues: ['dlg_foe'], unlocked: null, unlock: null, battle: 'enc_one' });
+    expect(investigate({ ...foe, look: undefined }, st(), data)).toEqual({ state: st(), dialogues: [], unlocked: null, unlock: null, battle: 'enc_one' });
     expect(Object.hasOwn(investigate(plain, st(), data), 'battle')).toBe(false);
   });
 });

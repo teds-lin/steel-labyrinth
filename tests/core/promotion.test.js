@@ -93,7 +93,7 @@ describe('效果：promote', () => {
     expect(s.resonance).toEqual({});
     expect(s.collapse).toBe(10);
     expect(s.promotions).toEqual([{ lineage: 'trace', rank: 8, forced: false, chapter: 'chapter4' }]);
-    expect(s.pending).toBeNull();
+    expect(s.pending).toEqual([{ type: 'promoted', lineage: 'trace', rank: 8, forced: false }]); // M5 整合：晉升演出用
     // 不修改輸入
     expect(s0.items).toEqual({ echo_moss: 2, choir_wax: 1 });
     expect(s0.lineage).toEqual({ id: 'trace', rank: 9 });

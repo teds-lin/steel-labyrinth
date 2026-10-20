@@ -1,0 +1,85 @@
+{
+  "id": "dock_ch6",
+  "name": "卡斯特維爾・碼頭區",
+  "on_enter": "dlg_ch6_dock_arrive",
+  "tiles": [
+    "WWWWWWWWWWWWWWWWWWWW",
+    "WWWWPPWWWWWWWWWWWPWW",
+    "PPPPPPPbPP%%PPPPWPWW",
+    "PHHPPPPPPP%%PPHHPPPP",
+    ",HH,,,o,,,%%,,HH,,o,",
+    ",,,,,,,,,,~~,,,,,,,,",
+    "==========~~========",
+    ",,,,,,,,,,~~,,,,,,,,",
+    ",,,cc,,,,,%%,,,,,cc,",
+    "##_##,,o,,%%,,,,,,,,",
+    "#...#,,,,,%%,,,,,,,,",
+    "#...#,,cc,%%,o,,,,,,",
+    "#####,,,,,%%DDDDD_DD",
+    "%%%%%%%%%%%%DDDDD_DD"
+  ],
+  "legend": {
+    "W": "harbor_water",
+    "P": "pier",
+    "b": "bollard",
+    "H": "crane",
+    ",": "cobblestone",
+    "o": "gas_lamp",
+    "%": "fog",
+    "~": "mist",
+    "=": "rail_track",
+    "c": "crate",
+    "#": "facade",
+    ".": "floor",
+    "_": "threshold",
+    "D": "warehouse_wall"
+  },
+  "spawns": [
+    {
+      "id": "entry",
+      "x": 1,
+      "y": 6,
+      "dir": "right"
+    }
+  ],
+  "objects": [
+    {
+      "id": "obj_ch6_lina",
+      "x": 6,
+      "y": 7,
+      "sprite": "lina",
+      "solid": true,
+      "look": "dlg_ch6_lina"
+    },
+    {
+      "id": "obj_ch6_owen",
+      "x": 5,
+      "y": 8,
+      "sprite": "owen",
+      "solid": true,
+      "look": "dlg_ch6_owen",
+      "echo": "dlg_ch6_owen_echo"
+    }
+  ],
+  "exits": [
+    {
+      "x": 0,
+      "y": 5,
+      "to": "hallway_ch6",
+      "spawn": "from_street"
+    },
+    {
+      "x": 0,
+      "y": 6,
+      "to": "hallway_ch6",
+      "spawn": "from_street"
+    },
+    {
+      "x": 0,
+      "y": 7,
+      "to": "hallway_ch6",
+      "spawn": "from_street"
+    }
+  ],
+  "triggers": []
+}

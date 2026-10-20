@@ -1,0 +1,2967 @@
+{
+  "id": "chapter7",
+  "title": "第七章　最濃的霧夜",
+  "end_screen": {
+    "title": "第七章　完",
+    "subtitle": "終章　霧散之後",
+    "continue": {
+      "map": "office_dawn",
+      "spawn": "center",
+      "dialogue": "dlg_fin_opening"
+    }
+  },
+  "guests": [
+    {
+      "id": "three",
+      "name": "三點",
+      "sprite": "guest_three",
+      "scripted": {
+        "greeting": [
+          "……十二點。霧進來了，不過鐘還在走。",
+          "你來了。地板在震，坐穩一點。",
+          "鐘還沒停。說吧，我聽著。"
+        ],
+        "fallback": [
+          "霧太濃了，我聽不清楚你說什麼。",
+          "地板震了一下，齒輪跟著卡住了。你再說一次？",
+          "鐘聲蓋過了你的聲音。等它停了再說吧。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "發條快鬆了。今天就聊到這裡。",
+          "霧太重了，鐘面的光撐不住。下次再說，十二點。"
+        ],
+        "filtered": [
+          "……我好像說錯話了，當我沒說。",
+          "這句話的齒輪不太對，我收回。",
+          "嗯，換個說法……還是算了，當我沒說。"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "三點看著你，像在等你先開口。可是霧太濃，聲音傳不過來。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和三點自由交談。）"
+        ]
+      }
+    },
+    {
+      "id": "nine",
+      "name": "九點",
+      "sprite": "guest_nine",
+      "scripted": {
+        "greeting": [
+          "十二點！外面很吵吧？這裡還算安靜。",
+          "來啦？今晚我哪裡都不去，就等你。",
+          "喲，老主顧。最後一次交換，挑仔細一點。"
+        ],
+        "fallback": [
+          "咦？霧把你的話吹散了，再說一次嘛。",
+          "地板一震，我就沒聽清楚。算我欠你一次。",
+          "鐘聲太吵了！等它敲完再說。"
+        ],
+        "quota": [
+          "夢境變得模糊了，今天先聊到這裡吧。",
+          "今晚的生意做完囉。快去快回！",
+          "我的嘴巴今天營業到這裡。回來再聊，十二點！"
+        ],
+        "filtered": [
+          "哎呀，剛剛那句不算，當我沒說。",
+          "我收回那句話。做生意的，總要留點退路。",
+          "這句話太貴了，我不賣。換個話題吧？"
+        ],
+        "not_open": [
+          "（啟用雲端存檔後，可以和夢客自由交談。）",
+          "九點朝你比了個手勢，嘴巴動了動，可是你一個字也聽不見。（啟用雲端存檔後，可以自由交談。）",
+          "（夢境還沒有接上。啟用雲端存檔後，就能和九點自由交談。）"
+        ]
+      },
+      "trades": [
+        {
+          "id": "nine_t7_glass",
+          "label": "兩捲黑線換一片鏡片。……你弄丟了？這次算便宜你。",
+          "give": [
+            {
+              "item": "hush_thread",
+              "count": 2
+            }
+          ],
+          "get": [
+            {
+              "item": "lagging_glass",
+              "count": 1
+            }
+          ],
+          "if": {
+            "all": [
+              {
+                "flag": "ch7_started"
+              },
+              {
+                "not": {
+                  "item": "lagging_glass"
+                }
+              }
+            ]
+          },
+          "once": true
+        },
+        {
+          "id": "nine_t7_incense",
+          "label": "兩顆霧珠換一支鎮靜香。最後一晚，給你算便宜一點。",
+          "give": [
+            {
+              "item": "fog_pearl",
+              "count": 2
+            }
+          ],
+          "get": [
+            {
+              "item": "sedative_incense",
+              "count": 1
+            }
+          ],
+          "if": {
+            "flag": "ch7_started"
+          },
+          "once": false
+        },
+        {
+          "id": "nine_t7_tonic",
+          "label": "一捲黑線換一瓶提神藥水。今晚用得到，相信我。",
+          "give": [
+            {
+              "item": "hush_thread",
+              "count": 1
+            }
+          ],
+          "get": [
+            {
+              "item": "tonic",
+              "count": 1
+            }
+          ],
+          "if": {
+            "flag": "ch7_started"
+          },
+          "once": false
+        }
+      ]
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "dlg_ch7_opening",
+      "start": "o1",
+      "nodes": [
+        {
+          "id": "o1",
+          "speaker": null,
+          "text": "三天後。霧濃得像一面牆，窗外連對街的煤氣燈都看不見。",
+          "next": "o2",
+          "effects": [
+            {
+              "heal_party": true
+            }
+          ]
+        },
+        {
+          "id": "o2",
+          "speaker": null,
+          "text": "辦公桌上攤著所有東西：詩班名冊、沒有舌的鐘、艾妲和蘿絲的夢話。",
+          "next": "o3"
+        },
+        {
+          "id": "o3",
+          "speaker": "{name}",
+          "text": "名冊最後一頁，被橫線劃掉的那座鐘。她們都說「他們要讓鐘停下來」。",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch6_mirror_heard"
+              },
+              "next": "o4"
+            }
+          ],
+          "next": "o5"
+        },
+        {
+          "id": "o4",
+          "speaker": "{name}",
+          "text": "鏡子也說了：「十二之後，還有一響。別讓它停。」",
+          "next": "o5"
+        },
+        {
+          "id": "o5",
+          "speaker": "艾妲",
+          "text": "舊城鐘樓。今晚午夜，他們要讓它停在第十二下。",
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "r1"
+            }
+          ],
+          "next": "m1"
+        },
+        {
+          "id": "m1",
+          "speaker": "馬洛",
+          "text": "兵分兩路。我和老賀伯去守舊城鐘樓。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "馬洛",
+          "text": "你和艾妲去港口。人往那邊送，主事的人一定也在那邊。",
+          "branches": [
+            {
+              "if": {
+                "flag": "inspector_convinced"
+              },
+              "next": "m3"
+            }
+          ],
+          "next": "m4"
+        },
+        {
+          "id": "m3",
+          "speaker": "馬洛",
+          "text": "歐德莉派了兩個人跟著我。她說，這不合規定。",
+          "next": "m4"
+        },
+        {
+          "id": "m4",
+          "speaker": "艾妲",
+          "text": "交給我吧。這次換我拉著{name}，不會再睡著了。",
+          "effects": [
+            {
+              "leave_party": "marlo"
+            },
+            {
+              "leave_party": "herb"
+            },
+            {
+              "join_party": "ada"
+            }
+          ],
+          "next": "p1"
+        },
+        {
+          "id": "r1",
+          "speaker": "老賀伯",
+          "text": "隊長不在，鐘樓只能交給燈律院的人去守。他們說會派人，可是不知道多快。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": "老賀伯",
+          "text": "我跟你們去港口。這把老骨頭，總得有個地方放。",
+          "next": "r3"
+        },
+        {
+          "id": "r3",
+          "speaker": "艾妲",
+          "text": "我也去。這次換我拉著{name}，不會再睡著了。",
+          "effects": [
+            {
+              "join_party": "ada"
+            }
+          ],
+          "next": "p1"
+        },
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "老賀伯把一個小布包塞進你手裡：兩支鎮靜香、一瓶提神藥水。",
+          "effects": [
+            {
+              "give_item": "sedative_incense"
+            },
+            {
+              "give_item": "sedative_incense"
+            },
+            {
+              "give_item": "tonic"
+            }
+          ],
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "老賀伯",
+          "text": "最後一劑的材料，你都帶在身上了吧。找個最安靜的地方喝。",
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": null,
+          "text": "（準備好了，就從門口出發。今晚，辦公室不能睡。）",
+          "effects": [
+            {
+              "set_flag": "ch7_started"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_ada_office",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "我睡了好久，夢裡全是沒有聲音的歌。……今晚，我想聽見真正的鐘聲。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_herb_office",
+      "start": "h0",
+      "nodes": [
+        {
+          "id": "h0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "h2"
+            }
+          ],
+          "next": "h1"
+        },
+        {
+          "id": "h1",
+          "speaker": "老賀伯",
+          "text": "藥櫃我鎖好了。回來的時候，記得留一個人替我開門。",
+          "next": "END"
+        },
+        {
+          "id": "h2",
+          "speaker": "老賀伯",
+          "text": "藥櫃我鎖好了。……走吧，這次我也跟你們下去。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_marlo_office",
+      "start": "m1",
+      "nodes": [
+        {
+          "id": "m1",
+          "speaker": "馬洛",
+          "text": "鐘樓交給我。燈塔……交給你了。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "馬洛",
+          "text": "撐不住就退。這次不是命令，是拜託。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_badge",
+      "start": "b1",
+      "nodes": [
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "馬洛的桌上，放著那枚白燈徽章。擦得很亮，沒有人去碰它。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_sofa",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "沙發上的毯子摺得整整齊齊。今晚，沒有人能睡。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_notice",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "布告欄上的公文已經撕下來了。只剩一張老賀伯的紙條：「今晚全員出勤。」",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_door",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "not_flag": "ch7_started"
+              },
+              "next": "wait0"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要出發了嗎？",
+          "choices": [
+            {
+              "text": "「出發。」",
+              "next": "go"
+            },
+            {
+              "text": "「再等一下。」",
+              "next": "wait"
+            }
+          ]
+        },
+        {
+          "id": "go",
+          "speaker": null,
+          "text": "你們推開門。霧像一面濕冷的牆，把辦公室的燈光吞了進去。",
+          "effects": [
+            {
+              "goto": {
+                "map": "harbor_night",
+                "spawn": "entry"
+              }
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "wait",
+          "speaker": "{name}",
+          "text": "（再確認一下身上的東西。今晚，回不了頭。）",
+          "next": "END"
+        },
+        {
+          "id": "wait0",
+          "speaker": "{name}",
+          "text": "（先把話聽完。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_harbor_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "碼頭區。霧濃得連自己的手都看不清，起重機的影子像巨人一樣站著。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "夜閘邊的煤氣燈下，站著一個肩膀寬厚的男人。是工頭。",
+          "branches": [
+            {
+              "if": {
+                "flag": "foreman_exposed"
+              },
+              "next": "f1"
+            }
+          ],
+          "next": "g1"
+        },
+        {
+          "id": "f1",
+          "speaker": "工頭",
+          "text": "是你。……這次我不會再說謊了。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": "工頭",
+          "text": "今晚有一大群人從閘門那邊過去，一個字都沒說。我數到一百就不敢數了。",
+          "next": "k1"
+        },
+        {
+          "id": "g1",
+          "speaker": "工頭",
+          "text": "白燈的人？今晚的碼頭，不是人該來的地方。",
+          "next": "g2"
+        },
+        {
+          "id": "g2",
+          "speaker": "工頭",
+          "text": "剛才有一大群人從閘門過去，一個字都沒說。我的人全躲起來了。",
+          "next": "k1"
+        },
+        {
+          "id": "k1",
+          "speaker": "工頭",
+          "text": "夜閘的鑰匙拿去。閘門後面站著幾個怪人，說是看守，我從沒見過。",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": null,
+          "text": "（取得碼頭夜閘鑰匙。）",
+          "effects": [
+            {
+              "give_item": "dock_gate_key"
+            },
+            {
+              "set_flag": "ch7_foreman"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_foreman",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": "工頭",
+          "text": "夜閘後面那些「看守」，從頭到尾沒開過口，只會哼歌。小心點。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_gate_look",
+      "start": "l0",
+      "nodes": [
+        {
+          "id": "l0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_gate_open"
+              },
+              "next": "open"
+            }
+          ],
+          "next": "l1"
+        },
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "夜閘的鐵柵後面，站著兩個穿灰袍的「看守」。他們不說話，只是輕輕哼著什麼。",
+          "next": "END"
+        },
+        {
+          "id": "open",
+          "speaker": null,
+          "text": "夜閘開著。看守們退在兩旁，一動也不動。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_gate_voice",
+      "start": "v1",
+      "nodes": [
+        {
+          "id": "v1",
+          "speaker": null,
+          "text": "你聽著他們的哼聲，在腦中找到那條線。那是詩班的暗號，一段沒有字的旋律。",
+          "next": "v2"
+        },
+        {
+          "id": "v2",
+          "speaker": null,
+          "text": "你張開嘴，用同樣的旋律哼了回去。【借聲】",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": null,
+          "text": "看守們互看一眼，退到兩旁，拉開了閘門。",
+          "next": "p1"
+        },
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "閘門後面，是一條長長的隊伍。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": null,
+          "text": "數百個人穿著睡衣、工作服、詩班袍，排成一列走進霧裡。沒有一個人說話。",
+          "next": "p3"
+        },
+        {
+          "id": "p3",
+          "speaker": null,
+          "text": "他們的腳步聲整整齊齊，像是同一個人在走路。",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": "艾妲",
+          "text": "好多人……他們都睡著了。我感覺得到，他們全在同一個夢裡。",
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": "{name}",
+          "text": "（隊伍要往哪裡去？……先跟上去。）",
+          "effects": [
+            {
+              "set_flag": "ch7_procession"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_gate_key",
+      "start": "k1",
+      "nodes": [
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "你把工頭給的鑰匙插進鎖孔。看守們轉過頭，卻沒有攔你——他們在看閘門後面。",
+          "next": "p1"
+        },
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "閘門後面，是一條長長的隊伍。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": null,
+          "text": "數百個人穿著睡衣、工作服、詩班袍，排成一列走進霧裡。沒有一個人說話。",
+          "next": "p3"
+        },
+        {
+          "id": "p3",
+          "speaker": null,
+          "text": "他們的腳步聲整整齊齊，像是同一個人在走路。",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": "艾妲",
+          "text": "好多人……他們都睡著了。我感覺得到，他們全在同一個夢裡。",
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": "{name}",
+          "text": "（隊伍要往哪裡去？……先跟上去。）",
+          "effects": [
+            {
+              "set_flag": "ch7_procession"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_gate_locked",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "夜閘鎖著。看守們只聽暗號，工頭的鑰匙也許打得開。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_harbor1_start",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "隊伍的尾巴，有幾個人影停了下來，慢慢轉過身。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": null,
+          "text": "是霧行者。中間還夾著一個皮膚灰白、嘴唇黏住的閉口者。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "艾妲",
+          "text": "別讓他們把我們拖進隊伍裡！",
+          "effects": [
+            {
+              "battle": "enc_ch7_harbor_1"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_harbor1_after",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "那個閉口者……剛才還是個普通人。等天亮，他會醒過來的吧？",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "{name}",
+          "text": "（一定會。只要鐘不停。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_harbor2_start",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "霧的缺口裡，一個灰袍信徒和一個白袍吟唱者擋住了路。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": null,
+          "text": "吟唱者張著嘴，沒有聲音。信徒的拳頭，卻一下比一下握得更緊。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "艾妲",
+          "text": "先打吟唱者！他們的歌會讓旁邊的人變強！",
+          "effects": [
+            {
+              "battle": "enc_ch7_harbor_2"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_harbor2_after",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "呼……再往前，就是港口的盡頭了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_deserter",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_deserter_exposed"
+              },
+              "next": "done"
+            },
+            {
+              "if": {
+                "all": [
+                  {
+                    "flag": "ch7_talked_deserter"
+                  },
+                  {
+                    "flag": "ch7_saw_robe"
+                  }
+                ]
+              },
+              "next": "x1"
+            },
+            {
+              "if": {
+                "flag": "ch7_talked_deserter"
+              },
+              "next": "again"
+            }
+          ],
+          "next": "d1"
+        },
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "倉庫牆角縮著一個年輕人。他穿著半件詩班袍、半件工作服，嘴角有黑線的舊勒痕。",
+          "next": "d2"
+        },
+        {
+          "id": "d2",
+          "speaker": "詩班員",
+          "text": "我、我只是搬運工！搬、搬東西的！我什麼都不知道！",
+          "next": "d3"
+        },
+        {
+          "id": "d3",
+          "speaker": null,
+          "text": "他一直用手拉著袍角，好像想把它藏到身後。",
+          "effects": [
+            {
+              "set_flag": "ch7_talked_deserter"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": "詩班員",
+          "text": "別、別看我……我只是搬運工……",
+          "next": "END"
+        },
+        {
+          "id": "x1",
+          "speaker": "{name}",
+          "text": "你不是搬運工。你的袍角，是在燈塔底下被海水打濕的。",
+          "next": "x2"
+        },
+        {
+          "id": "x2",
+          "speaker": "詩班員",
+          "text": "……你、你怎麼……",
+          "next": "x3"
+        },
+        {
+          "id": "x3",
+          "speaker": "{name}",
+          "text": "你聽見有人說話。聖歌會裡，有一個人會開口。",
+          "next": "x4"
+        },
+        {
+          "id": "x4",
+          "speaker": null,
+          "text": "年輕人整個人垮了下來。他的嘴唇抖了很久，才擠出聲音。",
+          "next": "x5"
+        },
+        {
+          "id": "x5",
+          "speaker": "詩班員",
+          "text": "祭、祭司在燈塔上。另一隊人……去了鐘樓。我不想去，我就跑了。",
+          "next": "x6"
+        },
+        {
+          "id": "x6",
+          "speaker": "詩班員",
+          "text": "他們說閉上嘴就聽不見。可是我還是聽得見……我好怕。",
+          "next": "x8"
+        },
+        {
+          "id": "x8",
+          "speaker": null,
+          "text": "（謊言剝落的聲音，清清楚楚。腦中那條線，又對上了一格。）",
+          "effects": [
+            {
+              "resonance": "lie_exposed"
+            },
+            {
+              "set_flag": "ch7_deserter_exposed"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "牆角只剩下半件被丟掉的詩班袍。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_deserter_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_saw_robe"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你看著他死命拉住的袍角。銀光從布料的縫線裡滲了出來。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——幾個小時前。燈塔底下，一個穿黑袍的人提著一盞沒有火的燈。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "黑袍的人開口了。聖歌會的人都不說話，只有他在說。聲音低得像退潮。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "「你們上燈塔。另一隊人，去鐘樓。」",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "{name}",
+          "text": "（他不只是搬運工。他聽過命令。）",
+          "effects": [
+            {
+              "set_flag": "ch7_saw_robe"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，黑袍的人又說了一次同樣的話。這件事，你已經看過了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_deduce",
+      "start": "d1",
+      "nodes": [
+        {
+          "id": "d1",
+          "speaker": "艾妲",
+          "text": "{name}，隊伍在這裡分成好幾條路。他們到底要去哪裡？",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch6_owen_lighthouse"
+              },
+              "next": "d2"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "d2",
+          "speaker": "{name}",
+          "text": "歐文說過，那批貨，是往燈塔送的。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "你的推理是？",
+          "choices": [
+            {
+              "text": "回到倉庫。",
+              "next": "ng1"
+            },
+            {
+              "text": "沿著河口往上游。",
+              "next": "ng2"
+            },
+            {
+              "text": "沉堤，還有盡頭的燈塔。",
+              "next": "ok1"
+            }
+          ]
+        },
+        {
+          "id": "ng1",
+          "speaker": "艾妲",
+          "text": "倉庫的門都鎖著，腳印沒有往那邊去。再想想。",
+          "effects": [
+            {
+              "set_flag": "ch7_deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ng2",
+          "speaker": "艾妲",
+          "text": "河口那邊沒有霧。他們要去的，是霧最濃的地方。再想想。",
+          "effects": [
+            {
+              "set_flag": "ch7_deduce_wrong"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "ok1",
+          "speaker": "{name}",
+          "text": "腳印全往海邊去。霧最濃的地方，是沉堤，還有那座不亮的燈塔。",
+          "branches": [
+            {
+              "if": {
+                "not_flag": "ch7_deduce_wrong"
+              },
+              "next": "ok2"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok2",
+          "speaker": null,
+          "text": "（推理正確。腦中那條線，喀的一聲接上了。）",
+          "effects": [
+            {
+              "resonance": "deduction_correct"
+            }
+          ],
+          "next": "ok3"
+        },
+        {
+          "id": "ok3",
+          "speaker": "艾妲",
+          "text": "燈塔……那裡已經好幾天沒點燈了。走吧。",
+          "effects": [
+            {
+              "set_flag": "ch7_deduced"
+            },
+            {
+              "goto": {
+                "map": "breakwater",
+                "spawn": "entry"
+              }
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_breakwater_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "沉堤又長又窄，兩邊都是黑色的海。浪一下一下拍上石頭，濺起冰冷的水花。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "堤的盡頭，舊燈塔立在霧裡。塔頂沒有光，只有一點黑影在動。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "艾妲",
+          "text": "隊伍全都走上沉堤了……可是前面，一個人都看不見。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_log_look",
+      "start": "l0",
+      "nodes": [
+        {
+          "id": "l0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_clue_log"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "l1"
+        },
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "看守小屋的窗台上，攤著一本被海水泡皺的日誌。最後幾頁纏著銀光。",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "日誌被風吹得翻了一頁。後面全是空白。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_log_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_clue_log"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你按住日誌。銀光從潮濕的紙頁裡浮出來，像一層薄薄的霜。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "「第一晚：點燈。霧很濃。堤上有人在哼歌，沒有聲音。」",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "「第二晚：有人叫我別點燈。他說，讓城市睡吧。我還是點了。」",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "「第三晚：……」後面的字被劃掉了。只剩一行：「不點了。好安靜。」",
+          "next": "e5"
+        },
+        {
+          "id": "e5",
+          "speaker": "{name}",
+          "text": "（看守三天前就不再點燈了。他也被閉上了嘴。）",
+          "effects": [
+            {
+              "set_flag": "ch7_clue_log"
+            },
+            {
+              "resonance": "clue_found"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，最後那一行字又浮了出來：「不點了。好安靜。」",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_bw_start",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "堤道中間，一個戴鐵口罩的修士擋住了路。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": null,
+          "text": "修士的腰間掛著一串鑰匙，叮噹作響。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "艾妲",
+          "text": "那串鑰匙……燈塔的鐵柵，大概就靠它開！",
+          "effects": [
+            {
+              "battle": "enc_ch7_breakwater"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_bw_after",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "修士倒下的地方，留著一串濕淋淋的鑰匙。（取得燈塔鐵柵鑰匙。）",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "艾妲",
+          "text": "走吧。燈塔就在前面了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_drown",
+      "start": "w1",
+      "nodes": [
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "燈塔頂上，有人舉起了一盞燈。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": null,
+          "text": "燈裡沒有火，只有黑色的水，在玻璃裡慢慢旋轉。",
+          "next": "w3"
+        },
+        {
+          "id": "w3",
+          "speaker": null,
+          "text": "提燈的人穿著濕透的黑袍，袍角長滿了藤壺。他低頭看著你。",
+          "next": "w4"
+        },
+        {
+          "id": "w4",
+          "speaker": "提燈的人",
+          "text": "讓城市睡吧。",
+          "next": "w5"
+        },
+        {
+          "id": "w5",
+          "speaker": null,
+          "text": "海面忽然隆了起來。一道比沉堤還高的浪，從黑暗裡撲了過來。",
+          "next": "w6"
+        },
+        {
+          "id": "w6",
+          "speaker": "艾妲",
+          "text": "{name}！抓住我的手——！",
+          "next": "w7"
+        },
+        {
+          "id": "w7",
+          "speaker": null,
+          "text": "你伸出手。指尖碰到了艾妲的手指，然後滑開了。",
+          "next": "w8"
+        },
+        {
+          "id": "w8",
+          "speaker": null,
+          "text": "冰冷的海水灌進耳朵。所有的聲音都不見了，只剩很深的地方，有東西在呼吸。",
+          "next": "w9"
+        },
+        {
+          "id": "w9",
+          "speaker": null,
+          "text": "你往下沉。往下沉。……很遠的地方，有鐘聲。",
+          "effects": [
+            {
+              "set_flag": "ch7_drowned"
+            },
+            {
+              "enter_dream": {
+                "map": "clocktower_ch7",
+                "spawn": "center"
+              }
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_dream_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "——噹。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "你站在鐘塔冰涼的石板地上。全身是乾的，耳朵裡卻還有海水的聲音。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": null,
+          "text": "鐘塔裡也起了霧。地板在震，一下、一下，像有什麼在很深的地方翻身。",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": null,
+          "text": "鐘面上的指針，停在十一點五十九分。",
+          "next": "a5"
+        },
+        {
+          "id": "a5",
+          "speaker": "九點",
+          "text": "十二點！外面很吵吧？這裡還算安靜。",
+          "next": "a6"
+        },
+        {
+          "id": "a6",
+          "speaker": "九點",
+          "text": "……你的臉色好差。先別急著說話。",
+          "next": "a7"
+        },
+        {
+          "id": "a7",
+          "speaker": "三點",
+          "text": "十二點。你的椅子在等你。",
+          "next": "a8"
+        },
+        {
+          "id": "a8",
+          "speaker": null,
+          "text": "（可以和夢客說話、做最後一次交換。準備好了，就去十二點的椅子。）",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_three_look",
+      "start": "t1",
+      "nodes": [
+        {
+          "id": "t1",
+          "speaker": "三點",
+          "text": "霧進來了。不過鐘還在走，你還有一點時間。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和三點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "next": "chat",
+              "effects": [
+                {
+                  "open_chat": "three"
+                }
+              ]
+            },
+            {
+              "text": "「為什麼是我？」",
+              "next": "q0",
+              "if": {
+                "not_flag": "ch7_three_why"
+              }
+            },
+            {
+              "text": "「海底下，有東西。」",
+              "next": "q3"
+            },
+            {
+              "text": "「影子……先走了一步。」",
+              "next": "q4",
+              "if": {
+                "flag": "ch7_promoted"
+              }
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "三點",
+          "text": "說吧。我聽著。",
+          "next": "END"
+        },
+        {
+          "id": "q0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "code_asked_why"
+              },
+              "next": "q1"
+            }
+          ],
+          "next": "q2"
+        },
+        {
+          "id": "q1",
+          "speaker": "三點",
+          "text": "你問過為什麼是你。",
+          "next": "q1b"
+        },
+        {
+          "id": "q2",
+          "speaker": "三點",
+          "text": "你終於問了。",
+          "next": "q1b"
+        },
+        {
+          "id": "q1b",
+          "speaker": "三點",
+          "text": "……因為你聽得見第十三響，而且還願意數下去。",
+          "next": "q1c"
+        },
+        {
+          "id": "q1c",
+          "speaker": "三點",
+          "text": "剩下的，等鐘敲完再說。",
+          "effects": [
+            {
+              "set_flag": "ch7_three_why"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "q3",
+          "speaker": "三點",
+          "text": "鐘還在響，就好。",
+          "next": "ask"
+        },
+        {
+          "id": "q4",
+          "speaker": "三點",
+          "text": "影子會先走一步，但路要自己走。",
+          "next": "ask"
+        },
+        {
+          "id": "bye",
+          "speaker": "三點",
+          "text": "嗯。鐘聲響的時候，我在。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_nine_look",
+      "start": "n1",
+      "nodes": [
+        {
+          "id": "n1",
+          "speaker": "九點",
+          "text": "十二點！霧這麼濃的晚上，我哪裡都不去，就在這裡等你。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要和九點說什麼？",
+          "choices": [
+            {
+              "text": "自由交談",
+              "next": "chat",
+              "effects": [
+                {
+                  "open_chat": "nine"
+                }
+              ]
+            },
+            {
+              "text": "交換",
+              "next": "trade",
+              "effects": [
+                {
+                  "open_trade": "nine"
+                }
+              ]
+            },
+            {
+              "text": "「妳會一直在這裡嗎？」",
+              "next": "q1"
+            },
+            {
+              "text": "「我得走了。」",
+              "next": "q2",
+              "if": {
+                "flag": "ch7_promoted"
+              }
+            },
+            {
+              "text": "沒事",
+              "next": "bye"
+            }
+          ]
+        },
+        {
+          "id": "chat",
+          "speaker": "九點",
+          "text": "聊吧聊吧。今晚我不收錢，也不急著打烊。",
+          "next": "END"
+        },
+        {
+          "id": "trade",
+          "speaker": "九點",
+          "text": "最後一次交換囉。……這次算便宜你。",
+          "next": "END"
+        },
+        {
+          "id": "q1",
+          "speaker": "九點",
+          "text": "我？醒著的時候在哪裡，不告訴你。睡著的時候，就在這裡。",
+          "next": "ask"
+        },
+        {
+          "id": "q2",
+          "speaker": "九點",
+          "text": "回來的時候，記得帶伴手禮。……一定要回來喔。",
+          "next": "ask"
+        },
+        {
+          "id": "bye",
+          "speaker": "九點",
+          "text": "慢走——不對，今晚你哪裡都別慢慢走。快去快回！",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_chair_twelve",
+      "start": "c0",
+      "nodes": [
+        {
+          "id": "c0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_chair_done"
+              },
+              "next": "again"
+            },
+            {
+              "if": {
+                "can_promote": 7
+              },
+              "next": "p1"
+            }
+          ],
+          "next": "nm1"
+        },
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "你走到刻著「十二」的椅子前。椅面上放著一個小小的玻璃杯。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": null,
+          "text": "杯子裡是你帶來的影墨，和那片鏡片。不知道什麼時候，它們已經化在一起了。",
+          "next": "p3"
+        },
+        {
+          "id": "p3",
+          "speaker": "三點",
+          "text": "這一劑，自己喝。",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": null,
+          "text": "三點沒有起身，也沒有替你調。他只是看著你，像在等鐘敲響。",
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": "九點",
+          "text": "十二點……外面的你，還在往下沉喔。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "這一次，沒有「再等等」。",
+          "choices": [
+            {
+              "text": "喝下。",
+              "next": "d1"
+            }
+          ]
+        },
+        {
+          "id": "d1",
+          "speaker": null,
+          "text": "你坐上椅子，一口喝了下去。藥劑沒有味道，冰得像夜裡的海。",
+          "effects": [
+            {
+              "promote": {
+                "lineage": "trace",
+                "rank": 7
+              }
+            }
+          ],
+          "branches": [
+            {
+              "if": {
+                "promoted_forced": 7
+              },
+              "next": "f1"
+            },
+            {
+              "if": {
+                "rank_lte": 7
+              },
+              "next": "s1"
+            }
+          ],
+          "next": "x1"
+        },
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "椅子的影子、柱子的影子、三點和九點的影子，全都朝你伸了過來。",
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": null,
+          "text": "你的影子最後一個站起來。它先你一步，朝南邊的門走了過去。",
+          "next": "s4"
+        },
+        {
+          "id": "s4",
+          "speaker": null,
+          "text": "鐘面上的指針，跳到了十二。",
+          "next": "ok"
+        },
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "影子們全都朝你伸了過來，而且沒有停下。",
+          "next": "f2"
+        },
+        {
+          "id": "f2",
+          "speaker": null,
+          "text": "椅子的、柱子的、夢客的、你的——有一瞬間，你分不清哪一個才是自己。",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": "九點",
+          "text": "十二點！",
+          "next": "f4"
+        },
+        {
+          "id": "f4",
+          "speaker": null,
+          "text": "九點的聲音像一根線，把你拉了回來。你的影子站在腳邊，像在喘氣。",
+          "next": "f5"
+        },
+        {
+          "id": "f5",
+          "speaker": null,
+          "text": "鐘面上的指針，跳到了十二。腦袋裡的雜音，比剛才大了好多。",
+          "effects": [
+            {
+              "set_flag": "forced_rank7"
+            }
+          ],
+          "next": "ok"
+        },
+        {
+          "id": "ok",
+          "speaker": null,
+          "text": "（晉升為換影者。學會【換影】【影縛】，也能用【影渡】穿過鐵柵的縫隙。）",
+          "effects": [
+            {
+              "set_flag": "ch7_promoted"
+            }
+          ],
+          "next": "done"
+        },
+        {
+          "id": "nm1",
+          "speaker": null,
+          "text": "你走到刻著「十二」的椅子前。杯子裡的東西，好像少了一樣。",
+          "next": "nm2"
+        },
+        {
+          "id": "nm2",
+          "speaker": null,
+          "text": "你還是端起杯子，一口喝了下去。",
+          "effects": [
+            {
+              "promote": {
+                "lineage": "trace",
+                "rank": 7
+              }
+            }
+          ],
+          "branches": [
+            {
+              "if": {
+                "rank_lte": 7
+              },
+              "next": "ok"
+            }
+          ],
+          "next": "x1"
+        },
+        {
+          "id": "x1",
+          "speaker": null,
+          "text": "杯子裡的藥劑還沒化開，就散成了霧。",
+          "next": "x2"
+        },
+        {
+          "id": "x2",
+          "speaker": "三點",
+          "text": "不要緊。鐘還在走。……先醒過來。",
+          "next": "done"
+        },
+        {
+          "id": "done",
+          "speaker": "三點",
+          "text": "去吧。門外，有人在拉著你的手。",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "set_flag": "ch7_chair_done"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "again",
+          "speaker": null,
+          "text": "椅子還留著你的溫度。門外，有人在叫你的名字。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_chair_six",
+      "start": "c1",
+      "nodes": [
+        {
+          "id": "c1",
+          "speaker": null,
+          "text": "椅背上刻著「六」。今晚，連這張椅子上的霧都在發抖。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_tower_door",
+      "start": "d0",
+      "nodes": [
+        {
+          "id": "d0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_chair_done"
+              },
+              "next": "g1"
+            }
+          ],
+          "next": "w1"
+        },
+        {
+          "id": "w1",
+          "speaker": null,
+          "text": "南邊的門關著。門外傳來浪的聲音。",
+          "next": "w2"
+        },
+        {
+          "id": "w2",
+          "speaker": "三點",
+          "text": "先去你的椅子，十二點。這一次，沒有「再等等」。",
+          "next": "END"
+        },
+        {
+          "id": "g1",
+          "speaker": null,
+          "text": "南邊的門開了一條縫。門外不是白光，是黑色的海，和一隻伸過來的手。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要醒來嗎？",
+          "choices": [
+            {
+              "text": "「抓住那隻手。」",
+              "next": "g2"
+            },
+            {
+              "text": "再待一會兒",
+              "next": "stay"
+            }
+          ]
+        },
+        {
+          "id": "g2",
+          "speaker": "三點",
+          "text": "鐘還在響。……去吧。",
+          "next": "g3"
+        },
+        {
+          "id": "g3",
+          "speaker": "九點",
+          "text": "記得回來！還有伴手禮！",
+          "next": "g4"
+        },
+        {
+          "id": "g4",
+          "speaker": null,
+          "text": "你推開門，抓住了那隻手。",
+          "effects": [
+            {
+              "wake": {
+                "dialogue": "dlg_ch7_wake"
+              }
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "stay",
+          "speaker": null,
+          "text": "你把手從門把上移開。地板又震了一下。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_wake",
+      "start": "k1",
+      "nodes": [
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "——你咳出一大口海水。",
+          "next": "k2"
+        },
+        {
+          "id": "k2",
+          "speaker": null,
+          "text": "你躺在沉堤的石頭上，全身濕透。艾妲跪在旁邊，兩隻手緊緊抓著你的手。",
+          "next": "k3"
+        },
+        {
+          "id": "k3",
+          "speaker": "艾妲",
+          "text": "{name}！你醒了……你醒了！",
+          "next": "k4"
+        },
+        {
+          "id": "k4",
+          "speaker": "艾妲",
+          "text": "我一直拉著你。我想進你的夢裡找你，可是……你的夢又鎖起來了。",
+          "next": "k5"
+        },
+        {
+          "id": "k5",
+          "speaker": "{name}",
+          "text": "……我沒事。只是去喝了一杯東西。",
+          "branches": [
+            {
+              "if": {
+                "rank_lte": 7
+              },
+              "next": "k6"
+            }
+          ],
+          "next": "k8"
+        },
+        {
+          "id": "k6",
+          "speaker": null,
+          "text": "煤氣燈的光照在堤上。你腳下的影子，比你先站了起來。",
+          "next": "k7"
+        },
+        {
+          "id": "k7",
+          "speaker": "艾妲",
+          "text": "你的影子……剛剛自己動了？",
+          "next": "k9"
+        },
+        {
+          "id": "k8",
+          "speaker": null,
+          "text": "你撐著石頭站起來。耳朵裡，還有海的聲音。",
+          "next": "k9"
+        },
+        {
+          "id": "k9",
+          "speaker": null,
+          "text": "燈塔的鐵柵就在前面。",
+          "effects": [
+            {
+              "set_flag": "ch7_woke"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_outer_look",
+      "start": "l0",
+      "nodes": [
+        {
+          "id": "l0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_outer_open"
+              },
+              "next": "open"
+            }
+          ],
+          "next": "l1"
+        },
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "燈塔外的鐵柵生了厚厚一層鏽。縫隙很窄，窄得像只有影子才過得去。",
+          "next": "END"
+        },
+        {
+          "id": "open",
+          "speaker": null,
+          "text": "鐵柵開著。門後是往上繞的螺旋梯。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_outer_shadow",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "你看著自己的影子。它先一步，滑進了鐵柵的縫隙。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": null,
+          "text": "下一刻，你站在鐵柵的另一邊——你和影子，換了位置。【影渡】",
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": null,
+          "text": "你從裡面拉開門閂。",
+          "next": "s4"
+        },
+        {
+          "id": "s4",
+          "speaker": "艾妲",
+          "text": "……你剛剛，是穿過去的？",
+          "effects": [
+            {
+              "set_flag": "ch7_shadow_tried"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_outer_key",
+      "start": "k1",
+      "nodes": [
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "你把修士身上的鑰匙插進鎖孔。生鏽的鐵柵吱呀一聲，打開了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_outer_locked",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "鐵柵鎖得很緊，縫隙窄得鑽不過去。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_lh_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "燈塔裡又冷又濕。石牆上長著藤壺，好像海水曾經灌到這麼高。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "螺旋梯一圈一圈往上繞。上面傳來很慢、很低的說話聲。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": "艾妲",
+          "text": "有人在說話……聖歌會的人，不是都不說話嗎？",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_lh1_start",
+      "start": "f1",
+      "nodes": [
+        {
+          "id": "f1",
+          "speaker": null,
+          "text": "樓梯口的陰影裡，一個靜默修士和一個吟唱者站了起來。",
+          "branches": [
+            {
+              "if": {
+                "rank_lte": 7
+              },
+              "next": "f2"
+            }
+          ],
+          "next": "f3"
+        },
+        {
+          "id": "f2",
+          "speaker": "艾妲",
+          "text": "{name}，你的影子……試試看讓它替你挨那一下！",
+          "next": "f2b"
+        },
+        {
+          "id": "f2b",
+          "speaker": null,
+          "text": "（【換影】：和影子互換，大幅閃避並減半傷害。【影縛】：讓敵人動彈不得，受傷也不會解除。）",
+          "next": "f3"
+        },
+        {
+          "id": "f3",
+          "speaker": null,
+          "text": "他們沒有出聲，只是一步一步走下樓梯。",
+          "effects": [
+            {
+              "battle": "enc_ch7_lighthouse_1"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_lh1_after",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "往上走吧。鐵柵後面，就是上去的樓梯了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_coat_look",
+      "start": "l0",
+      "nodes": [
+        {
+          "id": "l0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_got_lantern_key"
+              },
+              "next": "done"
+            }
+          ],
+          "next": "l1"
+        },
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "牆上的掛鉤掛著一件看守的大衣，口袋縫得死緊。大衣上纏著淡淡的銀光。",
+          "next": "END"
+        },
+        {
+          "id": "done",
+          "speaker": null,
+          "text": "看守的大衣還掛在那裡。口袋的縫線已經拆開了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_coat_echo",
+      "start": "e0",
+      "nodes": [
+        {
+          "id": "e0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_got_lantern_key"
+              },
+              "next": "known"
+            }
+          ],
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": null,
+          "text": "你摸著那件濕冷的大衣。銀光從口袋的縫線裡滲了出來。",
+          "next": "e2"
+        },
+        {
+          "id": "e2",
+          "speaker": null,
+          "text": "——三天前。燈塔看守把一把小鑰匙塞進口袋，用針線把口袋縫死。",
+          "next": "e3"
+        },
+        {
+          "id": "e3",
+          "speaker": null,
+          "text": "他的嘴唇已經黏住了一半。他用最後一點力氣拍了拍口袋，像在說「藏好」。",
+          "next": "e4"
+        },
+        {
+          "id": "e4",
+          "speaker": null,
+          "text": "你拆開縫線。口袋裡有一把銅鑰匙，刻著「燈室」。（取得燈室鑰匙。）",
+          "effects": [
+            {
+              "give_item": "lantern_key"
+            },
+            {
+              "set_flag": "ch7_got_lantern_key"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "known",
+          "speaker": null,
+          "text": "銀光裡，看守又拍了拍口袋。鑰匙已經在你手上了。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_inner_look",
+      "start": "l0",
+      "nodes": [
+        {
+          "id": "l0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_inner_open"
+              },
+              "next": "open"
+            }
+          ],
+          "next": "l1"
+        },
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "樓梯中段攔著第二道鐵柵。鎖頭上刻著「燈室」兩個字。",
+          "next": "END"
+        },
+        {
+          "id": "open",
+          "speaker": null,
+          "text": "鐵柵開著。上面就是樓梯平台。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_inner_shadow",
+      "start": "s1",
+      "nodes": [
+        {
+          "id": "s1",
+          "speaker": null,
+          "text": "你的影子貼著牆，先一步溜進了鐵柵的另一邊。",
+          "next": "s2"
+        },
+        {
+          "id": "s2",
+          "speaker": null,
+          "text": "你們換了位置。這一次，你已經不會覺得冷了。【影渡】",
+          "next": "s3"
+        },
+        {
+          "id": "s3",
+          "speaker": null,
+          "text": "你從裡面撥開門閂。鐵柵慢慢打開。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_inner_key",
+      "start": "k1",
+      "nodes": [
+        {
+          "id": "k1",
+          "speaker": null,
+          "text": "你把刻著「燈室」的銅鑰匙插進鎖孔。鐵柵慢慢打開。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_inner_locked",
+      "start": "l1",
+      "nodes": [
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "鐵柵鎖著。看守大概把鑰匙藏在塔裡的某個地方。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_landing",
+      "start": "r0",
+      "nodes": [
+        {
+          "id": "r0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_rest_landing"
+              },
+              "next": "used"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "r1",
+          "speaker": null,
+          "text": "樓梯平台上有一張看守的長椅。旁邊的小爐子，還留著一點餘溫。",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": "艾妲",
+          "text": "坐一下吧。上面那個人……我們得用最好的狀態去見他。",
+          "next": "r3"
+        },
+        {
+          "id": "r3",
+          "speaker": null,
+          "text": "（全隊的生命與靈性回滿了。這裡只能休息一次。）",
+          "effects": [
+            {
+              "heal_party": true
+            },
+            {
+              "set_flag": "ch7_rest_landing"
+            }
+          ],
+          "next": "r4"
+        },
+        {
+          "id": "r4",
+          "speaker": null,
+          "text": "（建議在這裡存檔。再往上，就是燈室。）",
+          "next": "END"
+        },
+        {
+          "id": "used",
+          "speaker": null,
+          "text": "爐子的火已經熄了。長椅冷冰冰的。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_top_arrive",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "燈室。巨大的透鏡立在中央，裡面沒有火，只映著窗外的霧。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": null,
+          "text": "窗邊站著一個穿黑袍的人。剛才在燈塔頂上舉燈的，就是他。",
+          "next": "END",
+          "branches": [
+            {
+              "if": {
+                "in_party": "herb"
+              },
+              "next": "h1"
+            }
+          ]
+        },
+        {
+          "id": "h1",
+          "speaker": "老賀伯",
+          "text": "樓梯下面有腳步聲……還有人跟上來了。我這把老骨頭守著樓梯，你們上去。",
+          "next": "h2"
+        },
+        {
+          "id": "h2",
+          "speaker": null,
+          "text": "（老賀伯暫時離開了隊伍。）",
+          "effects": [
+            {
+              "leave_party": "herb"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_priest",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "黑袍的人背對著你。提燈裡的黑水，慢慢旋轉。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "伊格納",
+          "text": "……讀痕者。你從海裡回來了。潮水把你吐了出來。",
+          "next": "p3"
+        },
+        {
+          "id": "p3",
+          "speaker": "伊格納",
+          "text": "我是伊格納。聖歌會裡，只有我還開口。總得有人替安靜說話。",
+          "next": "p4"
+        },
+        {
+          "id": "p4",
+          "speaker": "{name}",
+          "text": "你們要讓舊城鐘樓停下來。為什麼？",
+          "next": "p5"
+        },
+        {
+          "id": "p5",
+          "speaker": "伊格納",
+          "text": "因為鐘聲太吵了。城裡的人睡不著，連夢裡都聽得見它在數。",
+          "next": "p6"
+        },
+        {
+          "id": "p6",
+          "speaker": "伊格納",
+          "text": "讓城市安靜下來，是慈悲。等鐘停了，潮下之物就會聽見我們。",
+          "next": "p7"
+        },
+        {
+          "id": "p7",
+          "speaker": "艾妲",
+          "text": "潮下之物……？",
+          "next": "p8"
+        },
+        {
+          "id": "p8",
+          "speaker": "伊格納",
+          "text": "港底的那一位。它很溫柔。只要大家閉上嘴，就不會痛了。",
+          "next": "p9"
+        },
+        {
+          "id": "p9",
+          "speaker": null,
+          "text": "他轉過身來，袍角的藤壺喀喀作響。這一打起來，就沒有退路了。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼做？",
+          "choices": [
+            {
+              "text": "「鐘不會停。」",
+              "next": "go"
+            },
+            {
+              "text": "（先退下樓，整理裝備）",
+              "next": "back"
+            }
+          ]
+        },
+        {
+          "id": "back",
+          "speaker": null,
+          "text": "你退到樓梯口。伊格納沒有追，只是低聲哼著。（準備好了再上來。一旦開打，就沒有退路。）",
+          "next": "END"
+        },
+        {
+          "id": "go",
+          "speaker": "伊格納",
+          "text": "那就安靜地睡吧。",
+          "effects": [
+            {
+              "battle": "enc_ch7_priest"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_priest_phase2",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "伊格納舉起提燈。燈裡的黑水溢了出來，化成一團一團白沫。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "伊格納",
+          "text": "潮水，上來吧。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_priest_after",
+      "start": "a1",
+      "nodes": [
+        {
+          "id": "a1",
+          "speaker": null,
+          "text": "伊格納跪了下來。提燈從他手裡滑落，在地板上摔成碎片。",
+          "next": "a2"
+        },
+        {
+          "id": "a2",
+          "speaker": "伊格納",
+          "text": "……你聽……它醒了。",
+          "next": "a3"
+        },
+        {
+          "id": "a3",
+          "speaker": null,
+          "text": "海面開始隆起。燈室的玻璃一片一片震動，發出細細的嗡嗡聲。",
+          "next": "a4"
+        },
+        {
+          "id": "a4",
+          "speaker": null,
+          "text": "灰白色的東西，從港底慢慢升了上來。看不出是手，還是嘴。",
+          "next": "a5"
+        },
+        {
+          "id": "a5",
+          "speaker": null,
+          "text": "它的表面浮著好多閉著的嘴，一張一張，全都朝著燈塔。",
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "r0"
+            }
+          ],
+          "next": "m1"
+        },
+        {
+          "id": "m1",
+          "speaker": null,
+          "text": "樓梯傳來急促的腳步聲。馬洛衝進燈室，大衣上全是霧水。",
+          "next": "m2"
+        },
+        {
+          "id": "m2",
+          "speaker": "馬洛",
+          "text": "鐘樓守住了。老賀伯還在上面，我先趕過來。",
+          "next": "m3"
+        },
+        {
+          "id": "m3",
+          "speaker": "馬洛",
+          "text": "他要我轉告：鐘樓頂上有人比我們早到。戴著兜帽，替我們擋了一陣子。",
+          "next": "m4"
+        },
+        {
+          "id": "m4",
+          "speaker": null,
+          "text": "說完，馬洛就盯著遠處的鐘樓，沒有再說話。（馬洛加入了隊伍。）",
+          "effects": [
+            {
+              "join_party": "marlo"
+            },
+            {
+              "set_flag": "ch7_marlo_arrived"
+            }
+          ],
+          "next": "h1"
+        },
+        {
+          "id": "r1",
+          "speaker": "老賀伯",
+          "text": "燈律院的人……來得及嗎？",
+          "next": "r2"
+        },
+        {
+          "id": "r2",
+          "speaker": null,
+          "text": "老賀伯望著舊城的方向。霧太濃，連鐘樓的影子都看不見。",
+          "next": "h1"
+        },
+        {
+          "id": "h1",
+          "speaker": "艾妲",
+          "text": "不管它說什麼，都別一個人聽。……我先替大家穩住。",
+          "next": "h2"
+        },
+        {
+          "id": "h2",
+          "speaker": null,
+          "text": "艾妲輕輕哼起搖籃曲。歌聲很小，每個人的呼吸卻慢慢穩了下來。",
+          "effects": [
+            {
+              "heal_party": true
+            }
+          ],
+          "branches": [
+            {
+              "if": {
+                "any": [
+                  {
+                    "promoted_forced": 8
+                  },
+                  {
+                    "promoted_forced": 7
+                  }
+                ]
+              },
+              "next": "v1"
+            }
+          ],
+          "next": "v2"
+        },
+        {
+          "id": "v1",
+          "speaker": "潮兆",
+          "text": "你早就在聽了。",
+          "next": "v3"
+        },
+        {
+          "id": "v2",
+          "speaker": "潮兆",
+          "text": "你聽得見。",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": "潮兆",
+          "text": "那就聽我。",
+          "next": "v4"
+        },
+        {
+          "id": "v4",
+          "speaker": null,
+          "text": "那不是聲音。它直接出現在你的腦子裡，很冷，很溫柔。",
+          "next": "ask"
+        },
+        {
+          "id": "ask",
+          "speaker": null,
+          "text": "要怎麼做？（接下來的戰鬥，沒有退路。）",
+          "choices": [
+            {
+              "text": "「回應它。」",
+              "next": "y1"
+            },
+            {
+              "text": "「摀住耳朵，看著它。」",
+              "next": "z1"
+            }
+          ]
+        },
+        {
+          "id": "y1",
+          "speaker": null,
+          "text": "你在腦中回了一句話。很短的一句，連你自己都不記得說了什麼。",
+          "next": "y2"
+        },
+        {
+          "id": "y2",
+          "speaker": null,
+          "text": "那東西的顏色淡了一些。可是你的耳朵裡，開始有了潮聲。",
+          "effects": [
+            {
+              "collapse": 20
+            },
+            {
+              "set_flag": "heeded_tide"
+            }
+          ],
+          "next": "y3"
+        },
+        {
+          "id": "y3",
+          "speaker": "艾妲",
+          "text": "{name}？{name}！你在跟誰說話？",
+          "next": "y3m",
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "y3n"
+            }
+          ]
+        },
+        {
+          "id": "z1",
+          "speaker": null,
+          "text": "你摀住耳朵，睜大眼睛看著它。腦子裡的聲音還在，但你沒有回答。",
+          "next": "z2"
+        },
+        {
+          "id": "z2",
+          "speaker": "{name}",
+          "text": "我不聽你。……我要聽的，是鐘聲。",
+          "next": "z3"
+        },
+        {
+          "id": "z3",
+          "speaker": null,
+          "text": "那東西張開了所有的嘴。",
+          "next": "z3m",
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "z3n"
+            }
+          ]
+        },
+        {
+          "id": "r0",
+          "speaker": null,
+          "text": "樓梯傳來喘氣聲。老賀伯扶著欄杆爬了上來，大衣上全是霧水。（老賀伯回到了隊伍。）",
+          "effects": [
+            {
+              "join_party": "herb"
+            }
+          ],
+          "next": "r1"
+        },
+        {
+          "id": "y3m",
+          "effects": [
+            {
+              "battle": "enc_ch7_omen_heeded"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "y3n",
+          "effects": [
+            {
+              "battle": "enc_ch7_omen_heeded_nocap"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "z3m",
+          "effects": [
+            {
+              "battle": "enc_ch7_omen"
+            }
+          ],
+          "next": "END"
+        },
+        {
+          "id": "z3n",
+          "effects": [
+            {
+              "battle": "enc_ch7_omen_nocap"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_omen_phase2",
+      "start": "p1",
+      "nodes": [
+        {
+          "id": "p1",
+          "speaker": null,
+          "text": "那東西張開一張嘴。沒有聲音，海面上卻湧起一團一團白沫。",
+          "next": "p2"
+        },
+        {
+          "id": "p2",
+          "speaker": "艾妲",
+          "text": "它在叫東西上來！",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_thirteenth",
+      "start": "t0",
+      "nodes": [
+        {
+          "id": "t0",
+          "speaker": null,
+          "effects": [
+            {
+              "set_flag": "ch7_thirteenth"
+            }
+          ],
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "l1"
+            }
+          ],
+          "next": "n1"
+        },
+        {
+          "id": "n1",
+          "speaker": null,
+          "text": "很遠的地方，舊城鐘樓開始敲響。一下、兩下……你在心裡跟著數。",
+          "next": "n2"
+        },
+        {
+          "id": "n2",
+          "speaker": null,
+          "text": "……十一、十二。然後，停了一下。",
+          "next": "n3"
+        },
+        {
+          "id": "l1",
+          "speaker": null,
+          "text": "很遠的地方，舊城鐘樓開始敲響……十一、十二。然後，什麼都沒有。",
+          "next": "l2"
+        },
+        {
+          "id": "l2",
+          "speaker": null,
+          "text": "一秒、兩秒。你屏住呼吸，繼續數。",
+          "next": "n3"
+        },
+        {
+          "id": "n3",
+          "speaker": null,
+          "text": "——第十三響。",
+          "next": "n4"
+        },
+        {
+          "id": "n4",
+          "speaker": null,
+          "text": "那東西整個縮了一下，像被燙到一樣。",
+          "next": "END"
+        }
+      ]
+    },
+    {
+      "id": "dlg_ch7_victory",
+      "start": "v0",
+      "nodes": [
+        {
+          "id": "v0",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "collapse_gte": 70
+              },
+              "next": "vf"
+            },
+            {
+              "if": {
+                "collapse_lte": 40
+              },
+              "next": "vc"
+            }
+          ],
+          "next": "v1"
+        },
+        {
+          "id": "vf",
+          "speaker": null,
+          "effects": [
+            {
+              "set_flag": "final_frayed"
+            }
+          ],
+          "next": "v1"
+        },
+        {
+          "id": "vc",
+          "speaker": null,
+          "effects": [
+            {
+              "set_flag": "final_calm"
+            }
+          ],
+          "next": "v1"
+        },
+        {
+          "id": "v1",
+          "speaker": null,
+          "text": "灰白色的東西，慢慢沉回海裡。那些閉著的嘴，一張一張被浪蓋住。",
+          "next": "v2"
+        },
+        {
+          "id": "v2",
+          "speaker": null,
+          "text": "沉下去之前，它好像朝著你身後很遠的地方，望了一眼。",
+          "next": "v3"
+        },
+        {
+          "id": "v3",
+          "speaker": null,
+          "text": "然後，海面平了。",
+          "next": "v4"
+        },
+        {
+          "id": "v4",
+          "speaker": null,
+          "text": "霧第一次往外退。燈室的玻璃上，映出一點點灰白的天色。",
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_reported"
+              },
+              "next": "h1"
+            }
+          ],
+          "next": "m1"
+        },
+        {
+          "id": "m1",
+          "speaker": "馬洛",
+          "text": "……結束了？",
+          "next": "a1"
+        },
+        {
+          "id": "h1",
+          "speaker": "老賀伯",
+          "text": "……結束了？",
+          "next": "a1"
+        },
+        {
+          "id": "a1",
+          "speaker": "艾妲",
+          "text": "嗯。……至少，今晚結束了。",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch7_thirteenth"
+              },
+              "next": "b1"
+            }
+          ],
+          "next": "b2"
+        },
+        {
+          "id": "b1",
+          "speaker": null,
+          "text": "你數過了。從頭到尾，鐘聲一共響了十三下。",
+          "next": "e1"
+        },
+        {
+          "id": "b2",
+          "speaker": null,
+          "text": "遠處的鐘聲停了。你沒有數到最後一響——耳朵裡，全是潮聲。",
+          "next": "e1"
+        },
+        {
+          "id": "e1",
+          "speaker": "{name}",
+          "text": "（有人還在數。有人還願意說。……天，快亮了。）",
+          "effects": [
+            {
+              "chapter_end": "chapter7"
+            }
+          ],
+          "next": "END"
+        }
+      ]
+    }
+  ]
+}

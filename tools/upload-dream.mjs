@@ -92,14 +92,53 @@ export function readPersonas(dir) {
 }
 
 /** 公開 story 的預寫台詞：Map<夢客 id, scripted>。 */
-export function readScripted(storyDir) {
+/**
+ * 預寫台詞：guests[].scripted 依夢客 id 收集。
+ * M5（故事聖經 0.7）：每章的 story 各有一份完整的 guests，同一夢客出現在多章時，取**章節順序最早**的一份
+ * （雲端只存一份；用最早的，才不會把後面章節的台詞送給還在前面章節的玩家）。
+ * 章節順序：opts.chapters，否則讀 storyDir 上一層的 manifest.json 的 chapters；都沒有時依檔名排序。
+ * 同一個 story 檔裡重複定義同一夢客 → 錯誤。
+ */
+export function readScripted(storyDir, opts = {}) {
   const out = new Map();
-  for (const f of readdirSync(storyDir).filter((x) => x.endsWith('.json')).sort()) {
-    const story = JSON.parse(readFileSync(join(storyDir, f), 'utf8'));
+  for (const [id, byChapter] of readScriptedByChapter(storyDir, opts)) out.set(id, Object.values(byChapter)[0]);
+  return out;
+}
+
+/** story 檔依章節順序排好（opts.chapters → 上一層 manifest.json 的 chapters → 檔名）。 */
+function storiesInOrder(storyDir, opts = {}) {
+  let chapters = Array.isArray(opts.chapters) ? opts.chapters : null;
+  if (!chapters) {
+    try {
+      const m = JSON.parse(readFileSync(join(storyDir, '..', 'manifest.json'), 'utf8'));
+      if (Array.isArray(m?.chapters)) chapters = m.chapters;
+    } catch { /* 沒有 manifest：依檔名 */ }
+  }
+  const stories = readdirSync(storyDir).filter((x) => x.endsWith('.json')).sort()
+    .map((f) => ({ f, story: JSON.parse(readFileSync(join(storyDir, f), 'utf8')) }));
+  const rank = (s) => {
+    const i = chapters ? chapters.indexOf(s.story?.id) : -1;
+    return i >= 0 ? i : Number.MAX_SAFE_INTEGER;
+  };
+  return stories.sort((a, b) => rank(a) - rank(b)); // 穩定排序：不在清單內的維持檔名順序、排在最後
+}
+
+/**
+ * M5：每章各自的預寫台詞。回傳 Map：夢客 id → { 章節 id: scripted }（物件鍵依章節順序）。
+ * Worker 依玩家宣稱的章節取「CHAPTERS 順序中 ≤ 該章、最近的一份」（DATA-FORMAT 補充：當章沒有就往前一章找）。
+ * 同一個 story 檔裡重複定義同一夢客 → 錯誤。
+ */
+export function readScriptedByChapter(storyDir, opts = {}) {
+  const out = new Map();
+  for (const { f, story } of storiesInOrder(storyDir, opts)) {
+    const here = new Set();
+    const chapter = typeof story?.id === 'string' && story.id ? story.id : f.replace(/\.json$/, '');
     for (const g of Array.isArray(story?.guests) ? story.guests : []) {
       if (!isObj(g) || typeof g.id !== 'string') continue;
-      if (out.has(g.id)) throw new Error(`夢客 ${g.id} 的預寫台詞在多個 story 檔重複定義（${f}）`);
-      out.set(g.id, isObj(g.scripted) ? g.scripted : {});
+      if (here.has(g.id)) throw new Error(`夢客 ${g.id} 的預寫台詞在同一個 story 檔重複定義（${f}）`);
+      here.add(g.id);
+      if (!out.has(g.id)) out.set(g.id, {});
+      out.get(g.id)[chapter] = isObj(g.scripted) ? g.scripted : {};
     }
   }
   return out;
@@ -138,20 +177,26 @@ export function readBlocklist(path) {
 const sqlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 /** 產生 SQL：先 upsert 全部夢客與詞表，再刪除這次沒有上傳的舊夢客（不會有空窗）。回傳 { sql, guests }。 */
-export function buildDreamSql({ personasDir = DEFAULTS.personasDir, lexiconPath = DEFAULTS.lexiconPath, blocklistPath = null, storyDir = DEFAULTS.storyDir, now = Math.floor(Date.now() / 1000) } = {}) {
+export function buildDreamSql({ personasDir = DEFAULTS.personasDir, lexiconPath = DEFAULTS.lexiconPath, blocklistPath = null, storyDir = DEFAULTS.storyDir, chapters = null, now = Math.floor(Date.now() / 1000) } = {}) {
   const personas = readPersonas(personasDir);
   if (personas.length === 0) throw new Error(`${personasDir} 裡沒有任何人設（*.json）`);
   const blocklist = readBlocklist(blocklistPath ?? join(dirname(resolve(personasDir)), 'blocklist.json'));
-  const scripted = readScripted(storyDir);
+  const byChapter = readScriptedByChapter(storyDir, chapters ? { chapters } : {});
   const lexicon = readLexicon(lexiconPath);
   const statements = [];
   for (const { persona: p } of personas) {
-    const s = scripted.get(p.id);
-    if (!s) throw new Error(`夢客 ${p.id} 在 ${storyDir} 找不到預寫台詞（guests[].scripted）`);
-    for (const k of SCRIPTED_REQUIRED) {
-      if (!strArray(s[k])) throw new Error(`夢客 ${p.id} 的預寫台詞缺 ${k}（必須是至少一句的字串陣列）`);
+    const all = byChapter.get(p.id);
+    if (!all || Object.keys(all).length === 0) throw new Error(`夢客 ${p.id} 在 ${storyDir} 找不到預寫台詞（guests[].scripted）`);
+    const clean = (sc) => Object.fromEntries(Object.entries(sc).filter(([, v]) => strArray(v)));
+    const scripted_by_chapter = {};
+    for (const [chapter, sc] of Object.entries(all)) {
+      for (const k of SCRIPTED_REQUIRED) {
+        if (!strArray(sc[k])) throw new Error(`夢客 ${p.id} 在 ${chapter} 的預寫台詞缺 ${k}（必須是至少一句的字串陣列）`);
+      }
+      scripted_by_chapter[chapter] = clean(sc);
     }
-    const data = { ...p, scripted: Object.fromEntries(Object.entries(s).filter(([, v]) => strArray(v))) };
+    // scripted：章節順序最早的一份（舊版 Worker 與找不到章節時的預設）；scripted_by_chapter：每章一份，Worker 依玩家章節取用
+    const data = { ...p, scripted: Object.values(scripted_by_chapter)[0], scripted_by_chapter };
     statements.push(`INSERT INTO dream_personas (id, data, updated_at) VALUES (${sqlStr(p.id)}, ${sqlStr(JSON.stringify(data))}, ${now})
   ON CONFLICT (id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at;`);
   }
