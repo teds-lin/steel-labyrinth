@@ -1632,6 +1632,43 @@
           "id": "p5",
           "speaker": "九點",
           "text": "十二點……外面的你，還在往下沉喔。",
+          "branches": [
+            {
+              "if": {
+                "all": [
+                  {
+                    "not": {
+                      "resonance_gte": 12
+                    }
+                  },
+                  {
+                    "promoted_forced": 8
+                  }
+                ]
+              },
+              "next": "h2"
+            },
+            {
+              "if": {
+                "not": {
+                  "resonance_gte": 12
+                }
+              },
+              "next": "h1"
+            }
+          ],
+          "next": "ask"
+        },
+        {
+          "id": "h1",
+          "speaker": "三點",
+          "text": "你還沒數完自己的鐘聲。這時候喝下去，崩解會一口氣漲上來。",
+          "next": "ask"
+        },
+        {
+          "id": "h2",
+          "speaker": "三點",
+          "text": "上一劑你也沒等。現在喝，崩解會一口氣漲上來……兩劑都這樣喝的人，常常就聽不見自己的鐘聲了。",
           "next": "ask"
         },
         {

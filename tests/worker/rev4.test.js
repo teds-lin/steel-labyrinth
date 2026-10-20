@@ -142,7 +142,7 @@ describe('第 2 節：Cron 刪除 7 天以上的空帳號，分批 PURGE_BATCH',
   let s;
   beforeAll(async () => { s = await startWorker({ varsOverride: { STATS_MIN_PLAYERS: '1' } }); });
   afterAll(async () => { await s?.close(); });
-  // 修訂 4b 第 3 節：空帳號改看 last_seen（建立時間與最後使用時間一起往前調）
+  // 修訂 5a：空帳號看 created_at（建立時間與最後使用時間一起往前調，兩種規則下結果相同）
   const setCreated = (pid, at) => s.db.prepare('UPDATE players SET created_at = ?, last_seen = ? WHERE player_id = ?').bind(at, at, pid).run();
   const exists = async (pid) => (await s.db.prepare('SELECT COUNT(*) AS n FROM players WHERE player_id = ?').bind(pid).first()).n === 1;
 

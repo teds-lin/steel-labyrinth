@@ -144,19 +144,22 @@ describe('applyBattleEffect（不可變）', () => {
     expect(byUid(r.battle, 'e1').phasesDone).toEqual([1, 2, 0]);
     expect(byUid(r.battle, 'e1').extraAi).toEqual([{ skill: 'attack', weight: 1 }]);
   });
-  // M5 修正輪 6：一擊打倒（例如潮兆一下從 30% 被打到 0）時，跨過的階段仍要依序觸發（含階段對話），之後才倒下
-  it('phases：一擊打倒時，跨過的階段依門檻由高到低先觸發（含 dialogue），最後才是 defeated', () => {
+  // M5 修正輪 6／最後修正 2：一擊打倒（例如潮兆一下從 30% 被打到 0）時，跨過的階段中只有標了 on_kill: true 的仍觸發
+  // （含階段對話，例如第十三響），之後才倒下；沒標的（例如歐斯華的「他在叫人」）不補播。
+  it('phases：一擊打倒時，只觸發跨過的 on_kill 階段（依門檻由高到低），最後才是 defeated', () => {
     const d = structuredClone(data);
-    d.enemies[1].phases = [{ hp_lte_pct: 25, dialogue: 'dlg_low' }, { hp_lte_pct: 60 }, { hp_lte_pct: 50, dialogue: 'dlg_phase' }];
+    d.enemies[1].phases = [{ hp_lte_pct: 25, dialogue: 'dlg_low', on_kill: true }, { hp_lte_pct: 60 }, { hp_lte_pct: 50, dialogue: 'dlg_phase' }];
     const r = applyBattleEffect(base(), { type: 'damage', fixed: 999 }, 'p0', 'e1', d);
     const seq = r.log.filter((e) => e.type === 'phase' || e.type === 'defeated');
     expect(seq).toEqual([
-      { type: 'phase', uid: 'e1', index: 1, dialogue: null },
-      { type: 'phase', uid: 'e1', index: 2, dialogue: 'dlg_phase' },
       { type: 'phase', uid: 'e1', index: 0, dialogue: 'dlg_low' },
       { type: 'defeated', uid: 'e1' },
     ]);
-    expect(byUid(r.battle, 'e1')).toMatchObject({ hp: 0, alive: false, phasesDone: [1, 2, 0] });
+    expect(byUid(r.battle, 'e1')).toMatchObject({ hp: 0, alive: false, phasesDone: [0] });
+    // 多個 on_kill 階段：依門檻由高到低
+    d.enemies[1].phases[2].on_kill = true;
+    const r1 = applyBattleEffect(base(), { type: 'damage', fixed: 999 }, 'p0', 'e1', d);
+    expect(r1.log.filter((e) => e.type === 'phase').map((e) => e.index)).toEqual([2, 0]);
     // 已經觸發過的階段不重播
     const b = base();
     byUid(b, 'e1').phasesDone = [1, 2];

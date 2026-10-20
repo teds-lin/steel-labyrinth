@@ -10,7 +10,7 @@ import { mountTurnstile } from '../ui/turnstile-panel.js';
 import { TURNSTILE_ACTIONS } from '../cloud/turnstile-config.js';
 
 const SLOTS = [1, 2, 3];
-const INTRO = '把存檔放到雲端，換一台裝置也能用轉移碼接續遊玩。\n不需要註冊，也不會收集個人資料。\n本機存檔照常使用，不受雲端影響。';
+const INTRO = '把存檔放到雲端，換一台裝置也能用轉移碼接續遊玩。\n不需要註冊，也不會收集個人資料。\n本機存檔照常使用，不受雲端影響。\n啟用後 7 天內都沒有上傳存檔的話，雲端帳號會被清除。';
 const CODE_FORMAT_HINT = '轉移碼是 8 個英文字母或數字（例如 ABCD-EFGH）';
 
 /** 雲端總覽的版面（邏輯座標）。 */

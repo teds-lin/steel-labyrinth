@@ -13,7 +13,7 @@ const DEAD_API = 'http://localhost:8799'; // 沒人聽的埠
 const CLOUD_KEY = 'steel-labyrinth:cloud';
 const UNAVAILABLE = '雲端暫時無法使用，稍後再試';
 // 修訂 4b 第 3 節：重新連結頁面另外提示可以重新啟用
-const RELINK = '此裝置的雲端連結已失效，請重新用轉移碼接續。\n也可以重新啟用雲端存檔（本機存檔不受影響）。';
+const RELINK = '此裝置的雲端連結已失效，請重新用轉移碼接續。\n啟用雲端存檔後 7 天內都沒有上傳過存檔的帳號會被清除，\n這時也可以重新啟用雲端存檔（本機存檔不受影響）。';
 const urlFor = (api) => `./?test=1&api=${encodeURIComponent(api)}`;
 const isTouch = (ti) => ti.project.name === 'mobile';
 

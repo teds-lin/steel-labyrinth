@@ -563,7 +563,8 @@ function checkEnemy(en, ctx) {
     else en.phases.forEach((ph, i) => {
       const pw = `${where} phases[${i}]`;
       if (!isObj(ph)) { errors.push(`${pw}：必須是物件`); return; }
-      for (const k of extraKeys(ph, ['hp_lte_pct', 'add_ai', 'dialogue'])) errors.push(`${pw}：不認得的欄位「${k}」`);
+      for (const k of extraKeys(ph, ['hp_lte_pct', 'add_ai', 'dialogue', 'on_kill'])) errors.push(`${pw}：不認得的欄位「${k}」`);
+      if (ph.on_kill !== undefined && !isBool(ph.on_kill)) errors.push(`${pw}：on_kill 必須是 true/false`);
       if (!isNum(ph.hp_lte_pct) || ph.hp_lte_pct < 0 || ph.hp_lte_pct > 100) errors.push(`${pw}：hp_lte_pct 必須是 0～100 的數字`);
       if (ph.add_ai !== undefined) {
         if (!Array.isArray(ph.add_ai)) errors.push(`${pw}：add_ai 必須是陣列`);

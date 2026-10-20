@@ -493,7 +493,7 @@
               "next": "fz"
             }
           ],
-          "next": "z2"
+          "next": "z1b"
         },
         {
           "id": "fz",
@@ -620,6 +620,32 @@
           "id": "u4",
           "speaker": null,
           "text": "他對你點點頭，客氣得像你第一天來上班。",
+          "branches": [
+            {
+              "if": {
+                "flag": "covered_marlo"
+              },
+              "next": "cm1"
+            }
+          ],
+          "next": "u5"
+        },
+        {
+          "id": "cm1",
+          "speaker": "馬洛",
+          "text": "昨天的陳述，我站在窗邊，都聽見了。",
+          "next": "cm2"
+        },
+        {
+          "id": "cm2",
+          "speaker": "馬洛",
+          "text": "那晚我不在辦公室，你比誰都清楚。……下次，別再替我說謊。",
+          "next": "cm3"
+        },
+        {
+          "id": "cm3",
+          "speaker": null,
+          "text": "他說完就低頭喝咖啡。你分不出那是責備，還是道謝。",
           "next": "u5"
         },
         {

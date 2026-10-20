@@ -685,7 +685,8 @@
             "weight": 3
           }
         ],
-        "dialogue": "dlg_ch7_thirteenth"
+        "dialogue": "dlg_ch7_thirteenth",
+        "on_kill": true
       }
     ],
     "drops": []
@@ -788,7 +789,8 @@
             "weight": 3
           }
         ],
-        "dialogue": "dlg_ch7_thirteenth"
+        "dialogue": "dlg_ch7_thirteenth",
+        "on_kill": true
       }
     ],
     "drops": []

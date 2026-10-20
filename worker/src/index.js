@@ -22,7 +22,7 @@ import { signPass, passTtlOf, remainingToday, chat as dreamChat } from './dream.
 const SLOT_COUNT = 3;
 const LAST_SEEN_GRANULARITY = 86400; // last_seen 一天最多更新一次，省 D1 寫入額度
 const INACTIVE_SEC = 180 * 86400; // Cron：超過 180 天未登入的玩家連同資料刪除
-const EMPTY_ACCOUNT_SEC = 7 * 86400; // Cron：超過 7 天沒有使用（last_seen）、沒有存檔也沒有通關紀錄的玩家刪除（修訂 4 第 2 節、修訂 4b 第 3 節）
+const EMPTY_ACCOUNT_SEC = 7 * 86400; // Cron：建立（created_at）超過 7 天、沒有存檔也沒有通關紀錄的玩家刪除，不看 last_seen（修訂 4 第 2 節、修訂 5a）
 const STATS_TTL = 60;
 
 const nowSec = () => Math.floor(Date.now() / 1000);
@@ -431,16 +431,17 @@ async function stats(request, env, now, ctx) {
   return response;
 }
 
-// Cron 要刪的玩家：超過 180 天未登入（?1），或超過 7 天沒有使用（last_seen < ?2，修訂 4b 第 3 節）而且沒有任何存檔
-// （已刪除的空槽不算）也沒有通關紀錄。last_seen 一天最多更新一次，所以實際上是「至少 6 天沒有任何已登入請求」。
-const PURGE_WHERE = `(p.last_seen < ?1 OR (p.last_seen < ?2
+// Cron 要刪的玩家：超過 180 天未登入（?1），或建立超過 7 天（created_at < ?2，修訂 5a）而且沒有任何存檔
+// （已刪除的空槽不算）也沒有通關紀錄。空帳號不看 last_seen：否則只要定期被碰一下（任何已登入請求每天更新一次 last_seen）
+// 就永遠不會被刪。修訂 4b 第 3 節改看 last_seen 的規則由修訂 5a 取代。
+const PURGE_WHERE = `(p.last_seen < ?1 OR (p.created_at < ?2
   AND NOT EXISTS (SELECT 1 FROM saves s WHERE s.player_id = p.player_id AND s.data IS NOT NULL)
   AND NOT EXISTS (SELECT 1 FROM clears c WHERE c.player_id = p.player_id)))`;
 // 刪除時把條件再判斷一次：在「選出名單」與「刪除」之間剛上傳存檔的玩家不會被誤刪。
 const PURGE_TARGETS = `SELECT p.player_id FROM players p JOIN json_each(?3) j ON j.value = p.player_id WHERE ${PURGE_WHERE}`;
 
 /**
- * Cron（每天一次）：刪除超過 180 天未登入的玩家，以及超過 7 天沒有使用的空帳號（修訂 4 第 2 節、修訂 4b 第 3 節），連同其存檔、通關紀錄；
+ * Cron（每天一次）：刪除超過 180 天未登入的玩家，以及建立超過 7 天的空帳號（修訂 4 第 2 節、修訂 5a），連同其存檔、通關紀錄；
  * 每次最多 batch（PURGE_BATCH）人，避免單次寫入暴增，剩下的下一次再刪。另外刪除過期的限流紀錄。
  * 回傳這次刪除的玩家數。
  */

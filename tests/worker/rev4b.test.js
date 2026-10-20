@@ -1,7 +1,7 @@
 // API 修訂 4b（M3 部署前最後一輪審查）：每一項都先寫成重現測試（紅燈）再修。
 // 1：並行請求不可放大保留通道對全域每日預算的消耗（保留名額與每日預算一起原子計數）。
 // 2：轉移額度用完後，rotate／POST /api/player 不論新碼是否碰撞都回 429 且不寫入（無法分辨是否猜中）。
-// 3：空帳號清理改看 last_seen（仍在使用、但還沒上傳的玩家不刪）。
+// 3：空帳號清理改看 last_seen（仍在使用、但還沒上傳的玩家不刪）。——已由修訂 5a 取代：空帳號改看 created_at（見 rev5a.test.js）。
 import { describe, it, expect } from 'vitest';
 import {
   startWorker, newPlayer, newSecrets, json, auth, putSave, expectError, sampleSave, d1Rows,
@@ -163,8 +163,8 @@ describe('修訂 4b 第 2 節：轉移額度用完後無法以碰撞探測轉移
   });
 });
 
-describe('修訂 4b 第 3 節：空帳號清理看 last_seen', () => {
-  it('10 天前建立、1 小時前還在使用、沒有存檔 → 不刪；last_seen 8 天前的空帳號 → 刪', async () => {
+describe('修訂 4b 第 3 節（已由修訂 5a 取代）：空帳號清理不看 last_seen', () => {
+  it('10 天前建立、1 小時前還在使用、沒有存檔 → 修訂 5a 起照樣刪；10 天前建立、last_seen 8 天前的空帳號 → 刪', async () => {
     const s = await startWorker();
     try {
       const now = nowSec();
@@ -174,9 +174,11 @@ describe('修訂 4b 第 3 節：空帳號清理看 last_seen', () => {
       await s.db.prepare('UPDATE players SET created_at = ?, last_seen = ? WHERE player_id = ?').bind(now - 10 * DAY, now - 8 * DAY, idle.player_id).run();
       await s.scheduled(now * 1000);
       const exists = async (pid) => (await s.db.prepare('SELECT COUNT(*) AS n FROM players WHERE player_id = ?').bind(pid).first()).n === 1;
-      expect(await exists(active.player_id)).toBe(true);
+      expect(await exists(active.player_id)).toBe(false);
       expect(await exists(idle.player_id)).toBe(false);
-      expect((await s.fetch('/api/saves', { headers: auth(active.token) })).status).toBe(200);
+      const r = await s.fetch('/api/saves', { headers: auth(active.token) });
+      expect(r.status).toBe(401);
+      await r.arrayBuffer();
     } finally {
       await s.close();
     }

@@ -116,13 +116,17 @@ function rollDrops(draft, unit, data, log) {
   }
 }
 
-/** 生命降到門檻以下 → 進入該階段。一次跨過多個門檻時依門檻由高到低依序觸發（同門檻依資料順序），每段只觸發一次。 */
-function checkPhases(draft, unit, data, log) {
+/**
+ * 生命降到門檻以下 → 進入該階段。一次跨過多個門檻時依門檻由高到低依序觸發（同門檻依資料順序），每段只觸發一次。
+ * onKill：這一擊把敵人打倒了——只觸發標了 on_kill: true 的階段（例如潮兆的第十三響），其他階段跳過（M5 最後修正 2）。
+ */
+function checkPhases(draft, unit, data, log, { onKill = false } = {}) {
   const def = enemyDef(data, unit.id);
   const phases = (Array.isArray(def.phases) ? def.phases : []).map((ph, index) => ({ ph, index }))
     .sort((a, b) => b.ph.hp_lte_pct - a.ph.hp_lte_pct || a.index - b.index);
   phases.forEach(({ ph, index }) => {
     if (unit.phasesDone.includes(index) || !(hpRatio(unit) * 100 <= ph.hp_lte_pct)) return;
+    if (onKill && ph.on_kill !== true) return;
     unit.phasesDone.push(index);
     unit.extraAi.push(...structuredClone(Array.isArray(ph.add_ai) ? ph.add_ai : []));
     log.push({ type: 'phase', uid: unit.uid, index, dialogue: typeof ph.dialogue === 'string' ? ph.dialogue : null });
@@ -180,8 +184,8 @@ export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log, o
       target.hp = Math.max(0, target.hp - amount);
       log.push({ type: 'damage', source: source.uid, target: target.uid, amount, crit, hp: target.hp, ...(foreseen ? { foreseen: true } : {}), ...(sleeping ? { sleeping: true } : {}) });
       if (target.hp === 0) {
-        // M5 修正輪 6：一擊打倒時，跨過的階段（含階段對話，例如潮兆的第十三響）仍依序觸發，之後才倒下
-        if (target.side === 'enemy') checkPhases(draft, target, data, log);
+        // M5 修正輪 6／最後修正 2：一擊打倒時，跨過的階段中標了 on_kill 的（例如潮兆的第十三響）仍依序觸發，之後才倒下
+        if (target.side === 'enemy') checkPhases(draft, target, data, log, { onKill: true });
         defeat(draft, target, data, log);
         return;
       }

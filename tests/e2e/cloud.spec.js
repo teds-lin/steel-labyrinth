@@ -32,7 +32,7 @@ const CLOUD_KEY = 'steel-labyrinth:cloud';
 const isTouch = (testInfo) => testInfo.project.name === 'mobile';
 const UNAVAILABLE = '雲端暫時無法使用，稍後再試';
 // 修訂 4b 第 3 節：重新連結頁面另外提示可以重新啟用
-const RELINK = '此裝置的雲端連結已失效，請重新用轉移碼接續。\n也可以重新啟用雲端存檔（本機存檔不受影響）。';
+const RELINK = '此裝置的雲端連結已失效，請重新用轉移碼接續。\n啟用雲端存檔後 7 天內都沒有上傳過存檔的帳號會被清除，\n這時也可以重新啟用雲端存檔（本機存檔不受影響）。';
 
 /** 頁面載入前寫入雲端資訊（只寫一次）。 */
 async function seedCloud(page, info) {

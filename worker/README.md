@@ -29,7 +29,7 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
    M4 另外兩個 secret（同樣用 `wrangler secret put`，不要寫進任何檔案）：
    - `TURNSTILE_SECRET`：Cloudflare 儀表板建立 Turnstile 小工具（hostname `teds-lin.github.io`）後的 secret key。
    - `DREAM_PASS_SECRET`：夢境通行證的 HMAC 金鑰，至少 32 字元的隨機字串（產生方式同上）。更換只會讓尚未過期的通行證失效（玩家重新入夢即可）。
-4. M4：上傳夢客人設與詞表（見下方「鐘塔之夢」），再 `npm run worker:deploy`。Cron Trigger（`wrangler.toml` 的 `[triggers] crons`，每天 UTC 03:17 清理：180 天未登入的玩家、超過 7 天沒有使用（`last_seen`）的空帳號，每次最多 `PURGE_BATCH` 人）會隨部署自動註冊，**不需要另外設定**；部署輸出會列出 `schedule: 17 3 * * *`。
+4. M4：上傳夢客人設與詞表（見下方「鐘塔之夢」），再 `npm run worker:deploy`。Cron Trigger（`wrangler.toml` 的 `[triggers] crons`，每天 UTC 03:17 清理：180 天未登入的玩家、建立超過 7 天（`created_at`，不看 `last_seen`，API.md 修訂 5a）的空帳號，每次最多 `PURGE_BATCH` 人）會隨部署自動註冊，**不需要另外設定**；部署輸出會列出 `schedule: 17 3 * * *`。
 5. 把部署輸出的 `https://steel-labyrinth.<帳號>.workers.dev` 填進 **`web/src/cloud/endpoint.js` 的 `API_BASE_DEFAULT`**（預設是空字串＝雲端功能停用），再發布網站。`web/src/config.js` 只是呼叫它，不要改那裡。
 6. 需要調整限流值、容量或統計門檻時，改 `wrangler.toml` 的 `[vars]`，跑 `npm test`（`tests/worker/cron-cost.test.js` 會用新值重算每日最壞寫入並擋下超過 10 萬列的設定）後重新部署。
 
@@ -54,7 +54,7 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
 - 全域上限：建立玩家每小時 15（M5 修正輪由 60 調降，見 API.md 修訂 5）、轉移碼每小時 120（含 `POST /api/player` 與 rotate 的轉移碼碰撞 409）。轉移額度（該來源或全域）已滿時，`POST /api/player` 與 rotate 一律 429、不寫入（修訂 4b：避免從「碰撞 429／沒碰撞成功」分辨是否猜中別人的轉移碼）。
 - 來源：IPv4 以單一位址、IPv6 以 /64 計算；IPv6 另以 /48 限制（建立玩家 10、轉移 20）。
 - 低熵秘密 400：權杖不同字元少於 16 種、轉移碼同一字元出現 4 次以上（客戶端用同一份判斷重抽，官方客戶端不會被誤殺）。
-- `MAX_PLAYERS=5000`：最壞 5000 × 3 格 × 16 KB ≈ 240 MB，低於 D1 免費方案每個資料庫 500 MB 的一半。超過 7 天沒有使用（看 `last_seen`，修訂 4b）、沒有存檔也沒有通關紀錄的空帳號由 Cron 刪除，釋出名額；被刪的玩家回到遊戲時會看到重新連結頁面，可以重新啟用雲端存檔。
+- `MAX_PLAYERS=5000`：最壞 5000 × 3 格 × 16 KB ≈ 240 MB，低於 D1 免費方案每個資料庫 500 MB 的一半。建立超過 7 天、沒有存檔也沒有通關紀錄的空帳號由 Cron 刪除，釋出名額——看 `created_at` 而不看 `last_seen`（API.md 修訂 5a），所以惡意建立的空帳號不能靠定期讀取一直佔住名額。玩家這一側的代價：啟用雲端 7 天內都沒上傳過存檔的帳號會被清除，回到遊戲時會看到連結失效的重新連結頁面，重新啟用雲端存檔即可。
 - Cron 每次最多刪 `PURGE_BATCH=450` 人（M5 修正輪起；必須 ≥ 每日最多新建帳號數 15 × 25＝375，空帳號才不會累積；單次最多約 14,400 列寫入；開放到終章後每人 32 列（M4 時 22 列）：3 格存檔、每章通關、統計 trigger、容量計數、9 個玩家限流 bucket〔write、clear、rotate、rsv、transfer、dpass、dchat、dcall、dmin〕）；玩家的限流紀錄與玩家一起刪，IP 與全域的過期限流紀錄每天清。
 - `GET /api/stats` 讀 `chapter_stats`（讀取列數＝章節數），並用 Cache API 快取 60 秒。注意：Cache API 在 `*.workers.dev` 網域上可能不生效；即使不生效，每次也只讀幾列。回報通關的遊戲時間上限 `MAX_PLAYER_SECONDS=36000`（10 小時）。
 - 惡意流量的每日寫入上限由 `tests/worker/cron-cost.test.js` 依 API.md 修訂 4 第 6 節／4a 的算式（一個 UTC 日 25 個時間窗、每次已登入寫入以最貴的「新通關」計、Cron 以每日 `PURGE_BATCH` 人計、含 IP 限流紀錄清理），用 `wrangler.toml` 的實際值與實測的每請求寫入列數計算，另含並行失敗路徑（實測 0 列），斷言低於免費的 10 萬列（目前 91,557 列，含夢境通行證與夢客對話），並斷言 `PURGE_BATCH` ≥ 每日最多新建帳號數；調整 `[vars]` 時這個測試會把關。

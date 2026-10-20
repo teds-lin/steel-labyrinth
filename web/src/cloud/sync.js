@@ -29,8 +29,8 @@ export const CLEAR_QUEUE_KEY = 'steel-labyrinth:cloud-clear-queue';
 export const MSG = Object.freeze({
   unavailable: '雲端暫時無法使用，稍後再試',
   relink: '此裝置的雲端連結已失效，請重新用轉移碼接續',
-  // 修訂 4b 第 3 節：401 的重新連結頁面（帳號可能因長時間沒有使用、也沒有存檔而被清除）
-  relinkPage: '此裝置的雲端連結已失效，請重新用轉移碼接續。\n也可以重新啟用雲端存檔（本機存檔不受影響）。',
+  // 修訂 4b 第 3 節／修訂 5a：401 的重新連結頁面（啟用後 7 天內沒有上傳存檔、也沒有通關紀錄的帳號會被 Cron 清除）
+  relinkPage: '此裝置的雲端連結已失效，請重新用轉移碼接續。\n啟用雲端存檔後 7 天內都沒有上傳過存檔的帳號會被清除，\n這時也可以重新啟用雲端存檔（本機存檔不受影響）。',
   badCode: '轉移碼不正確或已失效，請確認後再輸入',
   cloudEmpty: '雲端的這一格是空的',
   disabled: '尚未啟用雲端存檔',
