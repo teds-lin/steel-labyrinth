@@ -166,13 +166,13 @@
         {
           "id": "o2",
           "speaker": null,
-          "text": "辦公桌上攤著所有東西：詩班名冊、沒有舌的鐘、艾妲和蘿絲的夢話。",
+          "text": "辦公桌上攤著這幾天查到的東西：詩班名冊、地下水道的地圖，還有艾妲醒來後說的話。",
           "next": "o3"
         },
         {
           "id": "o3",
           "speaker": "{name}",
-          "text": "名冊最後一頁，被橫線劃掉的那座鐘。她們都說「他們要讓鐘停下來」。",
+          "text": "名冊最後一頁，被橫線劃掉的那座鐘。艾妲昏迷時也說過：「他們要讓鐘停下來」。",
           "branches": [
             {
               "if": {
@@ -1282,6 +1282,26 @@
           "id": "w7",
           "speaker": null,
           "text": "你伸出手。指尖碰到了艾妲的手指，然後滑開了。",
+          "next": "w8",
+          "branches": [
+            {
+              "if": {
+                "in_party": "herb"
+              },
+              "next": "w7h"
+            }
+          ]
+        },
+        {
+          "id": "w7h",
+          "speaker": "老賀伯",
+          "text": "小子——！",
+          "next": "w7i"
+        },
+        {
+          "id": "w7i",
+          "speaker": null,
+          "text": "老賀伯撲過來，只抓到你的衣角。布料從他的指縫裡滑了出去。",
           "next": "w8"
         },
         {
@@ -1900,6 +1920,20 @@
           "id": "k4",
           "speaker": "艾妲",
           "text": "我一直拉著你。我想進你的夢裡找你，可是……你的夢又鎖起來了。",
+          "next": "k5",
+          "branches": [
+            {
+              "if": {
+                "in_party": "herb"
+              },
+              "next": "k4h"
+            }
+          ]
+        },
+        {
+          "id": "k4h",
+          "speaker": "老賀伯",
+          "text": "（喘著氣）你這小子……我這把老骨頭，差點就跟著跳下去了。",
           "next": "k5"
         },
         {
@@ -2839,47 +2873,8 @@
     },
     {
       "id": "dlg_ch7_victory",
-      "start": "v0",
+      "start": "v1",
       "nodes": [
-        {
-          "id": "v0",
-          "speaker": null,
-          "branches": [
-            {
-              "if": {
-                "collapse_gte": 70
-              },
-              "next": "vf"
-            },
-            {
-              "if": {
-                "collapse_lte": 40
-              },
-              "next": "vc"
-            }
-          ],
-          "next": "v1"
-        },
-        {
-          "id": "vf",
-          "speaker": null,
-          "effects": [
-            {
-              "set_flag": "final_frayed"
-            }
-          ],
-          "next": "v1"
-        },
-        {
-          "id": "vc",
-          "speaker": null,
-          "effects": [
-            {
-              "set_flag": "final_calm"
-            }
-          ],
-          "next": "v1"
-        },
         {
           "id": "v1",
           "speaker": null,

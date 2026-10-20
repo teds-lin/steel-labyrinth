@@ -364,18 +364,20 @@ async function deleteSave(request, env, now, rawSlot) {
 const chaptersOf = (env) => String(env.CHAPTERS ?? '').split(',').map((c) => c.trim()).filter(Boolean);
 
 /**
- * vars 的 ENDINGS（逗號分隔）：允許回報的結局 id 白名單（M5 P7），必須等於公開資料所有 story 的 endings[].id（測試把關）。
- * 空字串＝還沒有結局：任何字串 ending 都 400。
+ * vars 的 ENDINGS（逗號分隔的「章節:結局」，例如 finale:dawn）：允許回報的結局白名單（M5 P7；修正輪改成依章節），
+ * 必須等於公開資料所有 story 的「story.id:endings[].id」（測試把關）。ending 只接受出現在該 chapter 的結局；
+ * 格式不對（沒有章節或結局）的項目不生效。空字串＝還沒有結局：任何字串 ending 都 400。
+ * 回傳 Set（"章節:結局"）。
  */
-const endingsOf = (env) => String(env.ENDINGS ?? '').split(',').map((c) => c.trim()).filter(Boolean);
+const endingsOf = (env) => new Set(String(env.ENDINGS ?? '').split(',').map((c) => c.trim()).filter((c) => /^[^:\s]+:[^:\s]+$/.test(c)));
 
 /** maxSeconds：MAX_PLAYER_SECONDS（修訂 4 第 7 節：10 小時，超過 400）。 */
 function validClear(body, chapters, endings, maxSeconds) {
   if (!isPlainObject(body)) return false;
   const { chapter, play_seconds: ps, collapse } = body;
   if (typeof chapter !== 'string' || !chapters.includes(chapter)) return false;
-  // M5：ending 可以省略或 null（沒有結局的章節）；字串必須在 ENDINGS 白名單內
-  if (Object.hasOwn(body, 'ending') && body.ending !== null && !(typeof body.ending === 'string' && endings.includes(body.ending))) return false;
+  // M5：ending 可以省略或 null（沒有結局的章節）；字串必須是該 chapter 在 ENDINGS 白名單內的結局
+  if (Object.hasOwn(body, 'ending') && body.ending !== null && !(typeof body.ending === 'string' && endings.has(`${chapter}:${body.ending}`))) return false;
   if (typeof ps !== 'number' || !Number.isFinite(ps) || ps < 0 || ps > maxSeconds) return false;
   if (!Number.isInteger(collapse) || collapse < 0 || collapse > 100) return false;
   return true;

@@ -96,26 +96,6 @@
             "flag": "ch4_started"
           },
           "once": false
-        },
-        {
-          "id": "nine_t4_moss",
-          "label": "兩捲黑線換一份回聲苔。這種苔，我也是託人摘的。",
-          "give": [
-            {
-              "item": "hush_thread",
-              "count": 2
-            }
-          ],
-          "get": [
-            {
-              "item": "echo_moss",
-              "count": 1
-            }
-          ],
-          "if": {
-            "flag": "ch4_started"
-          },
-          "once": true
         }
       ]
     }
@@ -1810,15 +1790,6 @@
               "next": "nm"
             },
             {
-              "text": "「再去看看。」",
-              "if": {
-                "not": {
-                  "resonance_gte": 8
-                }
-              },
-              "next": "wait1"
-            },
-            {
               "text": "「再等一下。」",
               "next": "wait2"
             }
@@ -1827,13 +1798,7 @@
         {
           "id": "nm",
           "speaker": "老賀伯",
-          "text": "苔要兩份、蠟要一塊。少了就去找——九點那種地方也行，別問我怎麼知道的。",
-          "next": "END"
-        },
-        {
-          "id": "wait1",
-          "speaker": "老賀伯",
-          "text": "你還沒把上一劑消化完。去把看見的事想清楚，再回來。",
+          "text": "苔要兩份、蠟要一塊。……奇怪，明明都交給你了。翻翻口袋吧。",
           "next": "END"
         },
         {

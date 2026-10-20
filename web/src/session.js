@@ -159,6 +159,7 @@ export const session = {
    */
   resumeTarget(state, notices = []) {
     const r = resumeScene(state, this.data);
+    if (r.state) this.setState(r.state); // 已完結但 ending 不合法：重新判定後的 state（M5 修正輪）
     if (r.scene === 'ChapterEnd') return { scene: 'ChapterEnd', data: { chapter: r.chapter, notices } };
     return { scene: 'Map', data: { notices } };
   },

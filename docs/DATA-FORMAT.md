@@ -399,7 +399,9 @@ web/data/
   ```
 - 對話效果 `{ "resolve_ending": true }`：依 `endings` 判定，對話結束後播放該結局的對話，並把結局 id 記在 `state.ending`。
 - 結局對話的最後要有 `{ "chapter_end": "finale" }`；結局畫面顯示 `end_screen.title` 與結局名稱（`endings[].title`）。
-- `/api/clear` 的 `ending` 必須在 vars `ENDINGS`（逗號分隔）白名單內；沒有結局的章節仍送 null。
+- 讀檔：存檔停在已完成、有 `endings` 的章節，但 `state.ending` 是 null 或不屬於該章時（被竄改或舊版），用 `resolveEnding` 依旗標重新判定並顯示結局畫面，不會落在該章地圖（`web/src/ui/m5-view.js` 的 `resumeScene`）。
+- 上面的判定表只是格式範例（條件可以用任何條件寫法）；正式資料的結局條件以私有企劃為準。
+- `/api/clear` 的 `ending` 必須是該 chapter 的結局：vars `ENDINGS` 是逗號分隔的「章節:結局」（例如 `finale:dawn`），必須等於所有 story 的 `story.id:endings[].id`；沒有結局的章節仍送 null。
 
 ## 補充（2026-10-18，依故事聖經）
 1. `{ "can_promote": N }`：通用寫法，表示「目前階位是 N+1，且晉升到 N 的材料齊全」。

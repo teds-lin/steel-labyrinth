@@ -164,6 +164,26 @@ describe('resumeScene（讀檔後的畫面）', () => {
   it('已完結的存檔（chapter_done＋ending）→ 結局畫面', () => {
     expect(resumeScene(base({ chapter: 'fx_finale', chapter_done: ['fx_ch4', 'fx_finale'], ending: 'fx_dawn' }), data)).toEqual({ scene: 'ChapterEnd', chapter: 'fx_finale' });
   });
+  // M5 修正輪（惡意玩家回報）：已完結的存檔 ending 是 null 或非法 → 用 resolveEnding 重新判定，回結局畫面（不落在終章地圖）
+  it.each([
+    ['null', null],
+    ['不存在的結局 id', 'true_end'],
+    ['別章的 id（不是終章的結局）', 'fx_ch4'],
+    ['不是字串', 42],
+  ])('已完結但 ending 是 %s → 重新判定結局，回結局畫面並帶回判定後的 state', (_why, ending) => {
+    const calm = base({ chapter: 'fx_finale', chapter_done: ['fx_ch4', 'fx_finale'], ending, flags: { fx5_trusted: true }, collapse: 10 });
+    const r = resumeScene(calm, data);
+    expect(r).toMatchObject({ scene: 'ChapterEnd', chapter: 'fx_finale' });
+    expect(r.state.ending).toBe('fx_lamp');
+    expect(endingScreen('fx_finale', r.state, data).id).toBe('fx_lamp');
+    const frayed = resumeScene(base({ chapter: 'fx_finale', chapter_done: ['fx_finale'], ending, collapse: 80 }), data);
+    expect(frayed.state.ending).toBe('fx_fog');
+    expect(calm.ending).toBe(ending); // 純函式：不改輸入
+  });
+  it('合法 ending 不重新判定（不帶 state）', () => {
+    const r = resumeScene(base({ chapter: 'fx_finale', chapter_done: ['fx_finale'], ending: 'fx_dawn', flags: { fx5_trusted: true } }), data);
+    expect(r).toEqual({ scene: 'ChapterEnd', chapter: 'fx_finale' });
+  });
   it('終章還沒完結 → 地圖；有 continue 的章節結尾 → 章節結束畫面', () => {
     expect(resumeScene(base({ chapter: 'fx_finale', chapter_done: ['fx_ch4'] }), data)).toEqual({ scene: 'Map' });
     const withContinue = structuredClone(data);

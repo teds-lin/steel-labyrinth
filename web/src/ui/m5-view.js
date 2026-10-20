@@ -2,7 +2,7 @@
 // 不碰 Phaser，可以在 node 測試（tests/ui/m5-view.test.js）。規則一律交給 core，這裡只負責排版文字。
 import { promotionStatus, resonanceTotal } from '../core/promotion.js';
 import { availableTrades } from '../core/trade.js';
-import { endingsOf } from '../core/ending.js';
+import { endingsOf, resolveEnding } from '../core/ending.js';
 import { END } from '../core/dialogue.js';
 import { fill } from '../core/name.js';
 
@@ -169,6 +169,8 @@ export function endingScreen(chapterId, state, data) {
 /**
  * 讀檔後要進哪個畫面：存檔停在已完成的章節結尾，而且（有下一章 continue，或是已判定結局的終章）時回章節結束畫面；
  * 其他情況回地圖。回傳 { scene:'ChapterEnd', chapter } 或 { scene:'Map' }。
+ * M5 修正輪：已完結的有結局章節，存檔的 ending 卻是 null 或不屬於該章（被竄改、舊版）時，用 resolveEnding 依旗標重新判定，
+ * 回傳 { scene:'ChapterEnd', chapter, state }（state.ending 已寫入；呼叫端要把它設回 session），不會落在終章地圖。
  */
 export function resumeScene(state, data) {
   const ch = state?.chapter;
@@ -176,6 +178,14 @@ export function resumeScene(state, data) {
   if (typeof ch === 'string' && done.includes(ch)) {
     const story = findById(data?.story, ch);
     if (isObj(story?.end_screen?.continue) || endingScreen(ch, state, data)) return { scene: 'ChapterEnd', chapter: ch };
+    if (endingsOf(ch, data).length > 0) {
+      try {
+        const r = resolveEnding(state, data, { chapter: ch });
+        return { scene: 'ChapterEnd', chapter: ch, state: r.state };
+      } catch (e) {
+        console.warn('讀檔時重新判定結局失敗', e);
+      }
+    }
   }
   return { scene: 'Map' };
 }

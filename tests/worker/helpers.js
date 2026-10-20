@@ -134,8 +134,11 @@ export async function startWorker({ varsOverride = {}, bindingsOverride, config 
   const d1 = cfg.d1_databases.find((d) => d.binding === 'DB');
   const { TRANSFER_PEPPER: _devPepper, ...devVars } = devVarOverrides();
   // D1_METRICS=1：回應加上 x-d1-rows 標頭（本次請求的 D1 讀寫列數），只在測試開啟。
+  // RL_PLAYER_GLOBAL_PER_HOUR：正式值（M5 修正輪起 15）比單一測試檔建立的玩家數少，測試預設調高；
+  // 要測全域上限本身的測試用 varsOverride 指定（tests/worker/ratelimit.test.js），正式值由 config.test.js／cron-cost.test.js 把關。
   const bindings = bindingsOverride ?? {
     ...cfg.vars, ...devVars, D1_METRICS: '1', TURNSTILE_SECRET: TEST_TURNSTILE_SECRET, DREAM_PASS_SECRET: TEST_DREAM_PASS_SECRET,
+    RL_PLAYER_GLOBAL_PER_HOUR: '1000',
     ...varsOverride, TRANSFER_PEPPER: TEST_PEPPER,
   };
   const siteverifyCalls = [];

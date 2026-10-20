@@ -21,7 +21,7 @@ const DREAM_SQL = join(tmpdir(), `steel-labyrinth-dream-e2e-${STATE.replace(/\D/
 // 線上驗證：設定 E2E_BASE_URL（例如 GitHub Pages）與 E2E_API_URL（正式 Worker）時，不啟動本機伺服器與 Worker。
 // 正式環境有頻率限制，請用 --grep 只跑需要的情境。
 const REMOTE = process.env.E2E_BASE_URL;
-// M5：E2E 的通關回報白名單＝正式資料的章節與結局＋M5 測試 fixture（tests/fixtures/m5）的章節與結局。
+// M5：E2E 的通關回報白名單＝正式資料的章節與「章節:結局」＋M5 測試 fixture（tests/fixtures/m5）的章節與「章節:結局」。
 // 每次從資料讀，正式資料加了新章節或結局也不必改這裡（正式 toml 的 CHAPTERS／ENDINGS 由 tests/worker 的測試把關）。
 function clearWhitelist() {
   const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
@@ -30,7 +30,10 @@ function clearWhitelist() {
   for (const dir of ['web/data/', 'tests/fixtures/m5/']) {
     const m = read(`${dir}manifest.json`);
     chapters.push(...m.chapters);
-    for (const id of m.files.story) for (const e of read(`${dir}story/${id}.json`).endings ?? []) endings.push(e.id);
+    for (const id of m.files.story) {
+      const story = read(`${dir}story/${id}.json`);
+      for (const e of story.endings ?? []) endings.push(`${story.id}:${e.id}`); // 「章節:結局」（M5 修正輪）
+    }
   }
   return { chapters: [...new Set(chapters)].join(','), endings: [...new Set(endings)].join(',') };
 }

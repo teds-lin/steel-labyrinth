@@ -143,12 +143,37 @@ test.describe('M5 最終戰與結局（正式資料）', () => {
     const s = await g.st();
     const ending = FINALE.endings.find((e) => e.id === s.ending);
     expect(ending, `state.ending＝${s.ending}`).toBeTruthy();
-    // 照實陳述＋站在隊長這邊：崩解 ≤ 40 → 燈火未熄，否則黎明之前（沒有回應潮水，不會是霧中行者）
-    expect(s.ending).toBe(s.flags.final_calm ? 'lamp_kept' : 'dawn');
+    // 照實陳述＋站在隊長這邊、沒有硬喝、摀住耳朵 → 燈火未熄（結局不看崩解）
+    expect(s.ending).toBe('lamp_kept');
+    expect(s.flags.ch7_thirteenth).toBe(true);
     expect(ce.ending).toMatchObject({ id: ending.id, title: ending.title, partTitle: FINALE.end_screen.title });
     expect(ce.title).toBe(FINALE.end_screen.title);
     expect(ce.credits).toEqual(FINALE.end_screen.credits.map((l) => l.replaceAll('{name}', '艾琳')));
     expect(s.chapter_done).toContain('finale');
     if (touch) await page.screenshot({ path: testInfo.outputPath('m5-final-ending-mobile.png') });
   });
+
+  // 惡意玩家回報：已完結的存檔把 ending 改成 null 或亂寫 → 讀檔時重新判定結局並顯示結局畫面（不落在終章地圖）
+  for (const [why, bad] of [['null', null], ['不存在的結局', 'true_end']]) {
+    test(`已完結的存檔 ending 是 ${why} → 讀檔後重新判定，顯示結局畫面`, async ({ page }, testInfo) => {
+      const touch = isTouch(testInfo);
+      const save = {
+        ...finalSave(),
+        location: { map: 'office_dawn', x: 9, y: 6, dir: 'up' },
+        chapter: 'finale',
+        chapter_done: ['prologue', 'chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6', 'chapter7', 'finale'],
+        flags: { ...finalSave().flags, heeded_tide: true },
+        ending: bad,
+      };
+      await seedSaves(page, { 1: save });
+      const g = game(page, { touch });
+      await page.goto(TEST_URL);
+      await loadSlot(g);
+      await g.waitScene('ChapterEnd');
+      await page.waitForFunction(() => window.__SL.debug().chapterEnd?.ending);
+      const ce = (await page.evaluate(() => window.__SL.debug())).chapterEnd;
+      expect(ce.ending).toMatchObject({ id: 'fog_walker', title: '霧中行者', partTitle: FINALE.end_screen.title });
+      expect((await g.st()).ending).toBe('fog_walker');
+    });
+  }
 });

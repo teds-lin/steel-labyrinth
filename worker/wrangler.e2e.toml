@@ -29,22 +29,23 @@ RL_ROTATE_PER_HOUR = "3"     # 重新產生轉移碼：同一玩家（重送已�
 RL_CLEAR_PER_HOUR = "10"     # 回報通關：同一玩家
 RL_RESERVED_PER_HOUR = "3"   # 保留通道：同一玩家每小時前 3 次寫入（PUT、DELETE、clear、rotate 合計）不受全域每小時上限，改計入全域每日預算
 # 全域上限（不分來源；修訂 3／3a／4）。惡意流量每日寫入上限由 tests/worker/cron-cost.test.js 用這些值計算並斷言 < 10 萬列。
-RL_PLAYER_GLOBAL_PER_HOUR = "60"     # 建立玩家：全部來源合計
+RL_PLAYER_GLOBAL_PER_HOUR = "15"     # 建立玩家：全部來源合計（M5 修正輪由 60 調降：每個 UTC 日最多 15 × 25 窗＝375 個新帳號，不超過 PURGE_BATCH）
 RL_TRANSFER_GLOBAL_PER_HOUR = "120"  # 轉移碼嘗試（含碰撞 409）：全部來源合計（修訂 3a）
 RL_WRITE_GLOBAL_PER_HOUR = "100"     # （修訂 4a）已登入的寫入（PUT＋DELETE＋clear＋rotate），保留通道以外：全部玩家合計
 RL_WRITE_GLOBAL_PER_DAY = "4000"     # （修訂 4）保留通道的全域每日預算（UTC 日）；由 cron-cost.test.js 的算式推算（見 docs/API.md 修訂 4a）
 # 容量上限：玩家數達到後 POST /api/player 回 503 capacity（5000 × 3 格 × 16 KB ≈ 240 MB，低於 D1 免費 500 MB 的一半）
 MAX_PLAYERS = "5000"
-# Cron 每次最多刪除的玩家數（含其存檔、通關紀錄；修訂 4 第 2 節）
-PURGE_BATCH = "340"
+# Cron 每次最多刪除的玩家數（含其存檔、通關紀錄；修訂 4 第 2 節）。必須 ≥ 每日最多新建帳號數（RL_PLAYER_GLOBAL_PER_HOUR × 25），空帳號才不會累積
+PURGE_BATCH = "450"
 # 回報通關的遊戲時間上限（秒，10 小時；修訂 4 第 7 節）
 MAX_PLAYER_SECONDS = "36000"
 # 統計：完成人數少於這個數的章節不公開
 STATS_MIN_PLAYERS = "3"
 # 允許回報通關的章節，必須等於 web/data/manifest.json 的 chapters（tests/worker/clear-stats.test.js 把關）
 CHAPTERS = "prologue,chapter1,chapter2,chapter3,chapter4,chapter5,chapter6,chapter7,finale"
-# M5：允許回報的結局 id（逗號分隔），必須等於公開資料所有 story 的 endings[].id（tests/worker/clear-ending.test.js 把關）；空字串＝還沒有結局，ending 只能送 null
-ENDINGS = "fog_walker,lamp_kept,dawn"
+# M5：允許回報的結局（逗號分隔的「章節:結局」；ending 必須是該 chapter 的結局），必須等於公開資料所有 story 的「story.id:endings[].id」
+# （tests/worker/clear-ending.test.js 把關）；空字串＝還沒有結局，ending 只能送 null
+ENDINGS = "finale:fog_walker,finale:lamp_kept,finale:dawn"
 
 # ---------- M4 鐘塔之夢（docs/API.md「鐘塔之夢」；模型與 neurons 依 steel-labyrinth-design/plans/M4-model-eval.md） ----------
 # Turnstile：siteverify 回傳的 hostname 必須在清單內（逗號分隔）。本機與 E2E 用 --var 覆寫（見 worker/README.md）。

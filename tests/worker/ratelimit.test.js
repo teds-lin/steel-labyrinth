@@ -200,10 +200,10 @@ describe('全域上限（修訂 2 D：不分來源）', () => {
     }
   });
 
-  it('預設值（修訂 3／3a／4a）：玩家 60、轉移 120、已登入寫入每小時 100＋保留通道每日 4000、容量 5000', async () => {
+  it('預設值（修訂 3／3a／4a；M5 修正輪玩家 60 → 15）：玩家 15、轉移 120、已登入寫入每小時 100＋保留通道每日 4000、容量 5000', async () => {
     const { readWranglerConfig } = await import('./helpers.js');
     const { vars } = readWranglerConfig();
-    expect(Number(vars.RL_PLAYER_GLOBAL_PER_HOUR)).toBe(60);
+    expect(Number(vars.RL_PLAYER_GLOBAL_PER_HOUR)).toBe(15);
     expect(Number(vars.RL_TRANSFER_GLOBAL_PER_HOUR)).toBe(120);
     expect(Number(vars.RL_WRITE_GLOBAL_PER_HOUR)).toBe(100);
     expect(Number(vars.RL_WRITE_GLOBAL_PER_DAY)).toBe(4000);

@@ -18,10 +18,17 @@
       "if": {
         "any": [
           {
-            "flag": "final_frayed"
+            "flag": "heeded_tide"
           },
           {
-            "flag": "heeded_tide"
+            "all": [
+              {
+                "promoted_forced": 8
+              },
+              {
+                "promoted_forced": 7
+              }
+            ]
           }
         ]
       },
@@ -31,14 +38,7 @@
       "id": "lamp_kept",
       "title": "燈火未熄",
       "if": {
-        "all": [
-          {
-            "flag": "marlo_trusted"
-          },
-          {
-            "flag": "final_calm"
-          }
-        ]
+        "flag": "marlo_trusted"
       },
       "dialogue": "dlg_end_lamp_kept"
     },
@@ -121,13 +121,13 @@
         {
           "id": "l2b",
           "speaker": "{name}",
-          "text": "艾妲，妳的手……不抖了。",
+          "text": "艾妲，昨晚在沉堤上……謝謝妳。",
           "next": "l2c"
         },
         {
           "id": "l2c",
           "speaker": "艾妲",
-          "text": "嗯。這次，是我拉住你的喔。",
+          "text": "嗯。這次，換我拉住你了。",
           "next": "l2d"
         },
         {
@@ -261,7 +261,7 @@
         {
           "id": "m9",
           "speaker": "艾妲",
-          "text": "那我也要去！我想看看，讓隊長寫了九年信的人。",
+          "text": "那我也要去！能讓隊長笑出來的信，收信的人一定很重要。",
           "next": "m10"
         },
         {
@@ -661,12 +661,6 @@
                 "flag": "ch6_refused_statement"
               },
               "next": "rf"
-            },
-            {
-              "if": {
-                "flag": "inspector_convinced"
-              },
-              "next": "ic"
             }
           ],
           "next": "o0"
@@ -681,12 +675,6 @@
           "id": "rf",
           "speaker": null,
           "text": "燈律院寄來一封公文，信封上寫著你的名字。你還沒有拆。",
-          "next": "o0"
-        },
-        {
-          "id": "ic",
-          "speaker": null,
-          "text": "燈律院的回信只有一行：「報告收到。」沒有說延長，也沒有說結案。",
           "next": "o0"
         },
         {
@@ -884,18 +872,37 @@
           "id": "h1",
           "speaker": "{name}",
           "text": "（它說，我聽得見。……那我就去聽。）",
-          "next": "b3"
+          "next": "tb"
         },
         {
           "id": "h2",
           "speaker": "{name}",
-          "text": "（腦袋裡的雜音，已經壓不住了。再待下去，我會傷到他們。）",
+          "text": "（兩劑都喝得太急了。那些線一起在響，一刻也停不下來。再待下去，我會傷到他們。）",
           "next": "b3a"
         },
         {
           "id": "b3a",
           "speaker": null,
           "text": "桌上的茶杯還溫著。艾妲的圍巾掛在椅背上，老賀伯的筆還插在墨水瓶裡。",
+          "next": "tb"
+        },
+        {
+          "id": "tb",
+          "speaker": null,
+          "branches": [
+            {
+              "if": {
+                "flag": "marlo_trusted"
+              },
+              "next": "t1"
+            }
+          ],
+          "next": "b3"
+        },
+        {
+          "id": "t1",
+          "speaker": "{name}",
+          "text": "（我說過，要站在他那邊。……對不起，隊長。）",
           "next": "b3"
         },
         {

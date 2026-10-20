@@ -1,10 +1,11 @@
 // M5：POST /api/clear 的 ending 改用 vars ENDINGS 白名單（P7）；不新增任何 D1 寫入（Q4）。
+// M5 修正輪：ENDINGS 改成「章節:結局」配對（例如 finale:dawn），ending 必須是該 chapter 的結局（序章帶 lamp_kept → 400）。
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startWorker, newPlayer, auth, expectError, d1Rows, readWranglerConfig, ROOT } from './helpers.js';
 
-const WHITELIST = 'lamp_kept, fog_walker ,dawn'; // 逗號分隔，前後空白要容許
+const WHITELIST = 'chapter3:lamp_kept, chapter3:fog_walker ,chapter3:dawn,finale:dawn'; // 逗號分隔的「章節:結局」，前後空白要容許
 let w;
 beforeAll(async () => { w = await startWorker({ varsOverride: { ENDINGS: WHITELIST } }); });
 afterAll(async () => { await w?.close(); });
@@ -41,7 +42,7 @@ describe('POST /api/clear：ending 白名單（vars ENDINGS）', () => {
   });
 
   it.each([
-    'true_end', 'Dawn', 'dawn ', ' dawn', '', 'lamp_kept,dawn', 'chapter3', '__proto__', 'toString', false, 0, 1, true, ['dawn'], { id: 'dawn' },
+    'true_end', 'Dawn', 'dawn ', ' dawn', '', 'lamp_kept,dawn', 'chapter3', 'chapter3:dawn', ':dawn', '__proto__', 'toString', false, 0, 1, true, ['dawn'], { id: 'dawn' },
   ])('不在白名單（%j）→ 400，不寫入', async (e) => {
     const p = await newPlayer(w); // 每次用新玩家：同一玩家每小時只能回報 RL_CLEAR_PER_HOUR 次
     await expectError(await clear(p.token, ok({ ending: e })), 400, 'bad_request');
@@ -49,7 +50,30 @@ describe('POST /api/clear：ending 白名單（vars ENDINGS）', () => {
     expect(n.n).toBe(0);
   });
 
-  it('ENDINGS 是空字串（目前的正式設定）→ 任何字串 ending 都 400，null 照常', async () => {
+  it('結局不屬於該章 → 400，不寫入（序章帶 lamp_kept、chapter2 帶 dawn、finale 帶 chapter3 的 fog_walker）', async () => {
+    for (const [chapter, ending] of [['prologue', 'lamp_kept'], ['chapter2', 'dawn'], ['finale', 'fog_walker'], ['finale', 'lamp_kept']]) {
+      const p = await newPlayer(w);
+      await expectError(await clear(p.token, ok({ chapter, ending })), 400, 'bad_request');
+      const n = await w.db.prepare('SELECT COUNT(*) AS n FROM clears WHERE player_id = ?').bind(p.player_id).first();
+      expect(n.n, `${chapter}:${ending}`).toBe(0);
+    }
+    const p = await newPlayer(w);
+    expect((await clear(p.token, ok({ chapter: 'finale', ending: 'dawn' }))).status).toBe(200);
+  });
+
+  it('ENDINGS 裡格式不對的項目（沒有章節）不生效', async () => {
+    const s = await startWorker({ varsOverride: { ENDINGS: 'dawn,:lamp_kept,chapter3:' } });
+    try {
+      for (const e of ['dawn', 'lamp_kept', '']) {
+        const p = await newPlayer(s);
+        await expectError(await clear(p.token, ok({ ending: e }), s), 400, 'bad_request');
+      }
+    } finally {
+      await s.close();
+    }
+  });
+
+  it('ENDINGS 是空字串 → 任何字串 ending 都 400，null 照常', async () => {
     const s = await startWorker({ varsOverride: { ENDINGS: '' } });
     try {
       const p = await newPlayer(s);
@@ -89,22 +113,23 @@ describe('Q4：ending 不增加任何寫入列數（x-d1-rows 實測）', () => 
 });
 
 describe('vars ENDINGS（wrangler.toml）', () => {
-  const ids = (v) => String(v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  it('wrangler.toml 與 wrangler.e2e.toml 都有 ENDINGS（字串）；每個 id 是 [a-z0-9_]{1,32}', () => {
+  const pairs = (v) => String(v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  it('wrangler.toml 與 wrangler.e2e.toml 都有 ENDINGS（字串）；每一項是「章節:結局」，兩邊都是 [a-z0-9_]{1,32}', () => {
     for (const f of ['wrangler.toml', 'wrangler.e2e.toml']) {
       const raw = readFileSync(join(ROOT, 'worker', f), 'utf8');
       expect(raw, f).toMatch(/^ENDINGS = "/m);
     }
-    for (const id of ids(readWranglerConfig().vars.ENDINGS)) expect(id).toMatch(/^[a-z0-9_]{1,32}$/);
+    for (const p of pairs(readWranglerConfig().vars.ENDINGS)) expect(p).toMatch(/^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$/);
   });
 
-  it('ENDINGS 必須等於公開資料裡所有 endings 的 id（之後由主 session 依故事聖經填入；資料加了結局就要同步）', () => {
+  it('ENDINGS 必須等於公開資料裡所有「章節:結局」配對（資料加了結局就要同步）', () => {
     const manifest = JSON.parse(readFileSync(join(ROOT, 'web', 'data', 'manifest.json'), 'utf8'));
     const fromData = [];
     for (const id of manifest.files?.story ?? []) {
       const story = JSON.parse(readFileSync(join(ROOT, 'web', 'data', 'story', `${id}.json`), 'utf8'));
-      for (const e of Array.isArray(story.endings) ? story.endings : []) fromData.push(e.id);
+      for (const e of Array.isArray(story.endings) ? story.endings : []) fromData.push(`${story.id}:${e.id}`);
     }
-    expect(ids(readWranglerConfig().vars.ENDINGS).sort()).toEqual(fromData.sort());
+    expect(pairs(readWranglerConfig().vars.ENDINGS).sort()).toEqual(fromData.sort());
+    expect(fromData.length).toBeGreaterThan(0);
   });
 });

@@ -35,8 +35,8 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
 
 ### 部署前檢查清單
 - [ ] `npm test` 全綠（含 `tests/worker`、`tests/core`）；`npm run worker:build` 成功。
-- [ ] `test-results/cron-cost-total.txt`（`npm test` 產生）的每日最壞寫入低於 10 萬列，而且有合理餘裕（目前 98,507 列，鐘塔之夢修訂 1 之後；餘裕約 1.5%，見下方「成本與限制」）。
-- [ ] `[vars]` 有修訂 4 的新值：`RL_WRITE_PER_HOUR=20`、`RL_ROTATE_PER_HOUR=3`、`RL_CLEAR_PER_HOUR=10`、`RL_RESERVED_PER_HOUR=3`、`RL_WRITE_GLOBAL_PER_HOUR=100`、`RL_WRITE_GLOBAL_PER_DAY=4000`、`RL_PLAYER_PER_HOUR_V6_48=10`、`RL_TRANSFER_PER_HOUR_V6_48=20`、`PURGE_BATCH=500`、`MAX_PLAYER_SECONDS=36000`（`tests/worker/config.test.js` 把關）。
+- [ ] `test-results/cron-cost-total.txt`（`npm test` 產生）的每日最壞寫入低於 10 萬列，而且有合理餘裕（目前 91,557 列，M5 修正輪之後；餘裕約 8%，見下方「成本與限制」與 docs/API.md「修訂 5」）。
+- [ ] `[vars]` 有修訂 4 的新值：`RL_WRITE_PER_HOUR=20`、`RL_ROTATE_PER_HOUR=3`、`RL_CLEAR_PER_HOUR=10`、`RL_RESERVED_PER_HOUR=3`、`RL_WRITE_GLOBAL_PER_HOUR=100`、`RL_WRITE_GLOBAL_PER_DAY=4000`、`RL_PLAYER_PER_HOUR_V6_48=10`、`RL_TRANSFER_PER_HOUR_V6_48=20`、`MAX_PLAYER_SECONDS=36000`，以及 M5 修正輪的 `RL_PLAYER_GLOBAL_PER_HOUR=15`、`PURGE_BATCH=450`、`ENDINGS="finale:fog_walker,finale:lamp_kept,finale:dawn"`（「章節:結局」配對）（`tests/worker/config.test.js`、`clear-ending.test.js` 把關）。
 - [ ] `wrangler.toml` 的 `database_id` 已換成實際值（不是全 0）。
 - [ ] `ALLOWED_ORIGINS` 只有 `https://teds-lin.github.io`（沒有 localhost；測試會擋）。
 - [ ] `CHAPTERS` 等於 `web/data/manifest.json` 的 `chapters`（新增章節時兩邊一起改；測試會擋）。
@@ -51,14 +51,14 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
 - 超過限流的請求不寫入：多個限制用一條 SQL 敘述原子計數（修訂 4b），全部未滿才一起加一，任何一個滿了就一列都不寫——並行請求也一樣（`tests/worker/cron-cost.test.js` 實測並行 33 個被擋的寫入共 0 列）。
 - 每位玩家每小時（修訂 4）：存檔寫入（PUT＋DELETE）20、回報通關 10、重新產生轉移碼 3。rotate 重送「目前已生效的碼」直接 200，不計入任何限流。
 - **保留通道**（修訂 4）：每位玩家每小時前 3 次寫入（PUT、DELETE、clear、rotate 合計）不受全域每小時上限，改計入全域每日預算 `RL_WRITE_GLOBAL_PER_DAY=4000`；之後的寫入受全域每小時上限 `RL_WRITE_GLOBAL_PER_HOUR=100`（修訂 4a）。每日預算用完時保留通道關閉，所有寫入回到每小時上限。保留名額、端點限制與每日預算原子計數：單一帳號並行送再多請求，每日預算每小時最多也只增加 3（修訂 4b）。
-- 全域上限：建立玩家每小時 60、轉移碼每小時 120（含 `POST /api/player` 與 rotate 的轉移碼碰撞 409）。轉移額度（該來源或全域）已滿時，`POST /api/player` 與 rotate 一律 429、不寫入（修訂 4b：避免從「碰撞 429／沒碰撞成功」分辨是否猜中別人的轉移碼）。
+- 全域上限：建立玩家每小時 15（M5 修正輪由 60 調降，見 API.md 修訂 5）、轉移碼每小時 120（含 `POST /api/player` 與 rotate 的轉移碼碰撞 409）。轉移額度（該來源或全域）已滿時，`POST /api/player` 與 rotate 一律 429、不寫入（修訂 4b：避免從「碰撞 429／沒碰撞成功」分辨是否猜中別人的轉移碼）。
 - 來源：IPv4 以單一位址、IPv6 以 /64 計算；IPv6 另以 /48 限制（建立玩家 10、轉移 20）。
 - 低熵秘密 400：權杖不同字元少於 16 種、轉移碼同一字元出現 4 次以上（客戶端用同一份判斷重抽，官方客戶端不會被誤殺）。
 - `MAX_PLAYERS=5000`：最壞 5000 × 3 格 × 16 KB ≈ 240 MB，低於 D1 免費方案每個資料庫 500 MB 的一半。超過 7 天沒有使用（看 `last_seen`，修訂 4b）、沒有存檔也沒有通關紀錄的空帳號由 Cron 刪除，釋出名額；被刪的玩家回到遊戲時會看到重新連結頁面，可以重新啟用雲端存檔。
-- Cron 每次最多刪 `PURGE_BATCH=340` 人（M5 起；單次最多約 10,880 列寫入；開放到終章後每人 32 列（M4 時 22 列）：3 格存檔、每章通關、統計 trigger、容量計數、9 個玩家限流 bucket〔write、clear、rotate、rsv、transfer、dpass、dchat、dcall、dmin〕）；玩家的限流紀錄與玩家一起刪，IP 與全域的過期限流紀錄每天清。
+- Cron 每次最多刪 `PURGE_BATCH=450` 人（M5 修正輪起；必須 ≥ 每日最多新建帳號數 15 × 25＝375，空帳號才不會累積；單次最多約 14,400 列寫入；開放到終章後每人 32 列（M4 時 22 列）：3 格存檔、每章通關、統計 trigger、容量計數、9 個玩家限流 bucket〔write、clear、rotate、rsv、transfer、dpass、dchat、dcall、dmin〕）；玩家的限流紀錄與玩家一起刪，IP 與全域的過期限流紀錄每天清。
 - `GET /api/stats` 讀 `chapter_stats`（讀取列數＝章節數），並用 Cache API 快取 60 秒。注意：Cache API 在 `*.workers.dev` 網域上可能不生效；即使不生效，每次也只讀幾列。回報通關的遊戲時間上限 `MAX_PLAYER_SECONDS=36000`（10 小時）。
-- 惡意流量的每日寫入上限由 `tests/worker/cron-cost.test.js` 依 API.md 修訂 4 第 6 節／4a 的算式（一個 UTC 日 25 個時間窗、每次已登入寫入以最貴的「新通關」計、Cron 以每日 `PURGE_BATCH` 人計、含 IP 限流紀錄清理），用 `wrangler.toml` 的實際值與實測的每請求寫入列數計算，另含並行失敗路徑（實測 0 列），斷言低於免費的 10 萬列（目前 98,507 列，含夢境通行證與夢客對話）；調整 `[vars]` 時這個測試會把關。
-- **在加上 Turnstile 之前，全域額度仍可被有心人耗盡（門檻與時間點，修訂 4b 重估）**：要讓正常玩家連保留通道都寫不進去，必須「全域每日預算 4,000 用完」**而且**「全域每小時上限 100 被佔滿」。修訂 4b 之後每個帳號每小時最多只能消耗 3 次每日預算（並行也一樣），所以 N 個帳號從 UTC 午夜起持續寫入，約在 4,000 ÷ (3N) 小時後用完每日預算，之後鎖死到下一個 UTC 午夜（台灣時間早上 8 點）；佔滿每小時上限只需另外約 4 個帳號（每帳號每小時 30 次一般寫入）。換算：約 170 個帳號 → UTC 8 點（台灣下午 4 點）起鎖死；約 340 個 → UTC 4 點起；約 1,340 個 → UTC 1 點起，幾乎整天。少於約 56 個帳號整天也用不完每日預算（修正前約 5 個帳號以並行請求就能在一天內用完）。帳號建立受每 IP 每小時 5 個、每 /48 每小時 10 個、全域每小時 60 個限制：170 個帳號至少約 3 小時、1,340 個至少約 23 小時（都需要 12 個以上的 IPv4 或 6 個以上的 IPv6 /48 才能跑滿全域 60）；帳號可以事先慢慢建好囤著（有存檔就不會被 Cron 清掉，上限 `MAX_PLAYERS=5000`）。另外約 12 個 IPv4 就能佔滿建立玩家（60）或轉移（120）的全域每小時上限（/48 限制只對 IPv6 有效）；轉移額度被佔滿時，新玩家也無法啟用雲端存檔（修訂 4b 第 2 節的代價）。被耗盡時影響是「雲端暫時無法使用」，本機遊戲不受影響；通關紀錄會留在本機，之後補送。
+- 惡意流量的每日寫入上限由 `tests/worker/cron-cost.test.js` 依 API.md 修訂 4 第 6 節／4a 的算式（一個 UTC 日 25 個時間窗、每次已登入寫入以最貴的「新通關」計、Cron 以每日 `PURGE_BATCH` 人計、含 IP 限流紀錄清理），用 `wrangler.toml` 的實際值與實測的每請求寫入列數計算，另含並行失敗路徑（實測 0 列），斷言低於免費的 10 萬列（目前 91,557 列，含夢境通行證與夢客對話），並斷言 `PURGE_BATCH` ≥ 每日最多新建帳號數；調整 `[vars]` 時這個測試會把關。
+- **在加上 Turnstile 之前，全域額度仍可被有心人耗盡（門檻與時間點，修訂 4b 重估）**：要讓正常玩家連保留通道都寫不進去，必須「全域每日預算 4,000 用完」**而且**「全域每小時上限 100 被佔滿」。修訂 4b 之後每個帳號每小時最多只能消耗 3 次每日預算（並行也一樣），所以 N 個帳號從 UTC 午夜起持續寫入，約在 4,000 ÷ (3N) 小時後用完每日預算，之後鎖死到下一個 UTC 午夜（台灣時間早上 8 點）；佔滿每小時上限只需另外約 4 個帳號（每帳號每小時 30 次一般寫入）。換算：約 170 個帳號 → UTC 8 點（台灣下午 4 點）起鎖死；約 340 個 → UTC 4 點起；約 1,340 個 → UTC 1 點起，幾乎整天。少於約 56 個帳號整天也用不完每日預算（修正前約 5 個帳號以並行請求就能在一天內用完）。帳號建立受每 IP 每小時 5 個、每 /48 每小時 10 個、全域每小時 15 個限制（M5 修正輪由 60 調降）：170 個帳號至少約 12 小時、1,340 個至少約 90 小時（約 4 天；都需要 3 個以上的 IPv4 或 2 個以上的 IPv6 /48 才能跑滿全域 15）；帳號可以事先慢慢建好囤著（有存檔就不會被 Cron 清掉，上限 `MAX_PLAYERS=5000`）。另外約 3 個 IPv4 就能佔滿建立玩家（15）、約 12 個 IPv4 佔滿轉移（120）的全域每小時上限（/48 限制只對 IPv6 有效）；轉移額度被佔滿時，新玩家也無法啟用雲端存檔（修訂 4b 第 2 節的代價）。被耗盡時影響是「雲端暫時無法使用」，本機遊戲不受影響；通關紀錄會留在本機，之後補送。
 
 ## 鐘塔之夢（M4）
 

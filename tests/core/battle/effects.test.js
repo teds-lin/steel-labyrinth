@@ -144,6 +144,25 @@ describe('applyBattleEffect（不可變）', () => {
     expect(byUid(r.battle, 'e1').phasesDone).toEqual([1, 2, 0]);
     expect(byUid(r.battle, 'e1').extraAi).toEqual([{ skill: 'attack', weight: 1 }]);
   });
+  // M5 修正輪 6：一擊打倒（例如潮兆一下從 30% 被打到 0）時，跨過的階段仍要依序觸發（含階段對話），之後才倒下
+  it('phases：一擊打倒時，跨過的階段依門檻由高到低先觸發（含 dialogue），最後才是 defeated', () => {
+    const d = structuredClone(data);
+    d.enemies[1].phases = [{ hp_lte_pct: 25, dialogue: 'dlg_low' }, { hp_lte_pct: 60 }, { hp_lte_pct: 50, dialogue: 'dlg_phase' }];
+    const r = applyBattleEffect(base(), { type: 'damage', fixed: 999 }, 'p0', 'e1', d);
+    const seq = r.log.filter((e) => e.type === 'phase' || e.type === 'defeated');
+    expect(seq).toEqual([
+      { type: 'phase', uid: 'e1', index: 1, dialogue: null },
+      { type: 'phase', uid: 'e1', index: 2, dialogue: 'dlg_phase' },
+      { type: 'phase', uid: 'e1', index: 0, dialogue: 'dlg_low' },
+      { type: 'defeated', uid: 'e1' },
+    ]);
+    expect(byUid(r.battle, 'e1')).toMatchObject({ hp: 0, alive: false, phasesDone: [1, 2, 0] });
+    // 已經觸發過的階段不重播
+    const b = base();
+    byUid(b, 'e1').phasesDone = [1, 2];
+    const r2 = applyBattleEffect(b, { type: 'damage', fixed: 999 }, 'p0', 'e1', d);
+    expect(r2.log.filter((e) => e.type === 'phase')).toEqual([{ type: 'phase', uid: 'e1', index: 0, dialogue: 'dlg_low' }]);
+  });
   it('heal：pct 或 amount，不超過上限；倒下的不回復', () => {
     let r = applyBattleEffect(base(), { type: 'heal', pct: 30 }, 'p0', 'p1', data);
     expect(r.log).toEqual([{ type: 'heal', source: 'p0', target: 'p1', amount: 15, hp: 35 }]);

@@ -380,7 +380,7 @@ describe('Cron 單次寫入列數上限（修訂 4 第 2、6 節）', () => {
   it('一次最多刪 PURGE_BATCH 人；玩家部分的寫入 ≤ PURGE_BATCH × 實測每人列數', async () => {
     const v = readWranglerConfig().vars;
     const batch = Number(v.PURGE_BATCH);
-    expect(batch).toBe(340); // M5：開放到終章（9 章）後每人列數 22 → 32，由 500 調降以維持每日上限 < 10 萬
+    expect(batch).toBe(450); // M5 修正輪：建立玩家全域上限 60 → 15，PURGE_BATCH 340 → 450（每日清得完所有新帳號，每日上限仍 < 10 萬）
     const w = await startWorker();
     try {
       const perPerson = await purgeRowsPerPlayer(w);
@@ -466,6 +466,8 @@ describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；�
     expect(wr('POST /api/player（轉移碼碰撞 409，IPv6）')).toBeLessThanOrEqual(wr('POST /api/player（新建，IPv6）'));
 
     const playerReq = n('RL_PLAYER_GLOBAL_PER_HOUR') * windows;
+    // M5 修正輪：空帳號不能累積——Cron 每天可清理的人數（PURGE_BATCH）至少要等於一個 UTC 日最多能建立的帳號數
+    expect(n('PURGE_BATCH'), `PURGE_BATCH 必須 ≥ 每日最多新建帳號數 ${playerReq}`).toBeGreaterThanOrEqual(playerReq);
     const transferReq = n('RL_TRANSFER_GLOBAL_PER_HOUR') * windows; // 含 player／rotate 碰撞 409（共用 g:transfer）
     const hourlyReq = n('RL_WRITE_GLOBAL_PER_HOUR') * windows;
     const reservedReq = n('RL_WRITE_GLOBAL_PER_DAY'); // 保留通道：帶日期的 bucket，一個 UTC 日就是一個窗

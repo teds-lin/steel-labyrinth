@@ -66,7 +66,7 @@ describe('POST /api/clear', () => {
     expect(rows.n).toBe(0);
   });
 
-  it('ENDINGS 是空字串（正式設定目前如此）：給字串 ending → 400', async () => {
+  it('不在 ENDINGS（章節:結局）白名單的字串 ending → 400', async () => {
     const p = await newPlayer(w);
     for (const e of ['end_a', 'true_end_1', 'chapter1']) await expectError(await clear(p.token, ok({ ending: e })), 400, 'bad_request');
   });

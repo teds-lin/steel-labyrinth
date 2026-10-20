@@ -123,12 +123,17 @@ export class Sim {
     this.play(dialogue);
   }
 
+  /**
+   * 遇到戰鬥：交給解析器打完。解析器回傳 log（戰鬥事件）時，依 phase 事件的順序播階段對話並套用效果
+   * （同 BattleScene：戰鬥中播放，只會 set_flag／clear_flag，例如第七章的 ch7_thirteenth），再播勝利對話。
+   */
   fight(encId) {
     if (!this.battleResolver) throw new Error(`遇到戰鬥「${encId}」，但沒有提供 battle 解析器`);
     const r = this.battleResolver(encId, this.state, this);
     if (r.next?.type === 'retry') throw new Error(`戰鬥「${encId}」的解析器回傳了 retry（${r.outcome}）`);
     this.battles.push({ encounter: encId, outcome: r.outcome });
     this.state = r.state;
+    for (const ev of Array.isArray(r.log) ? r.log : []) if (ev?.type === 'phase' && ev.dialogue) this.playOnly(ev.dialogue);
     if (r.next?.type === 'dialogue') this.play(r.next.dialogue);
   }
 

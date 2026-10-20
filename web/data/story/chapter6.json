@@ -764,17 +764,39 @@
           "choices": [
             {
               "text": "「回鐵橋街。」",
-              "next": "home"
+              "next": "hh"
             },
             {
               "text": "「先去碼頭看看歐文。」",
-              "next": "dock"
+              "next": "hd"
             },
             {
               "text": "「再待一下。」",
               "next": "stay"
             }
           ]
+        },
+        {
+          "id": "hd",
+          "speaker": "老賀伯",
+          "text": "我也回家了。……有事的話，我會去敲你的門。",
+          "effects": [
+            {
+              "leave_party": "herb"
+            }
+          ],
+          "next": "dock"
+        },
+        {
+          "id": "hh",
+          "speaker": "老賀伯",
+          "text": "我也回家了。……有事的話，我會去敲你的門。",
+          "effects": [
+            {
+              "leave_party": "herb"
+            }
+          ],
+          "next": "home"
         },
         {
           "id": "home",
@@ -1368,12 +1390,34 @@
           "id": "v4",
           "speaker": "倒影",
           "text": "「別讓它停。」",
-          "next": "v5"
+          "next": "v5",
+          "branches": [
+            {
+              "if": {
+                "flag": "ch6_got_glass"
+              },
+              "next": "v5g"
+            }
+          ]
         },
         {
           "id": "v5",
           "speaker": null,
           "text": "喀啦一聲，鏡子從角落裂開。一小片鏡片掉在地板上，還微微發著光。",
+          "branches": [
+            {
+              "if": {
+                "item": "pocket_watch"
+              },
+              "next": "w1"
+            }
+          ],
+          "next": "v6"
+        },
+        {
+          "id": "v5g",
+          "speaker": null,
+          "text": "鏡子上的裂痕又往外爬了一點。這一次，沒有東西掉下來。",
           "branches": [
             {
               "if": {
@@ -1466,7 +1510,12 @@
           "id": "k4",
           "speaker": null,
           "text": "老賀伯站在門口，大衣上沾滿霧水。他的菸斗沒有點。",
-          "next": "k5"
+          "next": "k5",
+          "effects": [
+            {
+              "join_party": "herb"
+            }
+          ]
         },
         {
           "id": "k5",
@@ -1489,7 +1538,7 @@
         {
           "id": "k9",
           "speaker": null,
-          "text": "（和老賀伯說話就出發。出發前，床可以入夢。）",
+          "text": "（老賀伯回到了隊伍。和老賀伯說話就出發。出發前，床可以入夢。）",
           "effects": [
             {
               "set_flag": "ch6_marlo_missing"

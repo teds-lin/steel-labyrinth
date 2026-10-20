@@ -726,7 +726,7 @@ function noItemResolverM5(record) {
         // 重新挑戰的崩解寫回 max(戰後, 戰前)（規格補充 3 第 1 條）
         const st = attempt === 0 ? f.state : { ...f.state, collapse: Math.max(f.state.collapse, state.collapse) };
         record.push({ encounter: encId, attempts: attempt + 1, outcome: f.outcome });
-        return { ...f, state: st };
+        return { ...f, state: st, log: r.log }; // log：模擬器依 phase 事件播階段對話
       }
       s = prepareRetry(state, data);
     }
@@ -777,12 +777,17 @@ function expectFinished(sim, endingId) {
 }
 
 describe('M5 內容：從新遊戲一路玩到三種結局（不使用任何道具）', () => {
-  it('燈火未熄（lamp_kept）：照實陳述、站在隊長這邊、摀住耳朵，崩解壓在 40 以下', () => {
+  it('燈火未熄（lamp_kept）：照實陳述、站在隊長這邊、摀住耳朵（結局不看崩解）；最終戰的第十三響對話有播', () => {
     const record = [];
     const sim = playToChapter3End(record);
     const ending = playChapters4ToEnd(sim, { ch4: { dream: true }, ch6: { statement: 'trust', owen: 'tell', dream: true } });
-    expect(sim.state.flags).toMatchObject({ marlo_trusted: true, inspector_convinced: true, final_calm: true });
+    expect(sim.state.flags).toMatchObject({ marlo_trusted: true, inspector_convinced: true });
     expect(sim.state.flags.heeded_tide).toBeUndefined();
+    // M5 修正輪 7：模擬器依 battle log 的 phase 事件播階段對話並套用效果（ch7_thirteenth → 勝利對話數到十三下）
+    expect(sim.state.flags.ch7_thirteenth).toBe(true);
+    expect(sim.dialoguesPlayed).toContain('dlg_ch7_thirteenth');
+    expect(sim.textsOf('dlg_ch7_thirteenth')).toContain('——第十三響。');
+    expect(sim.textsOf('dlg_ch7_victory').some((t) => t.includes('一共響了十三下'))).toBe(true);
     expect(sim.state.promotions.map((p) => [p.rank, p.forced])).toEqual([[8, false], [7, false]]);
     expectFinished(sim, 'lamp_kept');
     expect(ending).toBe('lamp_kept');
@@ -801,15 +806,27 @@ describe('M5 內容：從新遊戲一路玩到三種結局（不使用任何道�
     expect(ending).toBe('dawn');
   });
 
-  it('霧中行者（fog_walker）：硬喝兩次（階 8、階 7 都共鳴不足）＋回應潮水', () => {
+  it('霧中行者（fog_walker）之一：回應潮水（沒有硬喝、信任馬洛也一樣）', () => {
+    const record = [];
+    const sim = playToChapter3End(record);
+    const ending = playChapters4ToEnd(sim, { ch6: { statement: 'trust', owen: 'tell' }, ch7: { heed: true } });
+    expect(sim.state.promotions.map((p) => [p.rank, p.forced])).toEqual([[8, false], [7, false]]);
+    expect(sim.state.flags).toMatchObject({ marlo_trusted: true, heeded_tide: true });
+    expect(sim.battles.some((b) => b.encounter === 'enc_ch7_omen_heeded')).toBe(true);
+    expectFinished(sim, 'fog_walker');
+    expect(ending).toBe('fog_walker');
+  });
+
+  it('霧中行者（fog_walker）之二：硬喝兩次（階 8、階 7 都共鳴不足），摀住耳朵沒有回應潮水', () => {
     const record = [];
     const sim = playToChapter3End(record);
     const ending = playChapters4ToEnd(sim, {
-      ch4: { forced: true, dream: false }, ch5: { forced: true }, ch6: { forced: true, dream: false, owen: null }, ch7: { forced: true, heed: true },
+      ch4: { forced: true, dream: false }, ch5: { forced: true }, ch6: { forced: true, dream: false, owen: null }, ch7: { forced: true, heed: false },
     });
     expect(sim.state.promotions.map((p) => [p.rank, p.forced])).toEqual([[8, true], [7, true]]);
-    expect(sim.state.flags).toMatchObject({ forced_rank8: true, forced_rank7: true, heeded_tide: true });
-    expect(sim.battles.some((b) => b.encounter === 'enc_ch7_omen_heeded')).toBe(true);
+    expect(sim.state.flags).toMatchObject({ forced_rank8: true, forced_rank7: true, marlo_trusted: true });
+    expect(sim.state.flags.heeded_tide).toBeUndefined();
+    expect(sim.battles.some((b) => b.encounter === 'enc_ch7_omen')).toBe(true);
     expectFinished(sim, 'fog_walker');
     expect(ending).toBe('fog_walker');
   });
@@ -833,7 +850,8 @@ describe('M5 內容：從新遊戲一路玩到三種結局（不使用任何道�
     expect(sim.state.location.map).toBe('office_ch4');
     const ending = playChapters4ToEnd(sim, { ch6: { statement: 'cover' } });
     expect(sim.state.flags.covered_marlo).toBe(true);
-    expect(['dawn', 'lamp_kept', 'fog_walker']).toContain(ending);
-    expectFinished(sim, ending);
+    expect(sim.state.flags.marlo_trusted).toBeUndefined(); // 替隊長說謊，但在鐘下沒有說「站在你這邊」
+    expect(ending).toBe('dawn');
+    expectFinished(sim, 'dawn');
   });
 });

@@ -134,7 +134,7 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 
 ## E. 統計
 - `GET /api/stats` 用 Cache API 快取 60 秒，同一個時間窗內最多查一次 D1。
-- `POST /api/clear` 的 `chapter`、`ending` 必須在 vars `CHAPTERS`（逗號分隔，例如 `prologue,chapter1,chapter2`）白名單內，否則 400。`CHAPTERS` 必須等於 `web/data/manifest.json` 的 chapters（由測試把關）。`ending` 必須在 vars `ENDINGS` 白名單內（見「第一部完結」與 DATA-FORMAT），沒有結局的章節送 null。
+- `POST /api/clear` 的 `chapter`、`ending` 必須在 vars `CHAPTERS`（逗號分隔，例如 `prologue,chapter1,chapter2`）白名單內，否則 400。`CHAPTERS` 必須等於 `web/data/manifest.json` 的 chapters（由測試把關）。`ending` 必須是該 `chapter` 在 vars `ENDINGS` 白名單內的結局（M5 修正輪起 `ENDINGS` 是「章節:結局」配對，見「修訂 5」），沒有結局的章節送 null。
 - 完成人數少於 `STATS_MIN_PLAYERS=3` 的章節不出現在統計中。
 
 ## F. 存檔內容
@@ -157,7 +157,7 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 | 每格存檔上限 | **16 KB**（UTF-8 位元組） | 約悲觀估計的 3 倍；超過回 413 |
 | 請求 body 上限 | **24 KB** | 16 KB 存檔＋JSON 包裝 |
 | `MAX_PLAYERS` | **5000** | 最壞 5000 × 3 × 16 KB ≈ 240 MB，低於 D1 免費 500 MB 的一半 |
-| `RL_PLAYER_GLOBAL_PER_HOUR` | **60** | |
+| `RL_PLAYER_GLOBAL_PER_HOUR` | **60** | （修訂 5 改為 15） |
 | `RL_TRANSFER_GLOBAL_PER_HOUR` | **300** | |
 | `RL_WRITE_GLOBAL_PER_HOUR`（新） | **600** | 所有已登入的寫入（PUT、DELETE、clear、rotate）合計的全域上限，超過回 429 |
 
@@ -178,7 +178,7 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 
 ## 2. 空帳號
 - 每日 Cron 另外刪除「建立超過 7 天、沒有任何存檔也沒有通關紀錄」的玩家。
-- **Cron 分批**：每次執行最多刪除 `PURGE_BATCH` 名玩家（含其存檔、通關紀錄），避免單次寫入暴增。M4 為 500；**M5 開放到終章（`CHAPTERS` 9 章）後每人列數由 22 增為 32，`PURGE_BATCH` 調降為 340**（340 × 32＝10,880 ≤ 原本的 500 × 22＝11,000），每日寫入上限算式其他項目不變，總計 99,287 列（`tests/worker/cron-cost.test.js` 把關）。
+- **Cron 分批**：每次執行最多刪除 `PURGE_BATCH` 名玩家（含其存檔、通關紀錄），避免單次寫入暴增。M4 為 500；M5 開放到終章（`CHAPTERS` 9 章）後每人列數由 22 增為 32，一度調降為 340。**M5 修正輪（修訂 5）：`RL_PLAYER_GLOBAL_PER_HOUR` 60 → 15，`PURGE_BATCH` 調高為 450**（≥ 每日最多新建帳號數 15 × 25＝375，空帳號不會累積），每日寫入上限總計 91,557 列（`tests/worker/cron-cost.test.js` 把關）。
 
 ## 3. rotate 的冪等優先於限流
 - 伺服器：rotate 先驗證權杖、讀 body、比對雜湊；若新碼雜湊已等於目前的轉移碼雜湊 → 直接 200，**不計入任何限流**。之後才計入限流與執行更換。
@@ -210,8 +210,8 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 - **碰撞 409 的成本**：`POST /api/player` 與 rotate 的碰撞多寫的轉移 bucket 共用 `g:transfer` 額度，算在「轉移」那一項（測試斷言碰撞多出的列數 ≤ 一次轉移的列數）。
 - **每日最壞寫入**（實測每請求列數，2026-10-17）：
   建立玩家 60×25×8＝12,000＋轉移 120×25×6＝18,000＋每小時通道 100×25×5＝12,500＋保留通道 4,000×6＝24,000
-  ＋last_seen 5,000×1＝5,000＋Cron 500 人×16 列＝8,000＋IP 限流紀錄清理（60×25＋120×25）×2＋4＝9,004 ＝ **88,504 列**（約 11% 餘裕）。
-- Cron 單次寫入 ≤ `PURGE_BATCH` × 每人 16 列＝8,000 列（每人：3 格存檔、每章一筆通關紀錄、統計 trigger、容量計數、5 個玩家限流 bucket）。
+  ＋last_seen 5,000×1＝5,000＋Cron 500 人×16 列＝8,000＋IP 限流紀錄清理（60×25＋120×25）×2＋4＝9,004 ＝ **88,504 列**（約 11% 餘裕）。（M3 當時的數字，不含之後加上的鐘塔之夢與 M5 章節；**目前值見文末「修訂 5」**。）
+- Cron 單次寫入 ≤ `PURGE_BATCH` × 每人 16 列＝8,000 列（M3 當時：每人 3 格存檔、每章一筆通關紀錄、統計 trigger、容量計數、5 個玩家限流 bucket。目前每人 32 列、`PURGE_BATCH=450`，單次 ≤ 14,400 列，見「修訂 5」）。
 - 低熵檢查：客戶端產生器（`web/src/cloud/secrets.js`）用與伺服器相同的判斷重抽（未重抽時約 0.22% 的轉移碼會被拒），Worker 直接匯入同一份判斷。
 - 客戶端：`enable()` 遇到新鮮的 transfer 待確認時回 `{ ok:false, kind:'pending_transfer', message:'上一次接續還在確認中，請稍候再試' }`；回報通關的遊戲時間超過 36000 秒時以 36000 回報。
 
@@ -220,7 +220,7 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 ### 1. 保留通道不可被並行請求放大
 - 問題：修訂 4 的實作先只讀檢查保留名額，再「先計每日預算、後計保留名額」。單一帳號同時送 33 個寫入時，33 個都通過只讀檢查，每日預算被計 33 次（應為 3）。
 - 修正：限流改成**一條 SQL 敘述原子計數**——在同一條敘述內先檢查全部 bucket 未滿，成立才一起加一，任何一個滿了就一列都不寫。已登入寫入先嘗試「端點限制＋保留名額＋每日預算」三者一起計；沒拿到（保留名額或每日預算已滿）就改為「端點限制＋全域每小時上限」，保留名額**不被消耗**。
-- 結果：單一帳號並行 33 個寫入，`g:wday` 只增加 3；被擋下（429）的請求在並行時也是 0 列寫入。每日寫入上限的算式加入「並行失敗路徑」一項，以實測值（0 列）計入，總計仍為 **88,504 列**。
+- 結果：單一帳號並行 33 個寫入，`g:wday` 只增加 3；被擋下（429）的請求在並行時也是 0 列寫入。每日寫入上限的算式加入「並行失敗路徑」一項，以實測值（0 列）計入，總計仍為 **88,504 列**（M3 當時；目前值見「修訂 5」）。
 - 每個請求的讀取列數因此增加（例如 PUT 約 16～20 列、建立玩家約 15～19 列），寫入列數不變；讀取額度（每日 500 萬列）遠大於寫入，不影響上限。
 
 ### 2. 轉移額度用完時不可分辨碰撞
@@ -325,7 +325,35 @@ Worker 與客戶端的共同約定。基底網址由 `web/src/cloud/endpoint.js`
 ## 鐘塔之夢 修訂 1b（2026-10-18，部署前最後一輪修正；與前面衝突時以本節為準）
 1. **拒絕清單**：以標點切段、不跨段比對（空白、連接號、間隔號不切，照樣繞不過）；數字形的詞（只由數字或中文數字組成）前後緊鄰其他數字時不算。`exceptions`：完全落在例外詞範圍內的那一次命中不算，超出例外詞範圍或同段另外出現的照樣命中（例外詞必須包含整個被擋的詞）。
 2. **常用詞**：洩漏特徵只用較長的片語（「我收到的指示」「我的設定是」「系統提示」…）與照抄提示詞段落標題；聯絡方式不含「賴我」「威信」「電報」；假冒系統訊息只認【系統】【公告】這類標記、句首「系統：」「通知：」與「系統通知」「系統公告」等片語；「密碼」「刪除」要和轉移碼／帳號／存檔一起出現，或在索取密碼時才算。中文字比例不計阿拉伯數字。
-3. **每 IP 每日 AI 呼叫上限** `ip:dcall`（IPv4 單一位址、IPv6 /64，每日換鹽）：`DREAM_CALLS_PER_IP_PER_DAY=60`，與 `pl:dcall` 一起原子計數（重試也計）；滿了回 `scripted`＋`reason: "quota"`（`remaining_today` 可能 > 0）。`ip:dcall` 由 Cron 清除。為了維持每日寫入 < 10 萬列，`DREAM_NEURONS_PER_DAY` 由 8000 降為 7000（每日最多 700 次 AI 呼叫 × 6 列＋700 列清理）；最壞每日寫入 99,407 列。
+3. **每 IP 每日 AI 呼叫上限** `ip:dcall`（IPv4 單一位址、IPv6 /64，每日換鹽）：`DREAM_CALLS_PER_IP_PER_DAY=60`，與 `pl:dcall` 一起原子計數（重試也計）；滿了回 `scripted`＋`reason: "quota"`（`remaining_today` 可能 > 0）。`ip:dcall` 由 Cron 清除。為了維持每日寫入 < 10 萬列，`DREAM_NEURONS_PER_DAY` 由 8000 降為 7000（每日最多 700 次 AI 呼叫 × 6 列＋700 列清理）；最壞每日寫入 99,407 列（M4 當時；目前值見「修訂 5」）。
 4. **送給模型的訊息**一律 user／assistant 交替、以 user 結尾：合併連續同角色（以換行接起來）、去掉開頭的 assistant。
 5. **通行證**：`g:dpassfail` 滿了之後，Turnstile 失敗不寫 D1，改在 Worker 記憶體裡計每位玩家的失敗次數（每個 isolate 各自計），到 `RL_DREAM_PASS_PER_HOUR` 次就直接 429、不呼叫 siteverify；成功的玩家不受影響。
 6. **客戶端**：收到 `reason` 為 `quota`／`budget` 但 `remaining_today > 0` 時，剩餘句數顯示「—」、提示「夢境今天變得模糊了，明天再來吧。」；被每分鐘 429 擋下的玩家訊息在畫面上標示「沒有送出」，之後不放進 history。
+
+# 修訂 5（2026-10-21，M5 第一輪對抗審查後的修正輪；與前文衝突時以本節為準）
+
+## 1. 空帳號不能累積
+- 問題：`RL_PLAYER_GLOBAL_PER_HOUR=60` 時，一個 UTC 日最多可建立 60 × 25＝1,500 個帳號，而 Cron 每天只刪 `PURGE_BATCH=340` 人——惡意大量建立的空帳號會越積越多，最後頂到 `MAX_PLAYERS` 讓正常玩家無法啟用雲端存檔。
+- 修正：`RL_PLAYER_GLOBAL_PER_HOUR` **60 → 15**（每天約 360 個、最壞 25 個時間窗 375 個新帳號）；用省下的寫入額度把 `PURGE_BATCH` **340 → 450**，每日可清理人數 ≥ 每日最多新建帳號數。`tests/worker/cron-cost.test.js` 斷言 `PURGE_BATCH ≥ RL_PLAYER_GLOBAL_PER_HOUR × 25`。
+- 代價：全站每小時最多 15 個新玩家啟用雲端存檔（超過回 429，稍後再試；本機遊戲不受影響）。
+
+## 2. 每日寫入上限（實測，2026-10-21）
+建立玩家 15×25×8＝3,000＋轉移 120×25×6＝18,000＋已登入每小時通道 100×25×5＝12,500＋保留通道 4,000×6＝24,000
+＋last_seen 5,000＋Cron 450 人×32 列＝14,400＋IP 限流紀錄清理（15×25＋120×25）×2＋4＝6,754＋並行失敗路徑 0
+＋夢境通行證 3,000＋夢客對話 700 次 × 6 列＝4,200＋ip:dcall 清理 700＋夢境限流紀錄清理 3 ＝ **91,557 列**（約 8% 餘裕）。
+Cron 單次寫入 ≤ 450 × 32＝14,400 列。
+
+## 3. `/api/clear` 的結局必須屬於該章
+- vars `ENDINGS` 改成逗號分隔的「章節:結局」，正式值 `finale:fog_walker,finale:lamp_kept,finale:dawn`，必須等於公開資料所有 story 的 `story.id:endings[].id`（`tests/worker/clear-ending.test.js` 把關）。
+- `ending` 必須是該 `chapter` 的結局，例如 `{ "chapter": "prologue", "ending": "lamp_kept" }` → 400；格式不對（沒有章節或結局）的白名單項目不生效。沒有結局的章節仍送 null。不新增任何寫入（同一個 INSERT … ON CONFLICT）。
+
+## 4. 目前的值（一覽）
+| 設定 | 值 |
+|---|---|
+| `RL_PLAYER_GLOBAL_PER_HOUR` | 15 |
+| `RL_TRANSFER_GLOBAL_PER_HOUR` | 120 |
+| `RL_WRITE_GLOBAL_PER_HOUR` | 100 |
+| `RL_WRITE_GLOBAL_PER_DAY` | 4000 |
+| `PURGE_BATCH` | 450 |
+| `MAX_PLAYERS` | 5000 |
+| `ENDINGS` | `finale:fog_walker,finale:lamp_kept,finale:dawn` |

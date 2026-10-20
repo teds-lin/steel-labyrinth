@@ -179,7 +179,12 @@ export function applyEffectMut(draft, effect, sourceUid, targetUid, data, log, o
       if (foreseen) amount = foresee(amount);
       target.hp = Math.max(0, target.hp - amount);
       log.push({ type: 'damage', source: source.uid, target: target.uid, amount, crit, hp: target.hp, ...(foreseen ? { foreseen: true } : {}), ...(sleeping ? { sleeping: true } : {}) });
-      if (target.hp === 0) { defeat(draft, target, data, log); return; }
+      if (target.hp === 0) {
+        // M5 修正輪 6：一擊打倒時，跨過的階段（含階段對話，例如潮兆的第十三響）仍依序觸發，之後才倒下
+        if (target.side === 'enemy') checkPhases(draft, target, data, log);
+        defeat(draft, target, data, log);
+        return;
+      }
       if (amount >= 1 && sleeping) { // 規格補充 2 第 2 條：受到傷害就醒（第一下已經 × SLEEP_MULT）
         delete target.status.sleep;
         log.push({ type: 'wake', uid: target.uid });
