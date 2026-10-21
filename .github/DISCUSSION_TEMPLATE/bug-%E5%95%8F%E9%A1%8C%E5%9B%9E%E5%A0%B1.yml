@@ -1,0 +1,59 @@
+title: "[問題] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝你回報問題！請盡量照下面的欄位填寫，我們才能重現並修好它。
+
+        > ⚠️ **請不要貼上轉移碼。** 轉移碼等同你的雲端存檔密碼，任何人拿到都能接走你的存檔。
+        > 遊戲裡的「複製回報資訊」不會包含轉移碼，可以放心貼上。
+  - type: textarea
+    id: what
+    attributes:
+      label: 發生了什麼事？
+      description: 簡單描述你遇到的問題。
+      placeholder: 例如：在第五章地下水道的蓄水池，調查石台後畫面卡住，不能移動。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎麼重現？
+      description: 依序寫下你做了哪些操作。
+      placeholder: |
+        1. 讀取存檔 2
+        2. 走到蓄水池的石台
+        3. 按「調查」
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你原本預期會怎樣？
+    validations:
+      required: false
+  - type: textarea
+    id: report
+    attributes:
+      label: 回報資訊
+      description: |
+        在遊戲裡按「選單」→「意見回饋」→「複製回報資訊」，再貼到這裡。
+        內容包含遊戲版本、裝置、章節與存檔，能幫助我們重現問題（不含轉移碼）。
+      placeholder: 【鋼鐵迷都 回報資訊】……
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截圖或錄影
+      description: 可以直接把圖片拖曳到這個欄位。
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 送出前確認
+      options:
+        - label: 我沒有在這篇文章裡貼上轉移碼。
+          required: true
