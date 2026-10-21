@@ -16,6 +16,13 @@ export const MAP_VIEW = { x: 0, y: HUD_H, w: WIDTH, h: PANEL_Y - HUD_H };
 /** 意見回饋：GitHub 討論區（全專案只在這裡寫網址；畫面文字由 ui/feedback.js 產生）。 */
 export const FEEDBACK_URL = 'https://github.com/teds-lin/steel-labyrinth/discussions';
 
+/**
+ * 遊戲版本號（意見回饋的「複製回報資訊」會帶上它）：格式「年.月.日」，同一天發布多次加「.序號」（例如 2026.10.21.2）。
+ * 維護方式：每次推上 main（GitHub Pages 發布）前改成當天日期。GitHub Actions 只跑 npm test／check、不跑 build-data，
+ * 所以版本號不放在建置產物裡，而是寫在這裡跟著程式碼一起提交。
+ */
+export const GAME_VERSION = '2026.10.21';
+
 export const FONT = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
 
 /** 色盤：霧藍灰＋煤氣燈橘。 */

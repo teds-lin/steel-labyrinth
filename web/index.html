@@ -69,6 +69,17 @@
     .sl-chat-input:focus { border-color: #a9c0f0; box-shadow: 0 0 0 3px rgba(111, 134, 184, 0.3); }
     .sl-chat-input:disabled { opacity: 0.5; }
     .sl-chat-input::placeholder { color: #5c6a86; }
+    /* 回報資訊的備援文字框（剪貼簿不能用時）：唯讀、只放純文字（value）；16px 避免 iOS 聚焦時自動放大 */
+    .sl-report-text {
+      box-sizing: border-box; padding: 6px 8px; margin: 0; resize: none;
+      font: 16px/1.4 "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", monospace;
+      /* 背景刻意不完全不透明：完全不透明的可捲動文字框會被 Chromium 拉成獨立的捲動圖層，
+         手機模擬（DPR 2）時會讓上方畫布的說明文字區域變成透明（E2E 截圖實測）；0.97 透明度即可避免 */
+      color: #e8e2d4; background: rgba(20, 25, 34, 0.97); border: 1px solid #3a4454; border-radius: 6px; outline: none;
+      white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+      -webkit-user-select: text; user-select: text;
+    }
+    .sl-report-text:focus { border-color: #f0a848; box-shadow: 0 0 0 3px rgba(240, 168, 72, 0.25); }
     /* Turnstile 小工具的容器（內容由 Cloudflare 的 iframe 產生） */
     .sl-turnstile { width: 300px; min-height: 65px; display: flex; align-items: center; justify-content: center; }
     #boot-error {

@@ -56,6 +56,17 @@ describe('意見回饋：網址與文字', () => {
     expect(fb.FEEDBACK_CANCEL).toBe('取消');
   });
 
+  it('複製回報資訊的按鈕與提示文字', () => {
+    expect(fb.REPORT_COPY_LABEL).toBe('複製回報資訊');
+    expect(fb.REPORT_COPIED).toBe('已複製，請貼到討論區的回報表單裡');
+    expect(fb.REPORT_COPY_FAILED).toBe('無法自動複製，請在下方框內全選文字後手動複製');
+    expect(fb.REPORT_PRIVACY).toBe('回報資訊會包含你的角色名字與遊戲進度');
+  });
+
+  it('遊戲版本號：config.js 的 GAME_VERSION（年.月.日，同一天多版加 .序號）', () => {
+    expect(config.GAME_VERSION).toMatch(/^20\d{2}\.(0[1-9]|1[0-2])\.(0[1-9]|[12]\d|3[01])(\.\d+)?$/);
+  });
+
   it('新分頁被擋下時的手動前往提示（網址去掉 https://）', () => {
     expect(fb.feedbackBlockedText()).toBe('瀏覽器擋下了新分頁，請手動前往：github.com/teds-lin/steel-labyrinth/discussions');
   });

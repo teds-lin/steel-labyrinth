@@ -7,6 +7,11 @@ export const FEEDBACK_TITLE = '意見回饋';
 export const FEEDBACK_BODY = '即將在新分頁開啟 GitHub 討論區。你可以在那裡回報問題、提出建議，或分享遊玩心得。（發文需要 GitHub 帳號）';
 export const FEEDBACK_GO = '前往討論區';
 export const FEEDBACK_CANCEL = '取消';
+/** 複製回報資訊（回報內容由 ui/report-info.js 產生；不含雲端權杖或轉移碼）。 */
+export const REPORT_COPY_LABEL = '複製回報資訊';
+export const REPORT_COPIED = '已複製，請貼到討論區的回報表單裡';
+export const REPORT_COPY_FAILED = '無法自動複製，請在下方框內全選文字後手動複製';
+export const REPORT_PRIVACY = '回報資訊會包含你的角色名字與遊戲進度';
 
 /** 顯示用網址：去掉 https:// 與結尾斜線。 */
 export function feedbackDisplayUrl(url = FEEDBACK_URL) {

@@ -5,6 +5,7 @@ import { test, expect, game, TEST_URL, makeSave, seedSaves } from './helpers.js'
 const FEEDBACK_URL = 'https://github.com/teds-lin/steel-labyrinth/discussions';
 const BODY = '即將在新分頁開啟 GitHub 討論區。你可以在那裡回報問題、提出建議，或分享遊玩心得。（發文需要 GitHub 帳號）';
 const BLOCKED = '瀏覽器擋下了新分頁，請手動前往：github.com/teds-lin/steel-labyrinth/discussions';
+const PRIVACY = '回報資訊會包含你的角色名字與遊戲進度';
 
 const isTouch = (testInfo) => testInfo.project.name === 'mobile';
 const sl = (page, fn, arg) => page.evaluate(fn, arg);
@@ -70,8 +71,9 @@ async function expectPrompt(page, origin) {
   expect(m.page).toBe('feedback');
   expect(m.title).toBe('意見回饋');
   expect(plain(m.note)).toBe(BODY);
-  expect(m.items.map((x) => x.label)).toEqual(['前往討論區', '取消']);
+  expect(m.items.map((x) => x.label)).toEqual(['複製回報資訊', '前往討論區', '取消']);
   expect(m.items[0].focused).toBe(true);
+  expect(fb.privacy).toBe(PRIVACY);
   return m;
 }
 
@@ -118,6 +120,9 @@ test.describe('意見回饋', () => {
       // 上下鍵可以在兩個按鈕間移動
       await g.key('ArrowDown');
       expect((await sl(page, () => window.__SL.menu())).items[1].focused).toBe(true);
+      await g.key('ArrowDown');
+      expect((await sl(page, () => window.__SL.menu())).items[2].focused).toBe(true);
+      await g.key('ArrowUp');
       await g.key('ArrowUp');
       expect((await sl(page, () => window.__SL.menu())).items[0].focused).toBe(true);
       await g.key('Escape');
@@ -224,7 +229,7 @@ test.describe('意見回饋', () => {
     await page.waitForFunction(() => window.__SL.feedback()?.blocked === true, null, { timeout: 5_000 });
     const m = await sl(page, () => window.__SL.menu());
     expect(plain(m.note)).toBe(BLOCKED);
-    expect(m.items.map((x) => x.label)).toEqual(['前往討論區', '取消']);
+    expect(m.items.map((x) => x.label)).toEqual(['複製回報資訊', '前往討論區', '取消']);
     const calls = await sl(page, () => window.__openCalls);
     expect(calls).toHaveLength(1);
     expect(calls[0][0]).toBe(FEEDBACK_URL);

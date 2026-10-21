@@ -3,7 +3,7 @@
 //       'trade'（M5：夢客的交換；地圖的 open_trade 開啟，關閉時呼叫 onClose）、
 //       'feedback'（標題的「意見回饋」：只有提示頁，關閉後回到標題）。
 // 雲端存檔的各頁面在 cloud-pages.js（mixin）。
-import { WIDTH, HEIGHT, COLORS } from '../config.js';
+import { WIDTH, HEIGHT, COLORS, GAME_VERSION } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
 import { addText, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
 import { fieldItems, useFieldItem } from '../core/items.js';
@@ -14,7 +14,10 @@ import { guestFor } from '../core/dream.js';
 import { promotionProgress, tradeRows, tradeConfirm, tradeDoneText } from '../ui/m5-view.js';
 import {
   FEEDBACK_LABEL, FEEDBACK_TITLE, FEEDBACK_BODY, FEEDBACK_GO, FEEDBACK_CANCEL, feedbackBlockedText, feedbackNoteForDisplay, openFeedback,
+  REPORT_COPY_LABEL, REPORT_COPIED, REPORT_COPY_FAILED, REPORT_PRIVACY,
 } from '../ui/feedback.js';
+import { buildReportInfo, collectCloudSecrets, readLastSave, rememberLastSlot, copyText } from '../ui/report-info.js';
+import { cloud } from '../cloud-client.js';
 
 /** 交換頁一頁最多幾項（再加「下一頁」「離開」）。 */
 const TRADES_PER_PAGE = 3;
@@ -54,8 +57,9 @@ export class MenuScene extends Phaser.Scene {
     this.cloudView = null;
     this.events.once('shutdown', () => this.runPageCleanup());
     this.input.keyboard.on('keydown', (ev) => {
-      // 輸入框（轉移碼）裡的按鍵由輸入框自己處理，不當成選單操作
+      // 輸入框（轉移碼）與回報文字框裡的按鍵由它們自己處理，不當成選單操作
       if (typeof HTMLInputElement !== 'undefined' && ev.target instanceof HTMLInputElement) return;
+      if (typeof HTMLTextAreaElement !== 'undefined' && ev.target instanceof HTMLTextAreaElement) return;
       if (ev.repeat || !claimKey(ev)) return;
       if (ev.code === 'Escape') { this.back(); return; }
       this.list?.handleKey(ev.code);
@@ -130,10 +134,23 @@ export class MenuScene extends Phaser.Scene {
     };
   }
 
-  /** E2E 用：意見回饋提示頁是否開著、是否被瀏覽器擋下、從哪裡開的（Title／Menu）。沒開時為 null。 */
+  /**
+   * E2E 用：意見回饋提示頁是否開著、是否被瀏覽器擋下、從哪裡開的（Title／Menu）、複製回報資訊的結果
+   * （copy：null｜'copied'｜'fallback'；status：提示文字；fallback：備援文字框）與各段文字的位置（邏輯座標，中心＋寬高）。沒開時為 null。
+   */
   feedbackInfo() {
     if (this.page !== 'feedback') return null;
-    return { open: true, blocked: !!this.feedbackBlocked, origin: this.mode === 'feedback' ? this.from : 'Menu' };
+    const rect = (t, label) => (t ? { label, x: t.x, y: t.y + t.displayHeight * (0.5 - t.originY), w: t.displayWidth, h: t.displayHeight } : null);
+    const box = this.reportBox;
+    return {
+      open: true, blocked: !!this.feedbackBlocked, origin: this.mode === 'feedback' ? this.from : 'Menu',
+      copy: this.reportCopy ?? null,
+      status: this.reportStatus?.text || null,
+      statusRect: this.reportStatus?.text ? rect(this.reportStatus, '複製結果') : null,
+      privacy: this.reportPrivacy?.text ?? null,
+      privacyRect: rect(this.reportPrivacy, '隱私提示'),
+      fallback: box ? { label: '回報文字框', tag: box.el.tagName, readOnly: box.el.readOnly, x: box.x, y: box.y, w: box.w, h: box.h } : null,
+    };
   }
 
   showMain(note = null) {
@@ -156,14 +173,103 @@ export class MenuScene extends Phaser.Scene {
   }
 
   // ---------- 意見回饋 ----------
-  /** 提示頁：「前往討論區」開新分頁（在按鍵／點擊的同步處理中呼叫 window.open），「取消」或 Esc 回到原畫面。 */
-  showFeedback(blocked = false) {
+  /**
+   * 提示頁：「複製回報資訊」把回報文字複製到剪貼簿（失敗時改顯示唯讀文字框讓玩家手動複製）；
+   * 「前往討論區」開新分頁（在按鍵／點擊的同步處理中呼叫 window.open）；「取消」或 Esc 回到原畫面。
+   * copy：null｜{ kind:'copied' }｜{ kind:'fallback', text }。
+   */
+  showFeedback(blocked = false, copy = null) {
     this.setPage('feedback', FEEDBACK_TITLE, feedbackNoteForDisplay(blocked ? feedbackBlockedText() : FEEDBACK_BODY), [
+      { id: 'feedback-copy', label: REPORT_COPY_LABEL, onSelect: () => this.copyReport() },
       { id: 'feedback-go', label: FEEDBACK_GO, onSelect: () => this.goFeedback() },
       { id: 'feedback-cancel', label: FEEDBACK_CANCEL, onSelect: () => this.leaveFeedback() },
-    ], { y: 240 });
+    ], { y: 228, h: 48, gap: 8 });
     this.feedbackBlocked = blocked;
+    this.reportCopy = copy?.kind ?? null;
+    this.reportBox = null;
     this.backAction = () => this.leaveFeedback();
+
+    const last = this.list.buttons.at(-1);
+    let y = last.y + last.h / 2 + 10;
+    this.reportStatus = addText(this, WIDTH / 2, y, copy ? (copy.kind === 'copied' ? REPORT_COPIED : REPORT_COPY_FAILED) : '', {
+      fontSize: '13px', color: COLORS.textGas, align: 'center', wordWrap: { width: WIDTH - 72, useAdvancedWrap: true },
+    }).setOrigin(0.5, 0);
+    this.extra.push(this.reportStatus);
+    // 隱私提示：固定在面板最下方
+    this.reportPrivacy = addText(this, WIDTH / 2, 552, REPORT_PRIVACY, { fontSize: '11px', color: COLORS.textDim }).setOrigin(0.5);
+    this.extra.push(this.reportPrivacy);
+    if (copy?.kind === 'fallback') {
+      y += this.reportStatus.height + 8;
+      this.showReportBox(copy.text, y, 552 - this.reportPrivacy.height / 2 - 8);
+    }
+  }
+
+  /** 剪貼簿不能用時的備援：唯讀的 textarea（只設 value，不經 HTML），點一下就全選。 */
+  showReportBox(text, top, bottom) {
+    const w = WIDTH - 72;
+    const h = Math.max(48, Math.floor(bottom - top));
+    const el = document.createElement('textarea');
+    el.className = 'sl-report-text';
+    el.readOnly = true;
+    el.value = text;
+    el.spellcheck = false;
+    el.setAttribute('aria-label', '回報資訊');
+    el.setAttribute('wrap', 'soft');
+    el.style.width = `${w}px`;
+    el.style.height = `${h}px`;
+    const selectAll = () => { try { el.focus({ preventScroll: true }); el.setSelectionRange(0, el.value.length); } catch { /* 少數瀏覽器不支援：玩家可手動選取 */ } };
+    el.addEventListener('focus', selectAll);
+    el.addEventListener('click', selectAll);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); this.leaveFeedback(); }
+    });
+    const dom = this.add.dom(WIDTH / 2, top + h / 2, el);
+    this.extra.push(dom);
+    this.reportBox = { el, x: WIDTH / 2, y: top + h / 2, w, h };
+    // 文字框聚焦時不能讓 Phaser 吃掉按鍵（全選、複製的快捷鍵）
+    this.input.keyboard.disableGlobalCapture();
+    this.pageCleanup.push(() => {
+      this.reportBox = null;
+      this.input.keyboard.enableGlobalCapture();
+    });
+  }
+
+  /** 回報資訊：遊戲中附目前進度與存檔；標題畫面附最近一次讀取或存檔的槽位。不含雲端權杖或轉移碼（見 ui/report-info.js）。 */
+  reportText() {
+    const backend = session.backend;
+    const inGame = this.mode !== 'feedback' && session.state;
+    let cloudEnabled = false;
+    try { cloudEnabled = cloud.enabled(); } catch { /* 讀不到雲端資訊＝未啟用 */ }
+    return buildReportInfo({
+      state: inGame ? session.snapshot() : null,
+      data: session.data,
+      env: {
+        version: GAME_VERSION,
+        now: new Date(),
+        userAgent: navigator.userAgent,
+        screen: { width: window.innerWidth, height: window.innerHeight },
+        cloudEnabled,
+        lastSave: inGame ? null : readLastSave(backend),
+        secrets: collectCloudSecrets(backend),
+      },
+    });
+  }
+
+  /** 複製回報資訊：writeText 在按鍵／點擊的同步處理中送出；結果回來時頁面沒換才更新。 */
+  copyReport() {
+    let text;
+    try {
+      text = this.reportText();
+    } catch (e) {
+      console.warn('無法產生回報資訊', e);
+      return;
+    }
+    const ticket = this.pageSeq;
+    const blocked = !!this.feedbackBlocked;
+    copyText(text).then((ok) => {
+      if (this.page !== 'feedback' || this.pageSeq !== ticket || !this.sys.isActive()) return;
+      this.showFeedback(blocked, ok ? { kind: 'copied' } : { kind: 'fallback', text });
+    });
   }
 
   goFeedback() {
@@ -174,6 +280,7 @@ export class MenuScene extends Phaser.Scene {
   /** 回到開啟提示的畫面：標題（關閉選單）或遊戲中選單的主頁；遊戲狀態不動。 */
   leaveFeedback() {
     this.feedbackBlocked = false;
+    this.reportCopy = null;
     if (this.mode === 'feedback') this.close();
     else this.showMain();
   }
@@ -384,6 +491,7 @@ export class MenuScene extends Phaser.Scene {
   doSave(slot) {
     session.foldPlaytime();
     const r = session.storage.save(slot, session.snapshot());
+    if (r.ok) rememberLastSlot(session.backend, slot); // 標題畫面的回報資訊附上這一格
     if (r.ok) this.afterManualSave(slot);
     else this.showSlots('save', `${BLOCKED_MSG}\n（${r.reason}）`);
   }
@@ -395,6 +503,7 @@ export class MenuScene extends Phaser.Scene {
       this.showSlots('load', `無法讀取存檔 ${slot}：${r.reason}`);
       return;
     }
+    rememberLastSlot(session.backend, slot); // 標題畫面的回報資訊附上這一格
     this.enterGame(r.state, r.warnings);
   }
 
