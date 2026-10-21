@@ -366,6 +366,11 @@ export function game(page, { touch = false, data = 'data/' } = {}) {
     if (touch) {
       const r = b.menu.buttons[i];
       await tap(r.x + r.w / 2, r.y + r.h / 2);
+      // 清單裡有說明的項目：第一次點只聚焦，已聚焦後再點一次才使用
+      if (r.confirm && !r.focused) {
+        await page.waitForFunction((k) => window.__SL.battle()?.menu?.index === k, i, { timeout: 3_000 });
+        await tap(r.x + r.w / 2, r.y + r.h / 2);
+      }
     } else {
       const n = b.menu.buttons.length;
       const steps = (i - b.menu.index + n) % n;

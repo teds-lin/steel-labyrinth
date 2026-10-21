@@ -14,7 +14,7 @@ import {
 import { battleSpriteKey, battleSpriteSize, bgKey, spriteKey, BG_H } from '../textures.js';
 import {
   unitLabels, shortLabel, formatIntent, revealedIntent, describe, costText, reasonText, rewardLines, STATUS_NAMES, STAT_NAMES, OUTCOME_TITLE,
-  commandPrompt,
+  commandPrompt, skillSub, itemSub, helpText, HELP_BOX, listLayout, menuTitle, shouldFocusFirst, subWithHint,
 } from '../battle-view.js';
 
 // ---------- 版面（邏輯座標） ----------
@@ -26,7 +26,8 @@ const PARTY = { y0: 340, h: 34, x: 8, w: WIDTH - 16 };
 const RES_Y = 446;
 /** 指令區：3 列最底到 630，離畫面底邊留 10px 安全區（手機的 Home 指示條、圓角）。 */
 const CMD = { top: 462, colX: [94, 266], w: 164, h: 52, gapY: 6 };
-const LIST = { top: 330, w: WIDTH - 24, h: 50, gap: 6, perPage: 4 };
+const LIST = { w: WIDTH - 24, perPage: 4 };
+const LIST_LAYOUT = listLayout();
 /** 技能是否放在第一層指令（資料的 menu: "root"）；其他技能放進「技能」子選單。 */
 const isRootSkill = (id) => (session.data?.skills ?? []).find((s) => s?.id === id)?.menu === 'root';
 /** 技能在 skills.json 的位置（第一層依這個順序排列）。 */
@@ -88,7 +89,11 @@ export class BattleScene extends Phaser.Scene {
       fontSize: '14px', color: '#ffe2b0', backgroundColor: '#1a1f28ee', padding: { x: 12, y: 6 },
     }).setOrigin(0.5, 0).setDepth(60).setVisible(false);
 
-    this.input.keyboard.on('keydown', (ev) => this.onKey(ev));
+    // 觸控模式：決定清單要不要提示「點一下使用」；最後一次操作是觸控才算（鍵盤或滑鼠操作會取消）
+    this.touchMode = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    const setTouch = (v) => { if (this.touchMode !== v) { this.touchMode = v; this.refreshHelp(); } };
+    this.input.on('pointerdown', (p) => setTouch(!!p.wasTouch));
+    this.input.keyboard.on('keydown', (ev) => { setTouch(false); this.onKey(ev); });
     this.events.once('shutdown', () => { this.ended = true; });
 
     if (!this.b) {
@@ -338,6 +343,65 @@ export class BattleScene extends Phaser.Scene {
   onDialogueVisible(v) {
     this.cmdHidden = v;
     for (const o of this.menuObjs) o.setVisible(!v);
+    this.refreshHelp();
+  }
+
+  /** 說明框：有文字且指令區沒被對話蓋住時才顯示；觸控時已聚焦的可用項目副標加「點一下使用」。 */
+  refreshHelp() {
+    const m = this.menu;
+    if (!m?.help) return;
+    const h = m.help;
+    const idx = m.index;
+    m.buttons.forEach((b, j) => {
+      if (!b.sub) return;
+      const e = m.entries[j];
+      const hint = this.touchMode && j === idx && e.enabled !== false && !!helpText(e);
+      b.sub.setText(subWithHint(e.sub, hint));
+      b.label.y = b.sub.text ? -9 : 0; // 沒有副標時標題垂直置中
+      b.fit();
+    });
+    const str = helpText(m.entries[idx]);
+    h.str = str;
+    if (!str) { h.bg.setVisible(false); h.text.setVisible(false); return; }
+    h.fontSize = this.layoutHelpText(h.text, str);
+    h.text.setPosition(HELP_BOX.padX + 4, h.box.y + HELP_BOX.padY);
+    h.bg.setVisible(!this.cmdHidden);
+    h.text.setVisible(!this.cmdHidden);
+  }
+
+  /**
+   * 把說明文字放進說明框：15px 完整換行；萬一超過預留行數就逐級縮小字級直到放得下（不截斷、不長出面板）。
+   * 現有資料用資料測試保證不會觸發縮小。回傳最後的字級。
+   */
+  layoutHelpText(t, str) {
+    let size = HELP_BOX.fontSize;
+    for (;;) {
+      t.setFontSize(size);
+      t.setText(str);
+      if (t.height <= LIST_LAYOUT.help.textCap || size <= HELP_BOX.minFontSize) return size;
+      size -= 1;
+    }
+  }
+
+  /** E2E 用：以說明框的樣式量每段文字換行後的行數、字級與是否放得下（不動畫面）。 */
+  measureHelp(texts) {
+    const t = this.makeHelpText();
+    const out = texts.map((str) => {
+      const fontSize = this.layoutHelpText(t, str);
+      return {
+        text: str, fontSize, lines: t.getWrappedText(str).length, textHeight: t.height, capacity: LIST_LAYOUT.help.textCap,
+        fits: t.height <= LIST_LAYOUT.help.textCap, y: LIST_LAYOUT.help.y, h: LIST_LAYOUT.help.h,
+      };
+    });
+    t.destroy();
+    return out;
+  }
+
+  makeHelpText() {
+    return addText(this, HELP_BOX.padX + 4, 0, '', {
+      fontSize: `${HELP_BOX.fontSize}px`, color: '#e8e2d4', lineSpacing: HELP_BOX.lineSpacing,
+      wordWrap: { width: WIDTH - 32, useAdvancedWrap: true },
+    }).setDepth(DEPTH.cmd).setVisible(false);
   }
 
   // ---------- 動畫小工具 ----------
@@ -618,45 +682,60 @@ export class BattleScene extends Phaser.Scene {
   /**
    * 建立一組按鈕。entries: [{ label, sub, enabled, reason, onSelect }]；layout 'grid'（2 欄，指令區）或 'list'（單欄，蓋住隊伍區）。
    */
-  buildMenu(mode, entries, { layout = 'grid', title = null, onBack = null } = {}) {
+  buildMenu(mode, entries, { layout = 'grid', title = null, onBack = null, focusKey = null } = {}) {
     this.clearMenu();
     this.mode = mode;
     const objs = [];
     let cols = 2;
     let positions;
+    let help = null;
+    let titleObj = null;
     if (layout === 'list') {
       cols = 1;
-      const top = LIST.top;
+      const L = LIST_LAYOUT;
+      const top = L.panelTop;
       const bg = this.add.graphics().setDepth(DEPTH.overlay);
-      bg.fillStyle(0x0d1015, 1).fillRect(0, top - 14, WIDTH, HEIGHT - top + 14);
-      bg.lineStyle(1, COLORS.gasDeep, 1).lineBetween(0, top - 13.5, WIDTH, top - 13.5);
+      bg.fillStyle(0x0d1015, 1).fillRect(0, top, WIDTH, HEIGHT - top);
+      bg.lineStyle(1, COLORS.gasDeep, 1).lineBetween(0, top + 0.5, WIDTH, top + 0.5);
       objs.push(bg);
+      // 說明框在面板內（標題與按鈕之間），不蓋戰場
+      const box = { x: 0, y: L.help.y, w: WIDTH, h: L.help.h };
+      const hbg = this.add.graphics().setDepth(DEPTH.overlay).setVisible(false);
+      hbg.fillStyle(0x0d1015, 1).fillRect(box.x, box.y, box.w, box.h);
+      hbg.lineStyle(1, COLORS.gasDeep, 1).strokeRect(box.x + 0.5, box.y + 0.5, box.w - 1, box.h - 1);
+      help = { bg: hbg, text: this.makeHelpText(), str: '', box, fontSize: HELP_BOX.fontSize };
+      objs.push(help.bg, help.text);
       if (title) {
-        objs.push(addText(this, WIDTH / 2, top + 6, title, { fontSize: '14px', color: '#f0d2a0' }).setOrigin(0.5).setDepth(DEPTH.cmd));
+        titleObj = addText(this, WIDTH / 2, L.title.centerY, title, { fontSize: '14px', color: '#f0d2a0' }).setOrigin(0.5).setDepth(DEPTH.cmd);
+        objs.push(titleObj);
       }
-      const y0 = top + 26 + LIST.h / 2;
-      positions = entries.map((_, i) => [WIDTH / 2, y0 + i * (LIST.h + LIST.gap), LIST.w, LIST.h]);
+      const y0 = L.buttons.firstCenter;
+      positions = entries.map((_, i) => [WIDTH / 2, y0 + i * (L.buttons.h + L.buttons.gap), LIST.w, L.buttons.h]);
     } else {
       positions = entries.map((_, i) => [CMD.colX[i % 2], CMD.top + CMD.h / 2 + Math.floor(i / 2) * (CMD.h + CMD.gapY), CMD.w, CMD.h]);
     }
     const buttons = entries.map((e, i) => {
       const [x, y, w, h] = positions[i];
+      // 清單裡有說明的項目一律建立副標物件（觸控的「點一下使用」提示要用）
+      const sub = e.sub ?? (layout === 'list' && helpText(e) ? '' : null);
       const b = new Button(this, x, y, w, h, e.label, {
-        sub: e.sub ?? null, fontSize: layout === 'list' ? 16 : 17, align: layout === 'list' ? 'left' : 'center',
-        onClick: () => this.pick(i),
+        sub, fontSize: layout === 'list' ? 16 : 17, align: layout === 'list' ? 'left' : 'center',
+        onClick: (_btn, ptr) => this.pick(i, ptr),
       });
       b.setDepth(DEPTH.cmd);
       b.setEnabled(e.enabled !== false);
-      if (b.sub) fitText(b.sub, e.sub, w - 24);
-      b.hit.on('pointerup', () => { if (!b.enabled) this.pick(i); });
-      b.on('hover', () => this.focusMenu(i));
+      if (b.sub) fitText(b.sub, e.sub ?? '', w - 24);
+      b.hit.on('pointerup', (ptr) => { if (!b.enabled) this.pick(i, ptr); });
+      // 觸控沒有 hover（pointerover 比 pointerup 先到，會讓第一次點直接變成已聚焦）；滑鼠 hover 才跟著聚焦
+      b.on('hover', (_b, ptr) => { if (!ptr?.wasTouch) this.focusMenu(i); });
       objs.push(b);
       return b;
     });
     this.menuObjs = objs;
-    this.menu = { entries, buttons, cols, index: 0, onBack, layout, title };
+    this.menu = { entries, buttons, cols, index: 0, onBack, layout, title, help, titleObj };
     if (this.cmdHidden) objs.forEach((o) => o.setVisible(false));
-    this.focusMenu(Math.max(0, entries.findIndex((e) => e.enabled !== false)));
+    const keyed = focusKey !== null ? entries.findIndex((e) => e.key === focusKey && e.enabled !== false) : -1;
+    this.focusMenu(keyed >= 0 ? keyed : Math.max(0, entries.findIndex((e) => e.enabled !== false)));
   }
 
   focusMenu(i) {
@@ -665,14 +744,20 @@ export class BattleScene extends Phaser.Scene {
     if (n === 0) return;
     this.menu.index = ((i % n) + n) % n;
     this.menu.buttons.forEach((b, j) => b.setFocused(j === this.menu.index));
+    this.refreshHelp();
     const e = this.menu.entries[this.menu.index];
     if (this.mode === 'target' && e?.uid) { this.cursor = e.uid; this.refreshAll(); }
   }
 
-  pick(i) {
+  /** ptr：點擊的指標（鍵盤確認時沒有）。觸控第一次點未聚焦的清單項目只聚焦，已聚焦才使用。 */
+  pick(i, ptr) {
     if (!this.menu || this.mode === 'busy') return;
     const e = this.menu.entries[i];
     if (!e) return;
+    if (shouldFocusFirst({ touch: ptr?.wasTouch, layout: this.menu.layout, focused: this.menu.index === i, hasDetail: !!helpText(e) })) {
+      this.focusMenu(i);
+      return;
+    }
     if (e.enabled === false) {
       if (e.reason) this.toast(e.reason);
       return;
@@ -724,37 +809,45 @@ export class BattleScene extends Phaser.Scene {
     return entries;
   }
 
-  showSkills(page) {
+  showSkills(page, focusKey = null) {
     const a = this.unitById(this.b.actor);
     const list = this.cmds.skills.filter((s) => !isRootSkill(s.id));
     const entries = this.pageEntries(list, page, (s) => ({
+      key: s.id,
       label: s.name,
-      sub: s.usable ? `${costText(s.cost)}｜${s.desc}` : `${costText(s.cost)}｜${reasonText(s.reason)}`,
+      sub: skillSub(s),
+      detail: s.desc ?? '',
       enabled: s.usable,
       reason: reasonText(s.reason),
       onSelect: () => this.chooseSkill(s, 'skills', page),
     }), (p) => this.showSkills(p));
-    this.buildMenu('skills', entries, { layout: 'list', title: `技能　靈性 ${a.sp}/${a.stats.sp}`, onBack: () => this.showRoot() });
+    this.buildMenu('skills', entries, {
+      layout: 'list', title: menuTitle('skills', { sp: a.sp, maxSp: a.stats.sp }), onBack: () => this.showRoot(), focusKey,
+    });
   }
 
-  showItems(page) {
+  showItems(page, focusKey = null) {
     const list = this.cmds.items;
     const entries = this.pageEntries(list, page, (it) => {
       const def = (session.data.items ?? []).find((x) => x.id === it.id);
       const usable = it.targets.length > 0 || !['enemy', 'ally'].includes(it.target);
       return {
+        key: it.id,
         label: `${it.name}　×${it.count}`,
-        sub: usable ? (def?.desc ?? '') : '沒有可選的目標',
+        sub: itemSub(usable),
+        detail: def?.desc ?? '',
         enabled: usable,
         reason: '沒有可選的目標',
         onSelect: () => this.chooseItem(it, page),
       };
     }, (p) => this.showItems(p));
-    this.buildMenu('items', entries, { layout: 'list', title: '道具', onBack: () => this.showRoot() });
+    this.buildMenu('items', entries, {
+      layout: 'list', title: menuTitle('items'), onBack: () => this.showRoot(), focusKey,
+    });
   }
 
   chooseSkill(s, from, page = 0) {
-    const back = from === 'skills' ? () => this.showSkills(page) : () => this.showRoot();
+    const back = from === 'skills' ? () => this.showSkills(page, s.id) : () => this.showRoot();
     if (s.target === 'enemy' || s.target === 'ally') {
       this.showTargets(s.targets, s.name, (uid) => this.submit({ type: 'skill', skill: s.id, target: uid }), back);
     } else {
@@ -764,7 +857,7 @@ export class BattleScene extends Phaser.Scene {
 
   chooseItem(it, page) {
     if (it.target === 'enemy' || it.target === 'ally') {
-      this.showTargets(it.targets, it.name, (uid) => this.submit({ type: 'item', item: it.id, target: uid }), () => this.showItems(page));
+      this.showTargets(it.targets, it.name, (uid) => this.submit({ type: 'item', item: it.id, target: uid }), () => this.showItems(page, it.id));
     } else {
       this.submit({ type: 'item', item: it.id });
     }
@@ -916,16 +1009,31 @@ export class BattleScene extends Phaser.Scene {
           uid: u.uid, side: u.side, id: u.id, name: u.name, label: labels[u.uid], hp: u.hp, maxHp: u.stats.hp, sp: u.sp, maxSp: u.stats.sp,
           alive: u.alive, status: { ...u.status }, intent: u.side === 'enemy' && u.revealed && u.intent ? { ...u.intent } : null,
           intentText: v?.intentStr ?? null, rect,
+          textRects: v && u.side === 'enemy' ? Object.fromEntries(['name', 'status', 'intent'].map((k) => {
+            const t = v[k];
+            if (!v.c.visible || !t.visible || !t.text) return [k, null];
+            const r = t.getBounds();
+            return [k, { x: r.x, y: r.y, w: r.width, h: r.height }];
+          })) : null,
         };
       }),
       commands: isPlayerTurn(b) ? commands(b, session.data) : null,
       menu: this.menu ? {
+        help: this.menu.help ? {
+          text: this.menu.help.text.visible ? this.menu.help.text.text : '',
+          visible: this.menu.help.text.visible,
+          fontSize: this.menu.help.fontSize,
+          textHeight: this.menu.help.text.height,
+          capacity: LIST_LAYOUT.help.textCap,
+          box: this.menu.help.text.visible ? { ...this.menu.help.box } : null,
+        } : null,
+        titleRect: this.menu.titleObj ? (() => { const r = this.menu.titleObj.getBounds(); return { x: r.x, y: r.y, w: r.width, h: r.height }; })() : null,
         layout: this.menu.layout ?? 'grid',
         title: this.menu.title ?? null,
         index: this.menu.index,
         buttons: this.menu.buttons.map((bt, i) => ({
           label: bt.label.text, sub: bt.sub?.text ?? null, enabled: bt.enabled, focused: i === this.menu.index,
-          uid: this.menu.entries[i]?.uid ?? null, x: bt.x - bt.w / 2, y: bt.y - bt.h / 2, w: bt.w, h: bt.h,
+          uid: this.menu.entries[i]?.uid ?? null, confirm: shouldFocusFirst({ touch: true, layout: this.menu.layout, focused: false, hasDetail: !!helpText(this.menu.entries[i]) }), x: bt.x - bt.w / 2, y: bt.y - bt.h / 2, w: bt.w, h: bt.h,
         })),
       } : null,
       cursor: this.mode === 'target' ? this.cursor : null,

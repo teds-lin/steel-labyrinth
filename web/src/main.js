@@ -82,6 +82,8 @@ if (TEST_MODE) {
     cloud: () => ro({ ...cloud.status(), apiBase: cloudApiBase() }),
     /** 戰鬥畫面的唯讀摘要：行動者、指令、敵我生命、被揭露的意圖、選單按鈕位置、結果、完整 log。不在戰鬥中時為 null。 */
     battle: () => ro(activeScene('Battle')?.debugInfo()),
+    /** 戰鬥說明框的排版量測：每段文字換行後的行數、高度與框的位置（不改畫面）。 */
+    measureHelp: (texts) => ro(activeScene('Battle')?.measureHelp(Array.isArray(texts) ? texts.map(String) : []) ?? null),
     /** 夢客自由交談畫面（訊息、剩餘句數、輸入框狀態、人機驗證、按鈕位置）。不在該畫面時為 null。 */
     chat: () => ro(activeScene('DreamChat')?.debugInfo()),
     /** 地圖場景的唯讀資訊（目前地圖、夢境視覺）。 */

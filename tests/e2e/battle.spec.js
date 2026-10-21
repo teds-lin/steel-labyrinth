@@ -1,7 +1,7 @@
 // M2 戰鬥與第一、二章 E2E。桌機用鍵盤、手機全程用 tap（選指令、選目標、選技能都用點的）。
 // 戰鬥亂數用 ?seed=N 固定，結果可重現。期望值一律從資料讀，不寫死。
 import { readFileSync } from 'node:fs';
-import { test, expect, game, TEST_URL, makeSave, seedSaves } from './helpers.js';
+import { test, expect, game, TEST_URL, makeSave, seedSaves, rootSkillIds } from './helpers.js';
 
 const isTouch = (testInfo) => testInfo.project.name === 'mobile';
 const readData = (rel) => JSON.parse(readFileSync(new URL(`../../web/data/${rel}`, import.meta.url), 'utf8'));
@@ -54,6 +54,41 @@ async function useSeedFor(page, enc, want = ['victory'], policy = basicPolicy) {
   expect(seed, `找不到 ${enc} 結果為 ${want} 的種子`).not.toBeNull();
   await page.evaluate((n) => history.replaceState(null, '', `${location.pathname}?test=1&seed=${n}`), seed);
   return seed;
+}
+
+
+/** 第七章最終戰前的 v4 存檔（主角＋艾妲，譜系 階 7：預兆、耳語、換影、影縛）；用來開任意遭遇戰量版面。 */
+function lateSave() {
+  const enter = ['office_ch7', 'harbor_night', 'breakwater', 'clocktower_ch7', 'lighthouse', 'lighthouse_top'];
+  return {
+    schema_version: 4,
+    player: { name: '艾琳' },
+    lineage: { id: 'trace', rank: 7 },
+    location: { map: 'lighthouse_top', x: 6, y: 3, dir: 'up' },
+    flags: {
+      ...Object.fromEntries(enter.map((m) => [`enter:${m}`, true])),
+      dream_unlocked: true, marlo_trusted: true, inspector_convinced: true, owen_spoke: true, ch6_mirror_heard: true,
+      ch7_started: true, ch7_foreman: true, ch7_gate_open: true, ch7_procession: true, ch7_harbor1_done: true, ch7_harbor2_done: true,
+      ch7_deduced: true, ch7_breakwater_done: true, ch7_drowned: true, ch7_promoted: true, ch7_chair_done: true, ch7_woke: true,
+      ch7_outer_open: true, ch7_lh1_done: true, ch7_got_lantern_key: true, ch7_inner_open: true, ch7_rest_landing: true,
+    },
+    items: { sedative_incense: 2, tonic: 1, bandage: 2 },
+    echo: { charges: 0 },
+    collapse: 20,
+    resonance: {},
+    chapter: 'chapter7',
+    chapter_done: ['prologue', 'chapter1', 'chapter2', 'chapter3', 'chapter4', 'chapter5', 'chapter6'],
+    playtime_s: 7200,
+    party: [{ id: 'hero', hp: null, sp: null }, { id: 'ada', hp: null, sp: null }],
+    ammo: 0,
+    pending: null,
+    dream_return: null,
+    promotions: [
+      { lineage: 'trace', rank: 8, forced: false, chapter: 'chapter4' },
+      { lineage: 'trace', rank: 7, forced: false, chapter: 'chapter7' },
+    ],
+    ending: null,
+  };
 }
 
 /** 序章結束時的 v1 存檔（M1 格式）：站在街上的結局觸發點，序章已完成。 */
@@ -112,6 +147,12 @@ const unitSnapshot = (b) => ({
   ammo: b.ammo,
   collapse: b.collapse,
 });
+
+
+const SKILL_DEFS = readData('skills.json');
+const ITEM_DEFS = readData('items.json');
+const skillDesc = (name) => SKILL_DEFS.find((x) => x.name === name)?.desc;
+const itemDesc = (label) => ITEM_DEFS.find((x) => label.startsWith(x.name))?.desc;
 
 test.describe('M2 戰鬥', () => {
   test('主線：序章存檔 → 第一章（靈劑、教學戰、艾妲入隊）→ 第二章霧行者 → 存檔', async ({ page }, testInfo) => {
@@ -478,4 +519,244 @@ test.describe('M2 戰鬥', () => {
     expect(b.mode).toBe('root');
     await g.noHScroll();
   });
+
+  /** 進入第二章 Boss 戰並輪到主角；items 可覆寫。回傳 { g, b }。 */
+  async function enterBossBattle(page, testInfo, items = { revolver: 1, bandage: 2, sedative_incense: 1, tonic: 1, warehouse_key: 1 }) {
+    const touch = isTouch(testInfo);
+    await seedSaves(page, { 1: bossSave({ items, party: [{ id: 'hero', hp: null, sp: 10 }, { id: 'ada', hp: null, sp: null }] }) });
+    const g = game(page, { touch });
+    await page.goto(`${TEST_URL}&seed=3`);
+    await loadSlot(g, 1);
+    await g.waitScene('Map');
+    await g.act('investigate');
+    await g.waitDialogue();
+    await g.finishDialogue();
+    await g.waitScene('Battle');
+    let b = await g.battleWait();
+    while (b.actor.id !== 'hero') {
+      await g.battleCommand({ skill: 'guard' });
+      b = await g.battleWait();
+    }
+    return { g, b, touch };
+  }
+
+  const PANEL_TOP = 316;
+  const rectsOverlap = (a, c) => a.x < c.x + c.w && c.x < a.x + a.w && a.y < c.y + c.h && c.y < a.y + a.h;
+  /** 說明框的幾何：在面板內、不與標題與任何按鈕相交、字級 ≥15、框高放得下實際文字高度（不被裁掉）。 */
+  function expectHelpGeometry(b, what) {
+    const h = b.menu.help;
+    expect(h.visible, `${what}：說明框可見`).toBe(true);
+    expect(h.fontSize, `${what}：字級`).toBeGreaterThanOrEqual(15);
+    expect(h.box.y, `${what}：框頂在面板內（≥${PANEL_TOP}）`).toBeGreaterThanOrEqual(PANEL_TOP);
+    expect(h.box.h, `${what}：框高放得下文字（含上下內距）`).toBeGreaterThanOrEqual(h.textHeight + 16);
+    expect(h.textHeight, `${what}：文字高度離容量至少留 2px 餘裕`).toBeLessThanOrEqual(h.capacity - 2);
+    expect(b.menu.titleRect, `${what}：標題矩形`).toBeTruthy();
+    expect(rectsOverlap(h.box, b.menu.titleRect), `${what}：不與標題相交`).toBe(false);
+    for (const x of b.menu.buttons) expect(rectsOverlap(h.box, x), `${what}：不與按鈕「${x.label}」相交`).toBe(false);
+    for (const x of b.menu.buttons) {
+      expect(x.h, `${x.label} 高度`).toBeGreaterThanOrEqual(44);
+      expect(x.y + x.h, `${x.label} 距底邊至少 8px`).toBeLessThanOrEqual(632);
+    }
+  }
+
+  test('技能子選單的說明框：完整描述、標題帶行動者名字、幾何不重疊、方向鍵／滑鼠 hover 切換、離開後消失', async ({ page }, testInfo) => {
+    const { g, b: b0, touch } = await enterBossBattle(page, testInfo);
+    let b = b0;
+    expect(b.menu.help, '第一層（grid）沒有說明框').toBeNull();
+
+    await g.battleButton('技能');
+    b = await g.battleWait();
+    const me = b.units.find((u) => u.uid === b.actor.uid);
+    expect(b.menu.title).toBe(`技能　靈性 ${me.sp}/${me.maxSp}`);
+    const skillBtns = b.menu.buttons.filter((x) => skillDesc(x.label));
+    expect(skillBtns.length).toBeGreaterThanOrEqual(1);
+    const first = skillBtns[0];
+    expect(b.menu.help.text).toBe(skillDesc(first.label));
+    expect(first.sub, '按鈕副標只放短資訊').not.toContain(skillDesc(first.label));
+    for (const x of skillBtns) expect(x.sub, `${x.label} 副標不含「…」`).not.toContain('…');
+    expectHelpGeometry(b, '技能清單');
+    if (testInfo.project.name === 'mobile') await page.screenshot({ path: testInfo.outputPath('battle-skills-help-mobile.png') });
+    if (!touch) {
+      await g.key('ArrowDown');
+      b = await g.battleWait();
+      expect(b.menu.buttons[b.menu.index].label).toBe('返回');
+      expect(b.menu.help.visible).toBe(false);
+      expect(b.menu.help.text).toBe('');
+      await g.key('ArrowUp');
+      b = await g.battleWait();
+      expect(b.menu.help.text).toBe(skillDesc(first.label));
+    }
+    await g.battleButton('返回');
+    b = await g.battleWait();
+    expect(b.mode).toBe('root');
+    expect(b.menu.help, '回到第一層後說明框消失').toBeNull();
+  });
+
+  test('道具子選單：方向鍵下移與滑鼠 hover 都會換說明；標題帶行動者名字', async ({ page }, testInfo) => {
+    const { g, b: b0, touch } = await enterBossBattle(page, testInfo);
+    await g.battleButton('道具');
+    let b = await g.battleWait();
+    expect(b.menu.title).toBe('道具');
+    const itemBtns = b.menu.buttons.filter((x) => itemDesc(x.label));
+    expect(itemBtns.length).toBeGreaterThanOrEqual(3);
+    expect(b.menu.help.text).toBe(itemDesc(itemBtns[0].label));
+    expectHelpGeometry(b, '道具清單');
+    if (touch) return; // 觸控沒有 hover 與方向鍵；觸控行為見下一個測試
+    await g.key('ArrowDown');
+    b = await g.battleWait();
+    expect(b.menu.help.text, '方向鍵下移後變成下一個道具的描述').toBe(itemDesc(itemBtns[1].label));
+    // 滑鼠 hover 到第三項（不點）
+    const r = b.menu.buttons.find((x) => x.label === itemBtns[2].label);
+    const box = await page.locator('canvas').boundingBox();
+    await page.mouse.move(box.x + ((r.x + r.w / 2) * box.width) / 360, box.y + ((r.y + r.h / 2) * box.height) / 640);
+    await page.waitForFunction((t) => window.__SL.battle()?.menu?.help?.text === t, itemDesc(itemBtns[2].label), { timeout: 3_000 });
+    b = await g.battleWait();
+    expect(b.mode).toBe('items');
+    expect(b.menu.index).toBe(b.menu.buttons.findIndex((x) => x.label === itemBtns[2].label));
+  });
+
+  test('觸控：第一次點未聚焦的項目只聚焦（顯示說明），再點一次才使用；返回後聚焦回原項目', async ({ page }, testInfo) => {
+    const { g, b: b0, touch } = await enterBossBattle(page, testInfo);
+    await g.battleButton('道具');
+    let b = await g.battleWait();
+    const itemBtns = b.menu.buttons.filter((x) => itemDesc(x.label));
+    const tonic = itemBtns.find((x) => x.label.startsWith(ITEM_DEFS.find((d) => d.id === 'tonic').name));
+    expect(tonic, '清單有補藥').toBeTruthy();
+    const tonicIdx = b.menu.buttons.findIndex((x) => x.label === tonic.label);
+    expect(tonicIdx).toBeGreaterThan(0);
+    expect(b.menu.buttons[tonicIdx].confirm, '有說明的清單項目需要二次確認（觸控）').toBe(true);
+    expect(b.menu.buttons.find((x) => x.label === '返回').confirm).toBe(false);
+    if (touch) {
+      expect(b.menu.buttons[b.menu.index].sub, '已聚焦的項目提示再點一次').toContain('點一下使用');
+      const r = tonic;
+      const lx = r.x + r.w / 2;
+      const ly = r.y + r.h / 2;
+      // 第一次點：只聚焦
+      const box = await page.locator('canvas').boundingBox();
+      await page.touchscreen.tap(box.x + (lx * box.width) / 360, box.y + (ly * box.height) / 640);
+      await page.waitForFunction((i) => window.__SL.battle()?.menu?.index === i, tonicIdx, { timeout: 3_000 });
+      await page.waitForTimeout(200);
+      b = await g.battleWait();
+      expect(b.mode, '第一次點沒有使用').toBe('items');
+      expect(b.menu.help.text).toBe(itemDesc(tonic.label));
+      expect(b.menu.buttons[tonicIdx].sub).toContain('點一下使用');
+      expect(b.menu.buttons[0].sub ?? '').not.toContain('點一下使用');
+      // 第二次點：使用（補藥要選目標）
+      await page.touchscreen.tap(box.x + (lx * box.width) / 360, box.y + (ly * box.height) / 640);
+      await page.waitForFunction(() => window.__SL.battle()?.mode === 'target', null, { timeout: 3_000 });
+    } else {
+      await g.battleButton((x) => x.label === tonic.label);
+      await page.waitForFunction(() => window.__SL.battle()?.mode === 'target', null, { timeout: 3_000 });
+      expect((await g.battleWait()).menu.help, '桌機：目標選單沒有說明框').toBeNull();
+    }
+    // 從選目標按返回 → 回到道具清單，聚焦在補藥
+    await g.battleButton('返回');
+    b = await g.battleWait();
+    expect(b.mode).toBe('items');
+    expect(b.menu.index, '返回後聚焦回原本那一項').toBe(tonicIdx);
+    expect(b.menu.help.text).toBe(itemDesc(tonic.label));
+    expect(b0.actor.id).toBe('hero');
+  });
+
+  test('滑鼠：點未聚焦的清單項目一次就使用（不需點兩下）', async ({ page }, testInfo) => {
+    const { g, touch } = await enterBossBattle(page, testInfo);
+    if (touch) return; // 觸控的二次點見上一個測試
+    await g.battleButton('道具');
+    const b = await g.battleWait();
+    const tonic = b.menu.buttons.find((x) => x.label.startsWith(ITEM_DEFS.find((d) => d.id === 'tonic').name));
+    expect(b.menu.buttons.indexOf(tonic)).toBeGreaterThan(b.menu.index);
+    const box = await page.locator('canvas').boundingBox();
+    await page.mouse.click(box.x + ((tonic.x + tonic.w / 2) * box.width) / 360, box.y + ((tonic.y + tonic.h / 2) * box.height) / 640);
+    await page.waitForFunction(() => window.__SL.battle()?.mode === 'target', null, { timeout: 3_000 });
+  });
+
+  test('技能與道具描述：用真 Phaser Text 量測，玩家選單的每一項在框內放得下（不截斷、不長出面板）', async ({ page }, testInfo) => {
+    await enterBossBattle(page, testInfo);
+    // 玩家拿得到的技能＝角色技能＋譜系各階技能（敵人專用技能不會出現在玩家選單，不納入）
+    const lineageSkills = ['archive', 'dream', 'trace', 'watch'].flatMap((f) => readData(`lineages/${f}.json`).ranks.flatMap((r) => r.skills ?? []));
+    const rootIds = rootSkillIds();
+    const ids = new Set([...readData('characters.json').flatMap((c) => c.skills ?? []), ...lineageSkills]);
+    const descs = [
+      ...SKILL_DEFS.filter((x) => ids.has(x.id) && !rootIds.has(x.id)).map((x) => x.desc),
+      ...ITEM_DEFS.map((x) => x.desc),
+    ];
+    expect(descs.length).toBeGreaterThanOrEqual(12);
+    const m = await page.evaluate((t) => window.__SL.measureHelp(t), descs);
+    expect(m.length).toBe(descs.length);
+    for (const r of m) {
+      expect(r.textHeight, `${r.text} 文字高度離容量至少留 2px 餘裕`).toBeLessThanOrEqual(r.capacity - 2);
+      expect(r.fits, `${r.text} 放不下（${r.lines} 行，文字高 ${r.textHeight}，可用 ${r.capacity}）`).toBe(true);
+      expect(r.fontSize, r.text).toBeGreaterThanOrEqual(15);
+      expect(r.y, r.text).toBeGreaterThanOrEqual(PANEL_TOP);
+      expect(r.lines, r.text).toBeLessThanOrEqual(2);
+    }
+    testInfo.annotations.push({ type: 'help-max-lines', description: String(Math.max(...m.map((r) => r.lines))) });
+  });
+
+  /** 以 Phaser 的 Map 場景開指定遭遇戰（測試用；不改遊戲程式）。 */
+  async function startEncounter(page, enc) {
+    await page.evaluate(async (e) => {
+      const { game } = await import('./src/main.js');
+      game.scene.getScene('Map').doBattle(e);
+    }, enc);
+  }
+
+  for (const enc of ['enc_ch7_omen', 'enc_ch5_canal_2']) {
+    test(`說明框不蓋敵人的名稱、狀態與揭露的意圖（${enc}）`, async ({ page }, testInfo) => {
+      test.setTimeout(180_000);
+      const touch = isTouch(testInfo);
+      await seedSaves(page, { 1: lateSave() });
+      const g = game(page, { touch });
+      await page.goto(`${TEST_URL}&seed=5`);
+      await loadSlot(g, 1);
+      await g.waitScene('Map');
+      await startEncounter(page, enc);
+      await g.waitScene('Battle');
+      // 用預兆揭露一個敵人的意圖，再在還沒被消耗掉前打開道具清單量版面
+      let b = await g.battleWait();
+      let revealed = null;
+      if (process.env.SL_SHOT_DIR && enc === 'enc_ch7_omen') {
+        // 截圖用（不影響斷言）：主角回合打開技能清單，電腦 1280×800、手機 390×844
+        b = await g.battleWait();
+        while (b.actor.id !== 'hero') { await g.battleCommand({ skill: 'guard' }); b = await g.battleWait(); }
+        await g.battleButton('技能');
+        await page.setViewportSize(touch ? { width: 390, height: 844 } : { width: 1280, height: 800 });
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: `${process.env.SL_SHOT_DIR}/skills-${enc}-${touch ? '390x844' : '1280x800'}.png` });
+        await page.setViewportSize(touch ? { width: 375, height: 667 } : { width: 1280, height: 720 });
+        await g.battleButton('返回');
+      }
+      for (let guard = 0; guard < 12 && !revealed; guard++) {
+        b = await g.battleWait();
+        if (b.mode !== 'root') { await g.battleButton('返回'); continue; }
+        const foes = b.units.filter((u) => u.side === 'enemy' && u.alive);
+        const omen = b.commands.skills.find((x) => x.id === 'omen' && x.usable);
+        if (b.actor.id === 'hero' && omen && !foes.some((u) => u.intentText)) {
+          await g.battleCommand({ skill: 'omen', target: foes[0].uid });
+          continue;
+        }
+        if (foes.some((u) => u.intentText)) { revealed = foes.find((u) => u.intentText); break; }
+        await g.battleCommand({ skill: 'guard' });
+      }
+      expect(revealed, '揭露到至少一個意圖').toBeTruthy();
+      b = await g.battleWait();
+      await g.battleButton('道具');
+      b = await g.battleWait();
+      expectHelpGeometry(b, `${enc} 道具清單`);
+      const box = b.menu.help.box;
+      let checked = 0;
+      for (const u of b.units.filter((x) => x.side === 'enemy' && x.alive)) {
+        for (const [k, r] of Object.entries(u.textRects ?? {})) {
+          if (!r) continue;
+          checked += 1;
+          expect(rectsOverlap(box, r), `${enc}：說明框不與 ${u.label} 的 ${k} 文字相交 ${JSON.stringify(r)} vs ${JSON.stringify(box)}`).toBe(false);
+        }
+        if (u.rect) expect(rectsOverlap(box, u.rect), `${enc}：說明框不蓋 ${u.label} 的立繪`).toBe(false);
+      }
+      expect(checked, "至少量到名稱與意圖文字").toBeGreaterThanOrEqual(2);
+      expect(b.units.some((u) => u.textRects?.intent), '有量到意圖文字的矩形').toBe(true);
+      await page.screenshot({ path: testInfo.outputPath(`help-${enc}.png`) });
+      if (process.env.SL_SHOT_DIR) await page.screenshot({ path: `${process.env.SL_SHOT_DIR}/help-${enc}-${testInfo.project.name}.png` });
+    });
+  }
 });

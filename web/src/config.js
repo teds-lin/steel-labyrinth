@@ -21,7 +21,7 @@ export const FEEDBACK_URL = 'https://github.com/teds-lin/steel-labyrinth/discuss
  * 維護方式：每次推上 main（GitHub Pages 發布）前改成當天日期。GitHub Actions 只跑 npm test／check、不跑 build-data，
  * 所以版本號不放在建置產物裡，而是寫在這裡跟著程式碼一起提交。
  */
-export const GAME_VERSION = '2026.10.21';
+export const GAME_VERSION = '2026.10.21.1';
 
 export const FONT = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
 

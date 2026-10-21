@@ -48,6 +48,68 @@ export function costText(cost) {
 
 export const reasonText = (reason) => (reason ? REASON_TEXT[reason] ?? '現在無法使用' : '');
 
+/** 技能按鈕的短資訊：可用時只放消耗，不可用時接上原因；完整描述改放在說明框（entry.detail）。 */
+export const skillSub = (s) => (s.usable ? costText(s.cost) : `${costText(s.cost)}｜${reasonText(s.reason)}`);
+
+/** 道具按鈕的短資訊：可用時不放字（描述在說明框），不可用時說明原因。 */
+export const itemSub = (usable) => (usable ? null : '沒有可選的目標');
+
+/** 說明框要顯示的文字：取聚焦項目的 detail；沒有（下一頁、返回、目標按鈕）回空字串。 */
+export const helpText = (entry) => (typeof entry?.detail === 'string' ? entry.detail.trim() : '');
+
+/** 說明框的字級、內距與預留行數（邏輯座標）。文字不截斷；預留行數＝玩家選單所有描述的最大行數（資料測試保證）。 */
+export const HELP_BOX = Object.freeze({ fontSize: 15, minFontSize: 12, padX: 12, padY: 8, lineSpacing: 3, lineHeight: 22, lines: 2 });
+
+/** 清單版面（技能、道具）：標題、說明框、按鈕由上而下都在面板內（y ≥ panelTop），不往戰場長。 */
+export function listLayout() {
+  const panelTop = 316;
+  const textCap = HELP_BOX.lines * HELP_BOX.lineHeight + (HELP_BOX.lines - 1) * HELP_BOX.lineSpacing;
+  const helpY = panelTop + 20;
+  const helpH = textCap + HELP_BOX.padY * 2;
+  return {
+    panelTop,
+    title: { centerY: panelTop + 11, bottom: panelTop + 20 },
+    help: { y: helpY, h: helpH, textCap },
+    buttons: { firstCenter: helpY + helpH + 3 + 22, h: 44, gap: 2 },
+  };
+}
+
+/** 子選單標題：行動者名字已在上方的提示句（「○○要怎麼做？」），標題不重複。 */
+export function menuTitle(kind, { sp = 0, maxSp = 0 } = {}) {
+  return kind === 'skills' ? `技能　靈性 ${sp}/${maxSp}` : '道具';
+}
+
+export const TAP_AGAIN_HINT = '點一下使用';
+
+/** 觸控：清單裡有說明的項目，第一次點未聚焦的只聚焦（看說明），已聚焦才使用。 */
+export const shouldFocusFirst = ({ touch, layout, focused, hasDetail }) => !!touch && layout === 'list' && !focused && !!hasDetail;
+
+/** 副標接上「點一下使用」提示（只在觸控且該項目已聚焦、可用時 with=true）。 */
+export function subWithHint(base, withHint) {
+  const b = base ?? '';
+  if (!withHint) return b;
+  return b ? `${b}｜${TAP_AGAIN_HINT}` : TAP_AGAIN_HINT;
+}
+
+/**
+ * 估算說明文字換行後的行數（單元測試用；實機以 Phaser 量測為準，見 e2e）。
+ * 依據：中文字與全形標點寬度 = 字級，半形英數約 0.56 倍字級；逐字換行（中文沒有空白可斷）。
+ */
+export function estimateHelpLines(text, wrapWidth, fontSize = HELP_BOX.fontSize) {
+  let lines = 0;
+  for (const para of String(text ?? '').split('\n')) {
+    let used = 0;
+    let n = 1;
+    for (const ch of graphemes(para)) {
+      const w = /[\u0020-\u007e]/.test(ch) ? fontSize * 0.56 : fontSize;
+      if (used + w > wrapWidth) { n += 1; used = 0; }
+      used += w;
+    }
+    lines += n;
+  }
+  return lines;
+}
+
 /** 我方回合的提示；不能逃跑的戰鬥（canFlee === false）要明講，免得玩家以為「逃跑」鍵不見了。 */
 export const commandPrompt = (label, canFlee) => `${label}要怎麼做？${canFlee === false ? '（無法逃跑）' : ''}`;
 

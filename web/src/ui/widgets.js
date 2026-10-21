@@ -84,21 +84,22 @@ export class Button extends Phaser.GameObjects.Container {
     if (this.sub) this.add(this.sub);
     this.fit();
 
-    this.hit.on('pointerover', () => this.emit('hover', this));
+    this.hit.on('pointerover', (ptr) => this.emit('hover', this, ptr));
     this.hit.on('pointerdown', () => { if (this.enabled) { this.pressed = true; this.redraw(); } });
     this.hit.on('pointerout', () => { this.pressed = false; this.redraw(); });
-    this.hit.on('pointerup', () => {
+    this.hit.on('pointerup', (ptr) => {
       const was = this.pressed;
       this.pressed = false;
       this.redraw();
-      if (was && this.enabled) this.activate();
+      if (was && this.enabled) this.activate(ptr);
     });
     this.redraw();
     scene.add.existing(this);
   }
 
-  activate() {
-    if (this.enabled && typeof this.onClick === 'function') this.onClick(this);
+  /** ptr：觸發點擊的指標（滑鼠或觸控；鍵盤啟動時沒有）。 */
+  activate(ptr) {
+    if (this.enabled && typeof this.onClick === 'function') this.onClick(this, ptr);
   }
 
   setLabel(text, sub) {
