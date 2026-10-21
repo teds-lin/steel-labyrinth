@@ -203,6 +203,6 @@ describe('fieldTagLabel', () => {
   it('正式資料：trace.json 每個階位的探索標籤都有顯示名稱', async () => {
     const { loadDir: ld, WEB_DATA_DIR } = await import('./load-fixture.js');
     const web = ld(WEB_DATA_DIR);
-    expect(['trace', 'voice', 'shadow'].map((t) => fieldTagLabel(t, web))).toEqual(['讀痕', '借聲', '換影']);
+    expect(['trace', 'voice', 'shadow'].map((t) => fieldTagLabel(t, web))).toEqual(['回溯', '借聲', '換影']);
   });
 });

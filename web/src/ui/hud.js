@@ -1,3 +1,4 @@
+import { fieldTagLabel } from './m5-view.js';
 // HUD 顯示用的純函式：把 state 的數值轉成要畫的文字。
 // 數值異常（NaN、負數、超大、非整數、字串）一律先 clamp，絕不因此丟錯。
 
@@ -25,6 +26,16 @@ export function echoHud({ charges, free = false, max = 0 } = {}) {
   }
   const total = Math.max(n, toInt(max, 0, ECHO_DOTS_MAX));
   return { text: `殘響 ${'●'.repeat(n)}${'○'.repeat(total - n)}`, filled: n, free: false };
+}
+
+/**
+ * 觸控面板能力鍵的名稱。還沒有譜系時是暫時的「殘響」（有次數限制）；
+ * 譜系提供 trace（免費）時改用資料裡的名稱（trace.json 的 field_labels，預設「回溯」），與 HUD 一致。
+ */
+export function abilityButtonLabel(view, data) {
+  if (view?.free !== true) return '殘響';
+  const label = fieldTagLabel('trace', data);
+  return label && label !== 'trace' ? label : '回溯';
 }
 
 /** 崩解值：回傳 { value, text, ratio, danger }。 */

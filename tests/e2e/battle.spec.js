@@ -147,12 +147,14 @@ test.describe('M2 戰鬥', () => {
 
     // 喝下靈劑：HUD 變「回溯 ∞」
     expect((await sl(page, () => window.__SL.hud())).echo).not.toContain('∞');
+    expect((await sl(page, () => window.__SL.hud())).abilityButton, '喝靈劑前：能力鍵是暫時的殘響').toBe('殘響');
     await g.useOn('obj_cabinet');
     await g.finishDialogue([0]);
     s = await g.st();
     expect(s.lineage).toEqual({ id: 'trace', rank: 9 });
     let hud = await sl(page, () => window.__SL.hud());
     expect(hud.echo).toBe('回溯 ∞');
+    expect(hud.abilityButton, '喝下靈劑後：能力鍵與 HUD 一致，顯示回溯').toBe('回溯');
     expect(hud.resonance).toMatch(RANK8_NEED === null ? /^共鳴 \d+$/ : new RegExp(`^共鳴 \\d+/${RANK8_NEED}$`));
     expect(hud.party.length).toBe(1);
 

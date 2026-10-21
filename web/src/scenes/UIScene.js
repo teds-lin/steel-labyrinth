@@ -5,7 +5,7 @@ import { addText, Button } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { COLLAPSE_MAX } from '../core/echo.js';
 import { echoAvailable } from '../core/interact.js';
-import { echoHud, collapseHud, ammoHud, resonanceHud, partyHud, rankHud } from '../ui/hud.js';
+import { echoHud, collapseHud, ammoHud, resonanceHud, partyHud, rankHud, abilityButtonLabel } from '../ui/hud.js';
 import { promotionStatus } from '../core/promotion.js';
 import { PromotionFx } from '../ui/promotion-fx.js';
 import { partyStatus } from '../core/stats.js';
@@ -74,6 +74,7 @@ export class UIScene extends Phaser.Scene {
       view = { free: false, charges: s.echo?.charges };
     }
     this.echoView = echoHud({ free: view?.free, charges: view?.charges, max: session.data?.manifest?.start?.echo_charges ?? 0 });
+    this.abilityButton?.label.setText(abilityButtonLabel(view, session.data));
     this.echoText.setText(this.echoView.text);
     const col = collapseHud(s.collapse, COLLAPSE_MAX);
     this.collapseText.setText(col.text);
@@ -166,6 +167,7 @@ export class UIScene extends Phaser.Scene {
     ];
     for (const [label, action, y] of btns) {
       const b = new Button(this, rx, y, 140, 48, label, { fontSize: 17, onClick: () => this.action(action) });
+      if (action === 'echo') this.abilityButton = b;
       this.panel.add(b);
     }
   }
@@ -179,6 +181,7 @@ export class UIScene extends Phaser.Scene {
   debugInfo() {
     return {
       echo: this.echoText.text,
+      abilityButton: this.abilityButton?.label.text ?? null,
       echoFilled: this.echoView?.filled ?? 0,
       collapse: this.collapseText.text,
       ammo: this.hudInfo?.ammo ?? null,
