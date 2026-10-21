@@ -1,0 +1,27 @@
+title: "[建議] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        謝謝你願意分享想法！不論是新功能、操作手感、劇情或美術，都歡迎提出。
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你的建議
+      description: 想要新增或改進什麼？
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 為什麼？
+      description: 你在什麼情況下會需要它，或目前哪裡讓你覺得不方便？
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: 其他補充
+      description: 參考畫面、類似遊戲的例子都可以。
+    validations:
+      required: false
