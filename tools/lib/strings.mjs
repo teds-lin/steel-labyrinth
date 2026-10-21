@@ -9,6 +9,7 @@ const isStr = (v) => typeof v === 'string';
 export function collectStrings(bundle) {
   const rows = [];
   const add = (file, path, text) => { if (isStr(text)) rows.push({ unique_id: `${file}#${path}`, text }); };
+  add('manifest.json', 'title_footer', bundle.manifest?.title_footer); // 標題畫面底部的版本名稱
   for (const map of arr(bundle.maps)) {
     add(`maps/${map.id}.json`, 'name', map.name);
     // 鐘塔之夢補充 5：入夢選項的文字（選填）

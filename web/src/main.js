@@ -70,6 +70,8 @@ if (TEST_MODE) {
     title: () => ro(activeScene('Title')?.debugInfo()),
     /** 選單目前頁面與各項（含邏輯座標）。選單沒開時為 null。 */
     menu: () => ro(activeScene('Menu')?.debugInfo()),
+    /** 意見回饋提示頁：{ open, blocked（新分頁被擋下）, origin（Title／Menu） }。沒開時為 null。 */
+    feedback: () => ro(activeScene('Menu')?.feedbackInfo() ?? null),
     /** HUD 顯示的文字。不在地圖時為 null。 */
     hud: () => ro(activeScene('UI')?.debugInfo()),
     /** 對話選項按鈕的位置（邏輯座標 360×640）。 */

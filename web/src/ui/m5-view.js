@@ -189,3 +189,12 @@ export function resumeScene(state, data) {
   }
   return { scene: 'Map' };
 }
+
+/** 標題畫面的操作說明。能力鍵在喝下靈劑前叫「殘響」、之後叫「回溯」，兩個都寫出來。 */
+export const TITLE_KEY_HINT = '方向鍵／WASD 移動　空白鍵 調查　E 殘響／回溯　Esc 選單';
+
+/** 標題畫面底部的版本名稱：取自 manifest.title_footer（例如「第一部　霧中鐘聲」），沒有就不顯示。 */
+export function titleFooter(data) {
+  const t = data?.manifest?.title_footer;
+  return typeof t === 'string' ? t : '';
+}

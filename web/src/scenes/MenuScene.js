@@ -1,6 +1,7 @@
 // 選單（疊在其他場景上方）：存檔（3 槽，覆蓋前確認）、讀取、雲端存檔、道具、隊伍、回標題。
 // mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）、'transfer'（標題的「用轉移碼接續」）、
-//       'trade'（M5：夢客的交換；地圖的 open_trade 開啟，關閉時呼叫 onClose）。
+//       'trade'（M5：夢客的交換；地圖的 open_trade 開啟，關閉時呼叫 onClose）、
+//       'feedback'（標題的「意見回饋」：只有提示頁，關閉後回到標題）。
 // 雲端存檔的各頁面在 cloud-pages.js（mixin）。
 import { WIDTH, HEIGHT, COLORS } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
@@ -11,6 +12,9 @@ import { cloudPages } from './cloud-pages.js';
 import { applyTrade } from '../core/trade.js';
 import { guestFor } from '../core/dream.js';
 import { promotionProgress, tradeRows, tradeConfirm, tradeDoneText } from '../ui/m5-view.js';
+import {
+  FEEDBACK_LABEL, FEEDBACK_TITLE, FEEDBACK_BODY, FEEDBACK_GO, FEEDBACK_CANCEL, feedbackBlockedText, feedbackNoteForDisplay, openFeedback,
+} from '../ui/feedback.js';
 
 /** 交換頁一頁最多幾項（再加「下一頁」「離開」）。 */
 const TRADES_PER_PAGE = 3;
@@ -60,6 +64,7 @@ export class MenuScene extends Phaser.Scene {
     else if (this.mode === 'save') this.showSlots('save');
     else if (this.mode === 'transfer') this.showTransferInput();
     else if (this.mode === 'trade') this.showTrade(0);
+    else if (this.mode === 'feedback') this.showFeedback();
     else this.showMain();
   }
 
@@ -71,7 +76,10 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  setPage(page, title, note, items, { y = 200, h = 52, fontSize = 17, gap = 10, noteAlign = 'center' } = {}) {
+  /**
+   * maxBottom：按鈕清單最下緣不能超過的 y（說明文字把清單往下推時，先縮間距、再縮按鈕高度，最矮 44）。
+   */
+  setPage(page, title, note, items, { y = 200, h = 52, fontSize = 17, gap = 10, noteAlign = 'center', maxBottom = null } = {}) {
     this.page = page;
     this.pageSeq += 1; // 進行中的雲端請求回來時，用這個判斷頁面是否已經換掉
     this.backAction = null;
@@ -86,6 +94,12 @@ export class MenuScene extends Phaser.Scene {
     else this.note.setAlign('center').setOrigin(0.5, 0).setX(WIDTH / 2).setWordWrapWidth(WIDTH - 72, true);
     this.note.setText(note ?? '');
     const top = this.note.text ? Math.max(y, 136 + this.note.height + 24) : y;
+    if (maxBottom !== null && items.length > 0) {
+      const n = items.length;
+      const over = () => top + n * h + (n - 1) * gap > maxBottom;
+      if (over() && n > 1) gap = Math.max(4, Math.floor((maxBottom - top - n * h) / (n - 1)));
+      if (over()) h = Math.max(44, Math.floor((maxBottom - top - (n - 1) * gap) / n));
+    }
     this.pageItems = items;
     this.list = new ButtonList(this, { x: WIDTH / 2, y: top + h / 2, w: WIDTH - 72, h, gap, items, align: 'left', fontSize });
     // 副標（名字、損壞原因）太長時以「…」截斷：只截名字／原因的部分
@@ -116,6 +130,12 @@ export class MenuScene extends Phaser.Scene {
     };
   }
 
+  /** E2E 用：意見回饋提示頁是否開著、是否被瀏覽器擋下、從哪裡開的（Title／Menu）。沒開時為 null。 */
+  feedbackInfo() {
+    if (this.page !== 'feedback') return null;
+    return { open: true, blocked: !!this.feedbackBlocked, origin: this.mode === 'feedback' ? this.from : 'Menu' };
+  }
+
   showMain(note = null) {
     const blocked = !session.storageAvailable;
     const hasParty = (session.data?.characters ?? []).length > 0;
@@ -126,8 +146,36 @@ export class MenuScene extends Phaser.Scene {
       { label: '道具', onSelect: () => this.showItems(0) },
     ];
     if (hasParty) items.push({ label: '隊伍', onSelect: () => this.showParty() });
-    items.push({ label: '回標題', onSelect: () => this.confirmTitle() }, { label: '返回遊戲', onSelect: () => this.close() });
-    this.setPage('main', '選單', note ?? (blocked ? BLOCKED_MSG : null), items, { y: 172, h: 46, gap: 8 });
+    items.push(
+      { id: 'feedback', label: FEEDBACK_LABEL, onSelect: () => this.showFeedback() },
+      { label: '回標題', onSelect: () => this.confirmTitle() },
+      { label: '返回遊戲', onSelect: () => this.close() },
+    );
+    // 最多 8 項：從標題下方開始排，最下緣留在面板（y 70～570）內
+    this.setPage('main', '選單', note ?? (blocked ? BLOCKED_MSG : null), items, { y: 136, h: 46, gap: 8, maxBottom: 562 });
+  }
+
+  // ---------- 意見回饋 ----------
+  /** 提示頁：「前往討論區」開新分頁（在按鍵／點擊的同步處理中呼叫 window.open），「取消」或 Esc 回到原畫面。 */
+  showFeedback(blocked = false) {
+    this.setPage('feedback', FEEDBACK_TITLE, feedbackNoteForDisplay(blocked ? feedbackBlockedText() : FEEDBACK_BODY), [
+      { id: 'feedback-go', label: FEEDBACK_GO, onSelect: () => this.goFeedback() },
+      { id: 'feedback-cancel', label: FEEDBACK_CANCEL, onSelect: () => this.leaveFeedback() },
+    ], { y: 240 });
+    this.feedbackBlocked = blocked;
+    this.backAction = () => this.leaveFeedback();
+  }
+
+  goFeedback() {
+    if (openFeedback(window)) this.leaveFeedback();
+    else this.showFeedback(true);
+  }
+
+  /** 回到開啟提示的畫面：標題（關閉選單）或遊戲中選單的主頁；遊戲狀態不動。 */
+  leaveFeedback() {
+    this.feedbackBlocked = false;
+    if (this.mode === 'feedback') this.close();
+    else this.showMain();
   }
 
   // ---------- 道具 ----------

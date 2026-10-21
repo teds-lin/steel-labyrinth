@@ -88,11 +88,12 @@ const VISIBLE = [
   /^lineages\[\]\.ranks\[\]\.field_labels\.[a-z_]+$/,
   /^story\[\]\.guests\[\]\.name$/, /^story\[\]\.guests\[\]\.scripted\.[a-z_]+\[\]$/, /^story\[\]\.guests\[\]\.trades\[\]\.label$/,
   /^story\[\]\.endings\[\]\.title$/,
+  /^manifest\.title_footer$/, // 標題畫面底部的版本名稱
   /^story\[\]\.dialogues\[\]\.nodes\[\]\.(speaker|text)$/, /^story\[\]\.dialogues\[\]\.nodes\[\]\.choices\[\]\.text$/,
 ];
 /** 不是玩家看得到的字串（id、引用、條件、效果、地形字元、顏色……）。 */
 const HIDDEN = [
-  /(^|\.)id$/, /^manifest\./, /^tiles\[\]\.color$/,
+  /(^|\.)id$/, /^manifest\.(?!title_footer$)/, /^tiles\[\]\.color$/,
   /\.(if|requires|not|all|any)(\.|\[|$)/, // 條件子樹
   /\.(effects|field_effects|battle_effects|add_ai)\[\]/, // 效果、AI 規則
   /^items\[\]\.target$/,

@@ -13,6 +13,9 @@ export const HUD_H = 62;
 export const PANEL_Y = 470;
 export const MAP_VIEW = { x: 0, y: HUD_H, w: WIDTH, h: PANEL_Y - HUD_H };
 
+/** 意見回饋：GitHub 討論區（全專案只在這裡寫網址；畫面文字由 ui/feedback.js 產生）。 */
+export const FEEDBACK_URL = 'https://github.com/teds-lin/steel-labyrinth/discussions';
+
 export const FONT = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
 
 /** 色盤：霧藍灰＋煤氣燈橘。 */

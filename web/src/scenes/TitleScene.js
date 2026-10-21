@@ -1,7 +1,9 @@
-// 標題畫面：遊戲名稱、新遊戲、繼續（沒有可讀存檔時停用）、用轉移碼接續（雲端存檔）、霧氣飄動。
+import { titleFooter, TITLE_KEY_HINT } from '../ui/m5-view.js';
+// 標題畫面：遊戲名稱、新遊戲、繼續（沒有可讀存檔時停用）、用轉移碼接續（雲端存檔）、意見回饋、霧氣飄動。
 import { WIDTH, HEIGHT, COLORS, TEST_MODE } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, ButtonList } from '../ui/widgets.js';
+import { FEEDBACK_LABEL } from '../ui/feedback.js';
 
 export class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
@@ -22,7 +24,8 @@ export class TitleScene extends Phaser.Scene {
     // 只要有任何非空的存檔槽（包含損壞、版本較新）就可以按「繼續」，在讀取選單裡看到狀態
     const hasSave = session.hasAnySave();
     this.menu = new ButtonList(this, {
-      x: WIDTH / 2, y: 380, w: 220, h: 52, gap: 14,
+      // 四個按鈕：往上移、間距縮小，最後一個不壓到下方的操作說明
+      x: WIDTH / 2, y: 340, w: 220, h: 52, gap: 12,
       items: [
         { label: '新遊戲', onSelect: () => this.scene.start('Name') },
         {
@@ -33,15 +36,15 @@ export class TitleScene extends Phaser.Scene {
           label: '用轉移碼接續', enabled: session.storageAvailable, onSelect: () => this.openTransfer(),
           sub: session.storageAvailable ? null : '瀏覽器封鎖了儲存空間',
         },
+        { label: FEEDBACK_LABEL, onSelect: () => this.openFeedback() },
       ],
     });
-    addText(this, WIDTH / 2, HEIGHT - 52, '方向鍵／WASD 移動　空白鍵 調查　E 殘響　Esc 選單', {
+    addText(this, WIDTH / 2, HEIGHT - 52, TITLE_KEY_HINT, {
       fontSize: '11px', color: COLORS.textDisabled,
     }).setOrigin(0.5);
-    const first = session.data?.manifest?.chapters?.[0];
-    const chapterTitle = session.data?.story?.find((c) => c?.id === first)?.title ?? first ?? '';
-    if (chapterTitle) {
-      addText(this, WIDTH / 2, HEIGHT - 30, `${chapterTitle}（開發中）`, { fontSize: '11px', color: COLORS.textDisabled }).setOrigin(0.5);
+    const footer = titleFooter(session.data);
+    if (footer) {
+      addText(this, WIDTH / 2, HEIGHT - 30, footer, { fontSize: '11px', color: COLORS.textDisabled }).setOrigin(0.5);
     }
 
     // 橫向手機（高度不夠）：本版沒有橫向版面，提示改用直向
@@ -76,7 +79,9 @@ export class TitleScene extends Phaser.Scene {
   /** E2E 用的唯讀資訊。 */
   debugInfo() {
     return {
-      items: this.menu.buttons.map((b) => ({ label: b.label.text, enabled: b.enabled, sub: b.sub?.text ?? null, x: b.x, y: b.y, w: b.w, h: b.h })),
+      items: this.menu.buttons.map((b, i) => ({
+        label: b.label.text, enabled: b.enabled, focused: i === this.menu.index, sub: b.sub?.text ?? null, x: b.x, y: b.y, w: b.w, h: b.h,
+      })),
       landscapeHint: !!this.landscapeHint?.visible,
     };
   }
@@ -84,6 +89,12 @@ export class TitleScene extends Phaser.Scene {
   openTransfer() {
     this.scene.pause();
     this.scene.launch('Menu', { mode: 'transfer', from: 'Title' });
+  }
+
+  /** 意見回饋：提示頁（選單場景的 feedback 模式）疊在標題上，關閉後回到標題。 */
+  openFeedback() {
+    this.scene.pause();
+    this.scene.launch('Menu', { mode: 'feedback', from: 'Title' });
   }
 
   openLoad() {
