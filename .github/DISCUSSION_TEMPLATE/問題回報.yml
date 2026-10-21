@@ -30,8 +30,8 @@ body:
     id: expected
     attributes:
       label: 你原本預期會怎樣？
-      validations:
-        required: false
+    validations:
+      required: false
   - type: textarea
     id: report
     attributes:
