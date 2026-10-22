@@ -13,6 +13,9 @@ import { GameOverScene } from './scenes/GameOverScene.js';
 import { DreamChatScene } from './scenes/DreamChatScene.js';
 import { artReport } from './textures.js';
 import { cloud, cloudApiBase } from './cloud-client.js';
+import { loadAnalytics } from './analytics.js';
+
+loadAnalytics();
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
