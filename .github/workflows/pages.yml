@@ -27,6 +27,9 @@ jobs:
       - run: npm test
       - run: npm run check
       - run: node tools/stamp-version.mjs # 測試通過後才寫入版本號（只改工作區的 web/src/version.js，不 commit）；測試跑的版本檔與 repo 相同（dev）
+      # 所有同源資源網址加上 ?v=<版本>（index.html 的 script／link、模組的 import），並驗證沒有漏網之魚（漏了就失敗、不發布）。
+      # 避免 Pages 的 max-age=600 快取讓新舊版本的模組混用 → 模組連結失敗 → 黑畫面。只改工作區，不 commit。
+      - run: node tools/stamp-urls.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

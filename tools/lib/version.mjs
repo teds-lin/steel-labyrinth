@@ -20,7 +20,7 @@ export function countOnDay(timestamps, date) {
 }
 
 const DECL = /^(export const GAME_VERSION = ')[^']*(';)$/m;
-const VERSION_RE = /^20\d{2}\.(0[1-9]|1[0-2])\.(0[1-9]|[12]\d|3[01])(\.\d+)?$/;
+export const VERSION_RE = /^20\d{2}\.(0[1-9]|1[0-2])\.(0[1-9]|[12]\d|3[01])(\.\d+)?$/;
 
 /** 把版本檔原始碼裡的 GAME_VERSION 換成 version；格式不合或找不到宣告就丟錯。 */
 export function stampSource(src, version) {

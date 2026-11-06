@@ -34,6 +34,9 @@ const game = new Phaser.Game({
   scene: [BootScene, TitleScene, NameScene, MapScene, UIScene, BattleScene, GameOverScene, DreamChatScene, MenuScene, ChapterEndScene],
 });
 
+// 告訴 index.html 的載入監看（非 module 的小腳本）：模組圖已連結、執行到這裡且 Phaser 已建立，不必顯示「載入失敗」。
+globalThis.__slBootWatch?.ok?.();
+
 initAudio(game, { test: TEST_MODE && !TEST_REAL_AUDIO });
 
 // 旋轉或改變視窗大小（例如遊戲中 375×667 → 667×375）：讓 FIT 重新計算畫布大小。

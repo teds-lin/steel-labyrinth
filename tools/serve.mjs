@@ -1,11 +1,12 @@
-// 本機開發用的靜態伺服器（只服務 web/）。
+// 本機開發用的靜態伺服器（只服務 web/；SERVE_ROOT 可改服務另一個目錄，例如發布流程整合測試用的 web/ 複本）。
+// PORT=0 時由系統挑一個空的埠，啟動訊息印出實際的埠。
 // 任何請求都不可以讓伺服器退出：壞掉的 URL 回 400，跳出 web/ 的路徑回 403，找不到回 404。
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(fileURLToPath(new URL('../web/', import.meta.url)));
+const root = resolve(process.env.SERVE_ROOT || fileURLToPath(new URL('../web/', import.meta.url)));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png',
   '.ogg': 'audio/ogg', '.m4a': 'audio/mp4' }; // 音檔（M6）
@@ -32,7 +33,7 @@ function resolveRequest(rawUrl) {
   return { file: rel.endsWith('/') || file === root ? resolve(file, 'index.html') : file };
 }
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   try {
     const r = resolveRequest(req.url ?? '/');
     if (r.code) { send(res, r.code, r.code === 400 ? 'bad request' : 'forbidden'); return; }
@@ -43,4 +44,5 @@ createServer(async (req, res) => {
     if (!res.headersSent) send(res, 404, 'not found');
     else res.end();
   }
-}).listen(port, () => console.log(`http://localhost:${port}/`));
+});
+server.listen(port, () => console.log(`http://localhost:${server.address().port}/`));

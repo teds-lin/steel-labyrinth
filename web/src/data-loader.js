@@ -1,6 +1,7 @@
 // 瀏覽器端組 bundle：格式與 tools/lib/bundle.mjs 相同（manifest＋files 列出的檔案＋戰鬥資料四個固定檔）。
 // 讀檔層級的問題（缺檔、JSON 壞、檔名與 id 不符）收進 errors，內容規則交給 core/validate.js。
 import { validateBundle } from './core/validate.js';
+import { assetUrl } from './asset-url.js';
 
 /** 戰鬥資料的固定檔名（manifest.files 不列，與 tools/lib/bundle.mjs 的 BATTLE_FILES 相同）；不存在時視為空陣列。 */
 export const BATTLE_FILES = ['characters', 'skills', 'enemies', 'encounters'];
@@ -8,7 +9,8 @@ export const BATTLE_FILES = ['characters', 'skills', 'enemies', 'encounters'];
 async function fetchJson(base, rel, errors, { optional = false } = {}) {
   let res;
   try {
-    res = await fetch(new URL(rel, base), { cache: 'no-cache' });
+    // no-cache：每次都向伺服器確認（資料 JSON 本來就不會直接用過期快取）；?v=<ASSET_VERSION>（見 asset-url.js）另外讓每一版的網址不同
+    res = await fetch(assetUrl(new URL(rel, base)), { cache: 'no-cache' });
   } catch (e) {
     errors.push(`${rel}：讀不到檔案（網路錯誤：${e?.message ?? e}）`);
     return undefined;

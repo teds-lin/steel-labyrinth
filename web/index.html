@@ -83,17 +83,172 @@
     /* Turnstile 小工具的容器（內容由 Cloudflare 的 iframe 產生） */
     .sl-turnstile { width: 300px; min-height: 65px; display: flex; align-items: center; justify-content: center; }
     #boot-error {
-      position: fixed; inset: 0; display: none; padding: 24px 16px;
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; /* 不支援 inset 的舊瀏覽器用 top/right/bottom/left */
+      display: none; padding: 24px 16px;
       overflow: auto; white-space: pre-wrap; line-height: 1.6;
       background: #101319; color: #f3c9a0; font-size: 15px;
     }
     noscript { display: block; padding: 24px 16px; }
+    /* 載入監看（下方非 module 的小腳本）：主模組載入或連結失敗、或很久還沒啟動時，在畫面中央提示重新整理 */
+    #load-status {
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; /* 不支援 inset 的舊瀏覽器用 top/right/bottom/left */
+      z-index: 10; display: flex; align-items: center; justify-content: center;
+      padding: 24px 16px; background: #101319;
+    }
+    #load-status[hidden] { display: none; }
+    #load-status .ls-box {
+      width: 100%; max-width: 320px; padding: 22px 18px; text-align: center;
+      background: #1a1f28; border: 1px solid #3a4454; border-radius: 10px;
+    }
+    #load-status-msg { margin: 0 0 18px; font-size: 17px; line-height: 1.6; color: #e8e2d4; }
+    #load-status.slow #load-status-msg { color: #9aa6b4; font-size: 15px; }
+    #load-status-reload {
+      min-width: 160px; min-height: 48px; padding: 0 22px; /* 觸控目標 ≥ 44px */
+      font: 700 17px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      color: #101319; background: #f0a848; border: 0; border-radius: 6px;
+      cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    }
+    #load-status-reload:active { background: #ffd08a; }
+    #load-status-reload:focus-visible { outline: 3px solid #ffd08a; outline-offset: 2px; }
+    #load-status.slow #load-status-reload { color: #f0a848; background: transparent; border: 2px solid #b8692a; }
+    #load-status-reload[hidden] { display: none; }
   </style>
 </head>
 <body>
   <noscript>這個遊戲需要啟用 JavaScript 才能遊玩。</noscript>
   <div id="game"></div>
   <div id="boot-error" role="alert"></div>
+  <div id="load-status" hidden>
+    <div class="ls-box">
+      <p id="load-status-msg" aria-live="polite"></p>
+      <button type="button" id="load-status-reload">重新整理</button>
+    </div>
+  </div>
+  <script nomodule>
+    // 只有不支援 ES module 的舊瀏覽器會執行這段（遊戲本體是 module，在這種瀏覽器根本不會執行）：
+    // 直接顯示「瀏覽器版本太舊」，不給重新整理按鈕（重新整理也沒用）；並設旗標讓下面的載入監看不再報「載入失敗」。
+    // 只用 ES5 語法。
+    (function () {
+      window.__slNoModule = true;
+      var box = document.getElementById('load-status');
+      var msg = document.getElementById('load-status-msg');
+      var btn = document.getElementById('load-status-reload');
+      if (!box || !msg) return;
+      msg.textContent = '瀏覽器版本太舊，請更新後再試';
+      msg.setAttribute('role', 'alert');
+      if (btn) btn.hidden = true;
+      box.className = 'unsupported';
+      box.hidden = false;
+    })();
+  </script>
+  <script>
+    // 載入監看（刻意不是 module：主模組圖壞掉時它仍然會執行）。
+    // 事故：發版後瀏覽器拿快取的舊模組配新模組 → 模組連結失敗 → Phaser 沒建立 → 畫面全黑。這裡負責把黑畫面換成可以點的提示。
+    // - 失敗（立即顯示「載入失敗，請重新整理」）：本站的 script 下載失敗（404、網路）、啟動前本站 .js 檔丟出的錯誤
+    //   （模組連結失敗是 SyntaxError），或 load 事件後 2 秒 main.js 仍未回報啟動。非 async 的 module script 一定在
+    //   DOMContentLoaded 之前執行完，load 又在其後，所以這個判斷不會把慢網路當成失敗（模組圖裡不得使用 top-level await）。
+    // - 慢（15 秒仍未啟動、也還沒到 load）：只顯示溫和的「仍在載入…」，啟動後自動消失。
+    // - main.js 在 Phaser 建立後呼叫 window.__slBootWatch.ok()；之後的錯誤一律不管（交給遊戲自己的錯誤處理）。
+    // - 不支援 module 的舊瀏覽器（上面的 nomodule 腳本設了 __slNoModule）：狀態固定為 unsupported，不再顯示任何東西。
+    // - ?test=1 時可用 &bootslow=<毫秒> 縮短慢載入門檻；window.__slBootWatch.state 可讀目前狀態（loading／slow／failed／ok／unsupported），
+    //   .reason 是失敗原因（script-error：本站 script 下載失敗／runtime-error：本站 .js 丟錯，含模組連結失敗／no-boot：load 後仍未啟動）。
+    (function () {
+      'use strict';
+      var FAIL_TEXT = '載入失敗，請重新整理';
+      var SLOW_TEXT = '仍在載入…如果一直沒有畫面，請重新整理';
+      var LOAD_GRACE_MS = 2000;
+      var slowMs = 15000;
+      var state = window.__slNoModule ? 'unsupported' : 'loading';
+      var reason = null;
+      var timers = [];
+      var params = null;
+      try { params = new URLSearchParams(location.search); } catch (e) { /* 舊瀏覽器：用預設值 */ }
+      if (params && params.get('test') === '1') {
+        var custom = Number(params.get('bootslow'));
+        if (custom > 0) slowMs = custom;
+      }
+      // 「重新整理」按鈕帶的時間戳（_r）只用來繞過快取：載入後從網址拿掉，不留在書籤或分享的網址裡
+      if (params && params.has('_r')) {
+        try {
+          params.delete('_r');
+          var qs = params.toString();
+          history.replaceState(history.state, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+        } catch (e) { /* 拿不掉也不影響遊戲 */ }
+      }
+
+      function byId(id) { return document.getElementById(id); }
+      function clearTimers() { while (timers.length) clearTimeout(timers.pop()); }
+      function show(kind) {
+        var box = byId('load-status');
+        var msg = byId('load-status-msg');
+        if (!box || !msg) return;
+        msg.textContent = kind === 'failed' ? FAIL_TEXT : SLOW_TEXT;
+        if (kind === 'failed') msg.setAttribute('role', 'alert');
+        box.className = kind;
+        box.hidden = false;
+      }
+      function fail(why) {
+        if (state !== 'loading' && state !== 'slow') return;
+        state = 'failed';
+        reason = why;
+        clearTimers();
+        show('failed');
+      }
+      function ok() {
+        if (state === 'ok' || state === 'unsupported') return;
+        state = 'ok';
+        reason = null;
+        clearTimers();
+        var box = byId('load-status');
+        if (box) box.hidden = true;
+      }
+      function sameOrigin(url) {
+        try { return new URL(url, location.href).origin === location.origin; } catch (e) { return false; }
+      }
+      function isOwnScriptFile(url) {
+        return !!url && sameOrigin(url) && /\.js$/i.test(String(url).split(/[?#]/)[0]);
+      }
+      function reload() {
+        try {
+          var u = new URL(location.href);
+          u.searchParams.set('_r', String(Date.now())); // 新網址：連 index.html 都不會拿到快取
+          location.replace(u.href);
+        } catch (e) {
+          location.reload();
+        }
+      }
+
+      // capture 階段：script 的下載失敗事件不會冒泡，但會經過 window 的 capture
+      window.addEventListener('error', function (ev) {
+        if (state !== 'loading' && state !== 'slow') return;
+        var t = ev.target;
+        if (t && t !== window && t.nodeType === 1) {
+          if (t.tagName === 'SCRIPT' && sameOrigin(t.src || '')) fail('script-error');
+          return; // 其他元素（例如外部字型的 link）載入失敗不算
+        }
+        // 執行期／語法／模組連結錯誤：只算本站 .js 檔丟出的。瀏覽器外掛或內建瀏覽器注入的程式，filename 是頁面本身或空白，不算。
+        if (isOwnScriptFile(ev.filename)) fail('runtime-error');
+      }, true);
+      window.addEventListener('load', function () {
+        if (state !== 'loading' && state !== 'slow') return;
+        timers.push(setTimeout(function () { fail('no-boot'); }, LOAD_GRACE_MS));
+      });
+      if (state === 'loading') timers.push(setTimeout(function () {
+        if (state !== 'loading') return;
+        state = 'slow';
+        show('slow');
+      }, slowMs));
+
+      var btn = byId('load-status-reload');
+      if (btn) btn.addEventListener('click', reload);
+      try {
+        Object.defineProperty(window, '__slBootWatch', {
+          value: Object.freeze({ ok: ok, get state() { return state; }, get reason() { return reason; } }),
+          writable: false, configurable: false, enumerable: false,
+        });
+      } catch (e) { /* 已存在就不覆寫 */ }
+    })();
+  </script>
   <script src="vendor/phaser.min.js"></script>
   <script type="module" src="src/main.js"></script>
 </body>

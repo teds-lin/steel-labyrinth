@@ -8,6 +8,7 @@ import { createGestureUnlocker } from './unlock.js';
 import { session } from '../session.js';
 import { muteToast } from '../ui/audio-view.js';
 import { showAudioToast, audioToastText, audioToastRect } from '../ui/audio-toast.js';
+import { assetUrl } from '../asset-url.js';
 
 /** 遊戲唯一的聲音入口。設定存在 session.backend（localStorage；被封鎖時為 null → 只在記憶體）。 */
 export const audio = new AudioDirector({ storage: session.backend });
@@ -34,6 +35,8 @@ function makeBackend(game, test) {
     director: audio,
     base: new URL('audio/', document.baseURI).href,
     formats,
+    // 音檔刻意不加版本：音檔與程式之間沒有「連結」關係，快取到舊音檔最多只是舊聲音再播 10 分鐘，不會壞畫面；
+    // 新增的音檔是新檔名，本來就不在快取裡。不加版本可以避免每次發版都讓玩家重新下載全部音效（行動網路）。
     fetchFn: (u) => fetch(u),
   });
 }
@@ -51,7 +54,9 @@ function hookUnlock(game, backend) {
 
 async function loadCatalog() {
   try {
-    const res = await fetch(new URL('audio/catalog.json', document.baseURI));
+    // 發布版加 ?v=<ASSET_VERSION>：保證瀏覽器的 HTTP 快取不會拿上一版的目錄配這一版的程式（每版網址不同）。
+    // 注意這不等於「伺服器一定回同一版」：GitHub Pages 忽略查詢參數，快取裡沒有時拿到的永遠是伺服器上目前的檔案。
+    const res = await fetch(assetUrl('audio/catalog.json'));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     audio.setCatalog(await res.json());
   } catch (e) {
