@@ -24,9 +24,9 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - run: node tools/stamp-version.mjs # 只改工作區的 web/src/version.js（不 commit）；放在 npm test 前，測試也跑在正式版本格式上
       - run: npm test
       - run: npm run check
+      - run: node tools/stamp-version.mjs # 測試通過後才寫入版本號（只改工作區的 web/src/version.js，不 commit）；測試跑的版本檔與 repo 相同（dev）
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
