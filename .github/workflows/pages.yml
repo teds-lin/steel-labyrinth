@@ -18,10 +18,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # stamp-version 要數當天 commit 數，需要完整歷史
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm ci
+      - run: node tools/stamp-version.mjs # 只改工作區的 web/src/version.js（不 commit）；放在 npm test 前，測試也跑在正式版本格式上
       - run: npm test
       - run: npm run check
       - uses: actions/configure-pages@v5

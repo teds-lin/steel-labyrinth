@@ -169,7 +169,7 @@ test.describe('複製回報資訊', () => {
     const text = await readClipboard(page);
     const lines = text.split('\n');
     expect(lines[0]).toBe('【鋼鐵迷都 回報資訊】');
-    expect(lines[1]).toMatch(/^遊戲版本：20\d{2}\.\d{2}\.\d{2}(\.\d+)?（存檔格式 v\d+）$/);
+    expect(lines[1]).toMatch(/^遊戲版本：(?:dev|20\d{2}\.\d{2}\.\d{2}(?:\.\d+)?)（存檔格式 v\d+）$/);
     expect(lines[2]).toMatch(/^時間：\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(lines[3]).toMatch(/^裝置：.+／Chrome \d+；畫面 \d+×\d+$/);
     expect(text).toContain(`章節：序章（prologue）`);

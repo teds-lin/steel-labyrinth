@@ -443,9 +443,11 @@ const PURGE_TARGETS = `SELECT p.player_id FROM players p JOIN json_each(?3) j ON
 /**
  * Cron（每天一次）：刪除超過 180 天未登入的玩家，以及建立超過 7 天的空帳號（修訂 4 第 2 節、修訂 5a），連同其存檔、通關紀錄；
  * 每次最多 batch（PURGE_BATCH）人，避免單次寫入暴增，剩下的下一次再刪。另外刪除過期的限流紀錄。
- * 回傳這次刪除的玩家數。
+ * 回傳這次刪除的玩家數；另外 console.log 一行結構化 JSON（event、at、deleted_players、expired_rate_limits、batch、ms），
+ * 不含 player_id 或權杖；過期限流數取自 meta.changes，不增加任何 D1 讀寫。
  */
 export async function purge(db, now, { batch = 500 } = {}) {
+  const t0 = Date.now();
   const stale = now - INACTIVE_SEC;
   const empty = now - EMPTY_ACCOUNT_SEC;
   const { results } = await db.prepare(`SELECT p.player_id FROM players p WHERE ${PURGE_WHERE} ORDER BY p.player_id LIMIT ?3`)
@@ -462,7 +464,11 @@ export async function purge(db, now, { batch = 500 } = {}) {
     ]);
     deleted = rs[3]?.results?.length ?? 0;
   }
-  await db.batch([purgeExpired(db, now)]);
+  const [expiredRs] = await db.batch([purgeExpired(db, now)]);
+  console.log(JSON.stringify({
+    event: 'purge', at: new Date(now * 1000).toISOString(), deleted_players: deleted,
+    expired_rate_limits: expiredRs?.meta?.changes ?? 0, batch, ms: Date.now() - t0,
+  }));
   return deleted;
 }
 
