@@ -62,7 +62,11 @@ test.describe('M6 真實音訊後端（?test=1&audio=1）', () => {
       await waitLoaded(page, FILE_CUES.length - 1);
       const a = await audio(page);
       expect(a.broken).toEqual(['ui_error']);
-      expect(reqs.filter((u) => u.includes('ui_error'))).toEqual(['/audio/sfx/ui_error.ogg', '/audio/sfx/ui_error.m4a']);
+      // 線上網址前面多一層 /steel-labyrinth/，只比對結尾
+      const errReqs = reqs.filter((u) => u.includes('ui_error'));
+      expect(errReqs).toHaveLength(2);
+      expect(errReqs[0].endsWith('/audio/sfx/ui_error.ogg')).toBe(true);
+      expect(errReqs[1].endsWith('/audio/sfx/ui_error.m4a')).toBe(true);
       expect(warns.filter((w) => w.includes('ui_error'))).toHaveLength(1);
       expect(warns, '整個過程只有這一筆 warn').toHaveLength(1);
       // 遊戲照常：開新遊戲進到命名畫面
