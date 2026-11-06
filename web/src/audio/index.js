@@ -5,6 +5,7 @@ import { NullBackend } from './backend-null.js';
 import { WebAudioBackend } from './backend-webaudio.js';
 import { chooseFormats } from './catalog.js';
 import { createGestureUnlocker } from './unlock.js';
+import { exploreEventKeys } from './events.js';
 import { session } from '../session.js';
 import { muteToast } from '../ui/audio-view.js';
 import { showAudioToast, audioToastText, audioToastRect } from '../ui/audio-toast.js';
@@ -81,6 +82,20 @@ function hookMuteKey(game) {
   });
 }
 
+/**
+ * 探索音效的單一掛點：所有狀態變化都經過 session.setState → 'state' 事件（next, prev, meta）。
+ * 依差異與觸發原因算出事件鍵（audio/events.js 的 exploreEventKeys），對應的 cue 查 catalog 的 events。
+ */
+function hookExplore() {
+  session.events.on('state', (next, prev, meta) => {
+    try {
+      for (const k of exploreEventKeys(prev, next, meta, session.data)) audio.event(k);
+    } catch (e) {
+      audio.warnOnce('explore', '探索音效判斷出錯', e?.message ?? e);
+    }
+  });
+}
+
 export function initAudio(game, { test = false } = {}) {
   try {
     if (!test && game.sound) {
@@ -104,6 +119,7 @@ export function initAudio(game, { test = false } = {}) {
       game.events.on(Phaser.Core.Events.VISIBLE, retry);
     }
     hookMuteKey(game);
+    hookExplore();
     loadCatalog();
   } catch (e) {
     audio.warnOnce('init', '聲音初始化失敗，遊戲將保持安靜', e?.message ?? e);

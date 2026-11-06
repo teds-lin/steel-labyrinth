@@ -9,6 +9,7 @@ import { session, claimKey } from '../session.js';
 import { addText, Button, panel, fitText } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
 import { audio } from '../audio/index.js';
+import { battleEventKey } from '../audio/events.js';
 import {
   startBattle, currentActor, isPlayerTurn, commands, act, advanceEnemy, turnOrder, finishBattle, intentOf,
 } from '../core/battle/engine.js';
@@ -440,11 +441,20 @@ export class BattleScene extends Phaser.Scene {
     for (const ev of log) {
       if (this.ended) return;
       this.allLog.push(ev);
+      this.playEventSfx(ev);
       await this.playEvent(ev);
     }
     this.syncDisplay();
     this.syncRevealed();
     this.refreshAll();
+  }
+
+  /** 戰鬥事件音效的單一掛點：事件 → 事件鍵（audio/events.js）→ catalog 的 events 對應表 → cue。 */
+  playEventSfx(ev) {
+    audio.event(battleEventKey(ev, {
+      sideOf: (uid) => this.unitById(uid)?.side ?? null,
+      skillOf: (id) => (session.data?.skills ?? []).find((s) => s.id === id) ?? null,
+    }));
   }
 
   /** 播完一段 log 後，把顯示數值對齊實際戰鬥狀態（保險）。 */

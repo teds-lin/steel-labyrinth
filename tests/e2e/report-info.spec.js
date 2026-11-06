@@ -172,6 +172,7 @@ test.describe('複製回報資訊', () => {
     expect(lines[1]).toMatch(/^遊戲版本：(?:dev|20\d{2}\.\d{2}\.\d{2}(?:\.\d+)?)（存檔格式 v\d+）$/);
     expect(lines[2]).toMatch(/^時間：\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(lines[3]).toMatch(/^裝置：.+／Chrome \d+；畫面 \d+×\d+$/);
+    expect(lines[4]).toBe('聲音：開（音樂 50%、環境音 50%、音效 75%、打字音 開）'); // M6：聲音狀態（預設值）
     expect(text).toContain(`章節：序章（prologue）`);
     expect(text).toMatch(new RegExp(`地圖：[^（]+（${st.location.map}）　位置：\\(${st.location.x}, ${st.location.y}\\)`));
     expect(text).toContain('隊伍：霧港測試 ');
@@ -213,10 +214,11 @@ test.describe('複製回報資訊', () => {
     const text = await readClipboard(page);
     const lines = text.split('\n');
     expect(lines[0]).toBe('【鋼鐵迷都 回報資訊】');
-    expect(lines[4]).toBe('目前不在遊戲中');
-    expect(lines[5]).toBe('附上的存檔：存檔 2（唯一的存檔）');
-    expect(lines[6]).toBe(MARKER);
-    expect(lines[7]).toBe(raw);
+    expect(lines[4]).toBe('聲音：開（音樂 50%、環境音 50%、音效 75%、打字音 開）'); // M6：聲音狀態（預設值）
+    expect(lines[5]).toBe('目前不在遊戲中');
+    expect(lines[6]).toBe('附上的存檔：存檔 2（唯一的存檔）');
+    expect(lines[7]).toBe(MARKER);
+    expect(lines[8]).toBe(raw);
     expect(text).not.toContain('章節：');
     expect(text).not.toContain('雲端存檔：');
     expectNoSecrets(text);

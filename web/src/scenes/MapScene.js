@@ -343,7 +343,9 @@ export class MapScene extends Phaser.Scene {
     }
     // 用探索標籤（借聲、換影…）解開了鎖：先播標籤的提示與動畫，再播對話
     const target = r.unlock ? this.facingObject() : null;
-    session.setState(r.state);
+    // 觸發原因交給探索音效判斷（audio/events.js）：面前有可互動的對象（hit）才響調查／殘響音
+    const hit = r.dialogues.length > 0 || !!r.battle || !!r.dream || !!r.guest || !!r.unlock;
+    session.setState(r.state, { cause: name === 'echo' ? 'echo' : 'investigate', hit });
     const extra = { dream: r.dream ?? null, guest: r.guest ?? null, tagFx: r.unlock ? { tag: r.unlock.tag, obj: target } : null };
     if (r.dialogues.length || r.battle || extra.dream || extra.guest || extra.tagFx) this.runDialogues(r.dialogues, r.battle ?? null, extra);
     else if (r.message) this.ui.toast(r.message);

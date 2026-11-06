@@ -50,6 +50,46 @@ test.describe('M6 真實音訊後端（?test=1&audio=1）', () => {
     expect((await audio(page)).unlocked).toBe(true);
   });
 
+  test('真實後端打一場戰鬥到結果畫面：沒有 console error、沒有壞掉的 cue，戰鬥音效有送出播放（M6 P2）', async ({ page }) => {
+    test.setTimeout(180_000);
+    await seedSaves(page, { 1: {
+      ...makeSave(), schema_version: 2, lineage: { id: 'trace', rank: 9 }, location: { map: 'warehouse', x: 7, y: 3, dir: 'up' },
+      flags: {
+        'enter:office': true, 'enter:training': true, 'enter:dock': true, 'enter:warehouse': true, drank_potion: true, sparred: true,
+        fog1_done: true, fog2_done: true, fog3_done: true, boss_warned: true, ch2_deduced: true, wh_door_open: true,
+      },
+      items: { revolver: 1, bandage: 2, sedative_incense: 1, warehouse_key: 1 }, echo: { charges: 0 }, collapse: 10,
+      resonance: { clue_found: 3, deduction_correct: 1 }, chapter: 'chapter2', chapter_done: ['prologue', 'chapter1'],
+      party: [{ id: 'hero', hp: null, sp: null }, { id: 'ada', hp: null, sp: null }], ammo: 12, pending: null,
+    } });
+    await page.goto(`${REAL_URL}&seed=3`);
+    const g = game(page);
+    const u = dreamUi(page, g, false);
+    await u.loadFromTitle(1); // 滑鼠點擊＝手勢解鎖
+    await waitLoaded(page, FILE_CUES.length);
+    await g.act('investigate');
+    await g.waitDialogue();
+    await g.finishDialogue();
+    await g.waitScene('Battle');
+    let b = null;
+    for (let turn = 0; turn < 200; turn++) {
+      const x = await g.battleWait(30_000);
+      if (!x) break; // Boss 戰輸了直接進 Game Over
+      b = x;
+      if (b.mode === 'result') break;
+      if (b.mode !== 'root') { await g.battleButton('返回'); continue; }
+      const target = b.units.find((x) => x.side === 'enemy' && x.alive).uid;
+      const shoot = b.commands.skills.find((s) => s.id === 'shoot' && s.usable);
+      await g.battleCommand({ skill: shoot ? 'shoot' : 'attack', target });
+    }
+    expect(['Battle', 'GameOver']).toContain(await g.scene());
+    const a = await audio(page);
+    expect(a.backend).toBe('webaudio');
+    expect(a.broken).toEqual([]);
+    expect(a.lastSfx.some((x) => /^(bt_|jingle_)/.test(x))).toBe(true);
+    expect(a.lastSfx.filter((x) => x.startsWith('jingle_'))).toHaveLength(1);
+  });
+
   test.describe('某個音效回 404', () => {
     test.use({ allow404: '/audio/sfx/ui_error.' });
     test('遊戲照常、只 warn 一次、該 cue 進 broken（ogg 404 → 試 m4a 一次 → 放棄）', async ({ page, warns }) => {

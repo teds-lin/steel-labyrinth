@@ -6,6 +6,7 @@ import { AUDIO_DEFAULTS, AUDIO_SETTINGS_KEY } from '../../web/src/audio/settings
 const catalog = () => ({
   version: 1,
   defaults: {},
+  events: { 'battle.hit': 'ui_confirm', 'map.change': null, 'item.get': 'sfx_bell' },
   cues: {
     ui_move: { kind: 'sfx', src: 'sfx/ui_move', volume: 0.5, credit: 'k' },
     ui_confirm: { kind: 'sfx', src: 'sfx/ui_confirm', credit: 'k' },
@@ -131,14 +132,135 @@ describe('音效播放', () => {
     d.sfx('bgm_x');
     expect(b.plays).toEqual([]);
   });
-  it('lastSfx 只保留最近 30 筆', () => {
+  it('lastSfx 只保留最近 200 筆（E2E 要看完一整場戰鬥的序列）', () => {
     let t = 0;
     const d = new AudioDirector({ storage: fakeStorage(), now: () => t });
     d.attach(fakeBackend());
     d.setCatalog(catalog());
     d.markUnlocked();
-    for (let i = 0; i < 40; i++) { t += 100; d.sfx('ui_move'); }
-    expect(d.info().lastSfx).toHaveLength(30);
+    for (let i = 0; i < 230; i++) { t += 100; d.sfx('ui_move'); }
+    expect(d.info().lastSfx).toHaveLength(200);
+  });
+});
+
+describe('event(key)：依目錄的 events 對應表播放（M6 P2）', () => {
+  it('查表得到 cue 就播；對應為 null（刻意不發聲）或 key 為 null 時安靜', () => {
+    const { d, b } = ready();
+    d.event('battle.hit');
+    d.event('map.change');
+    d.event(null);
+    d.event('item.get');
+    expect(b.plays.map((p) => p[0])).toEqual(['ui_confirm']);
+    expect(b.synths.map((p) => p[0])).toEqual(['bell']);
+    expect(d.info().lastSfx).toEqual(['ui_confirm', 'sfx_bell']);
+  });
+  it('目錄缺整張 events 表：不管多少個不同事件鍵，只 warn 一次', () => {
+    const { d, b } = ready();
+    const cat = catalog();
+    delete cat.events;
+    d.setCatalog(cat);
+    d.event('battle.hit');
+    d.event('map.change');
+    d.event('save.ok');
+    expect(b.plays).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+  it('未知的事件鍵：只 warn 一次、不丟例外', () => {
+    const { d, b } = ready();
+    d.event('battle.nope');
+    d.event('battle.nope');
+    expect(b.plays).toEqual([]);
+    expect(warn.mock.calls.filter((c) => String(c[0]).includes('battle.nope'))).toHaveLength(1);
+  });
+});
+
+describe('同時發聲上限的優先序（M6 P2 Round 1）', () => {
+  function burstCatalog() {
+    const cat = catalog();
+    for (const id of ['u1', 'u2', 'u3', 'u4']) cat.cues[id] = { kind: 'sfx', src: `sfx/${id}`, credit: 'k' };
+    cat.cues.jingle_victory = { kind: 'sfx', src: 'sfx/jingle_victory', credit: 'k', burst: 'priority' };
+    cat.cues.text_tick.burst = 'exempt';
+    cat.events['battle.victory'] = 'jingle_victory';
+    return cat;
+  }
+  function setup() {
+    let t = 0;
+    const d = new AudioDirector({ storage: fakeStorage(), now: () => t });
+    const b = fakeBackend();
+    d.attach(b);
+    d.setCatalog(burstCatalog());
+    d.markUnlocked();
+    return { d, b, tick: (ms) => { t += ms; } };
+  }
+  it('同時送 3 個介面音後 5 ms 送勝利事件：短樂句（burst: priority）仍然播出', () => {
+    const { d, b, tick } = setup();
+    d.sfx('u1'); d.sfx('u2'); d.sfx('u3');
+    tick(5);
+    d.event('battle.victory');
+    d.sfx('u4');
+    expect(b.plays.map((p) => p[0])).toEqual(['u1', 'u2', 'u3', 'jingle_victory']);
+  });
+  it('打字音（burst: exempt）不受上限、也不佔額度', () => {
+    const { d, b } = setup();
+    d.sfx('text_tick');
+    d.sfx('u1'); d.sfx('u2'); d.sfx('u3');
+    d.sfx('u4'); // 額度 3 已滿（打字音沒算進去）
+    expect(b.plays.map((p) => p[0])).toEqual(['text_tick', 'u1', 'u2', 'u3']);
+    const { d: d2, b: b2 } = setup();
+    d2.sfx('u1'); d2.sfx('u2'); d2.sfx('u3');
+    d2.sfx('text_tick');
+    expect(b2.plays.map((p) => p[0])).toEqual(['u1', 'u2', 'u3', 'text_tick']);
+  });
+  it('info().requests 記錄每個要求與結果（played／gap／burst），E2E 用來比對完整序列', () => {
+    const { d, tick } = setup();
+    d.sfx('u1'); d.sfx('u1'); d.sfx('u2'); d.sfx('u3'); d.sfx('u4');
+    tick(50);
+    d.sfx('u1');
+    expect(d.info().requests.map((r) => r.t)).toEqual([0, 0, 0, 0, 0, 50]); // 時間戳（毫秒，診斷用）
+    expect(d.info().requests.map(({ id, result }) => ({ id, result }))).toEqual([
+      { id: 'u1', result: 'played' }, { id: 'u1', result: 'gap' }, { id: 'u2', result: 'played' },
+      { id: 'u3', result: 'played' }, { id: 'u4', result: 'burst' }, { id: 'u1', result: 'played' },
+    ]);
+  });
+  it('靜音、打字音關閉、未解鎖的要求不記錄（它們本來就不該響）', () => {
+    const { d } = setup();
+    d.toggleMute();
+    d.sfx('u1');
+    expect(d.info().requests).toEqual([]);
+  });
+});
+
+describe('同時發聲上限（避免爆音、快轉時不爆量）', () => {
+  it('30 ms 內最多 3 個音效開始播放；超過的直接略過（不排隊補播）', () => {
+    let t = 0;
+    const cat = catalog();
+    for (const id of ['a1', 'a2', 'a3', 'a4', 'a5']) cat.cues[id] = { kind: 'sfx', src: `sfx/${id}`, credit: 'k' };
+    const d = new AudioDirector({ storage: fakeStorage(), now: () => t });
+    const b = fakeBackend();
+    d.attach(b);
+    d.setCatalog(cat);
+    d.markUnlocked();
+    for (const id of ['a1', 'a2', 'a3', 'a4', 'a5']) d.sfx(id);
+    expect(b.plays.map((p) => p[0])).toEqual(['a1', 'a2', 'a3']);
+    t += 29;
+    d.sfx('a4');
+    expect(b.plays).toHaveLength(3);
+    t += 1; // 第一批已滿 30 ms
+    d.sfx('a4');
+    d.sfx('a5');
+    expect(b.plays.map((p) => p[0])).toEqual(['a1', 'a2', 'a3', 'a4', 'a5']);
+  });
+  it('一般節奏（每 16 ms 一個，像 ?test=1 的戰鬥）不會被擋', () => {
+    let t = 0;
+    const cat = catalog();
+    for (let i = 0; i < 10; i++) cat.cues[`c${i}`] = { kind: 'sfx', src: `sfx/c${i}`, credit: 'k' };
+    const d = new AudioDirector({ storage: fakeStorage(), now: () => t });
+    const b = fakeBackend();
+    d.attach(b);
+    d.setCatalog(cat);
+    d.markUnlocked();
+    for (let i = 0; i < 10; i++) { d.sfx(`c${i}`); t += 16; }
+    expect(b.plays).toHaveLength(10);
   });
 });
 

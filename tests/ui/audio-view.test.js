@@ -1,7 +1,7 @@
 // 設定畫面與靜音提示的文字（M6 P1）：純函式，畫面層只負責排版。
 import { describe, it, expect } from 'vitest';
 import {
-  SETTINGS_LABEL, settingsRows, levelText, settingsNote, muteToast, settingsAction, toastY, MUTED_MARK,
+  SETTINGS_LABEL, settingsRows, levelText, settingsNote, muteToast, settingsAction, toastY, MUTED_MARK, soundStatus,
 } from '../../web/src/ui/audio-view.js';
 import { TITLE_KEY_HINT } from '../../web/src/ui/m5-view.js';
 import { AUDIO_DEFAULTS } from '../../web/src/audio/settings.js';
@@ -72,6 +72,23 @@ describe('settingsAction：設定畫面的操作 → 新設定（純函式）', 
   it('未知列或動作：原樣回傳', () => {
     expect(settingsAction(s, 'voice', 'left')).toEqual(s);
     expect(settingsAction(s, 'bgm', 'jump')).toEqual(s);
+  });
+});
+
+describe('soundStatus：AudioDirector 的摘要 → 回報資訊用的聲音狀態', () => {
+  const info = (over = {}) => ({ backend: 'webaudio', unlocked: true, catalog: true, settings: { ...AUDIO_DEFAULTS }, ...over });
+  it('可以出聲：on＋各通道音量', () => {
+    expect(soundStatus(info())).toEqual({ status: 'on', bgm: 2, amb: 2, sfx: 3, typing: true });
+  });
+  it('靜音：muted（不管有沒有解鎖）', () => {
+    expect(soundStatus(info({ settings: { ...AUDIO_DEFAULTS, mute: true } }))).toEqual({ status: 'muted' });
+    expect(soundStatus(info({ unlocked: false, settings: { ...AUDIO_DEFAULTS, mute: true } }))).toEqual({ status: 'muted' });
+  });
+  it('未啟用：瀏覽器不支援／音效目錄載入失敗／尚未解鎖（依序判斷）', () => {
+    expect(soundStatus(info({ backend: 'none' }))).toEqual({ status: 'off', reason: 'unsupported' });
+    expect(soundStatus(info({ catalog: false }))).toEqual({ status: 'off', reason: 'catalog' });
+    expect(soundStatus(info({ unlocked: false }))).toEqual({ status: 'off', reason: 'locked' });
+    expect(soundStatus(null)).toEqual({ status: 'off', reason: 'unsupported' });
   });
 });
 

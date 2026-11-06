@@ -8,6 +8,7 @@ export const SYNTHS = Object.freeze(['bell']);
 export const KINDS = Object.freeze(['bgm', 'amb', 'sfx']);
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
+const EVENT_KEY_RE = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 const SRC_RE = /^(bgm|amb|sfx)\/[a-z0-9_]+(\.v[0-9]+)?$/;
 
 /** 回傳 { ok, errors }。只檢查結構；檔案是否存在由單元測試（磁碟檢查）把關。 */
@@ -39,6 +40,8 @@ export function validateCatalog(cat) {
       errors.push(`${at}：volume 必須介於 0～1`);
     }
     if (c.loop !== undefined && typeof c.loop !== 'boolean') errors.push(`${at}：loop 必須是布林值`);
+    // 同時發聲上限的優先序（M6 P2）：priority＝不受上限；exempt＝不受上限也不佔額度
+    if (c.burst !== undefined && c.burst !== 'priority' && c.burst !== 'exempt') errors.push(`${at}：burst 只能是 priority 或 exempt`);
   }
   if (cat.defaults !== undefined) {
     if (!cat.defaults || typeof cat.defaults !== 'object' || Array.isArray(cat.defaults)) {
@@ -46,6 +49,19 @@ export function validateCatalog(cat) {
     } else {
       for (const [k, v] of Object.entries(cat.defaults)) {
         if (v !== null && !(typeof v === 'string' && Object.hasOwn(cues, v))) errors.push(`defaults.${k}：找不到 cue「${v}」`);
+      }
+    }
+  }
+  if (cat.events !== undefined) {
+    // 事件鍵 → cue（M6 P2）：值必須是存在的 sfx cue，或 null（刻意不發聲）
+    if (!cat.events || typeof cat.events !== 'object' || Array.isArray(cat.events)) {
+      errors.push('events 必須是物件');
+    } else {
+      for (const [k, v] of Object.entries(cat.events)) {
+        if (!EVENT_KEY_RE.test(k)) errors.push(`events：事件鍵「${k}」格式不對（例如 battle.hit）`);
+        if (v !== null && !(typeof v === 'string' && Object.hasOwn(cues, v) && cues[v]?.kind === 'sfx')) {
+          errors.push(`events.${k}：必須是存在的 sfx cue 或 null（目前 ${JSON.stringify(v)}）`);
+        }
       }
     }
   }

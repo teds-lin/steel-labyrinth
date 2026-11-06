@@ -118,6 +118,18 @@ function maskSecrets(text, secrets) {
  * env：{ version, now, userAgent, screen:{ width, height }, cloudEnabled, lastSave:{ slot, raw, why:'last'|'only' }|null, secrets:[] }。
  * state 為 null（標題畫面）時只輸出版本、時間、裝置與「目前不在遊戲中」，有 lastSave 時附上它的原始內容。
  */
+const SOUND_OFF_REASON = { locked: '尚未點擊畫面', catalog: '音效目錄載入失敗', unsupported: '瀏覽器不支援' };
+const pct = (level) => (Number.isInteger(level) && level > 0 ? `${Math.min(4, level) * 25}%` : '關');
+
+/** env.sound（{ status:'on'|'muted'|'off', ... }）→ 回報資訊的一行；不認得就不加（null）。 */
+function soundLine(x) {
+  if (!isObj(x)) return null;
+  if (x.status === 'muted') return '聲音：靜音';
+  if (x.status === 'off') return `聲音：未啟用（${SOUND_OFF_REASON[x.reason] ?? '原因不明'}）`;
+  if (x.status === 'on') return `聲音：開（音樂 ${pct(x.bgm)}、環境音 ${pct(x.amb)}、音效 ${pct(x.sfx)}、打字音 ${x.typing ? '開' : '關'}）`;
+  return null;
+}
+
 export function buildReportInfo({ state = null, data = null, env = {} } = {}) {
   const e = isObj(env) ? env : {};
   const version = typeof e.version === 'string' && e.version.trim() !== '' ? e.version.trim() : '未知';
@@ -127,6 +139,9 @@ export function buildReportInfo({ state = null, data = null, env = {} } = {}) {
     `時間：${isoTime(e.now)}`,
     `裝置：${describeDevice(e.userAgent)}；畫面 ${screenText(e.screen)}`,
   ];
+  // 聲音（M6）：呼叫端有給才加（ui/audio-view.js 的 soundStatus）
+  const sound = soundLine(e.sound);
+  if (sound) lines.push(sound);
   if (isObj(state)) {
     lines.push(...progressLines(state, data, e.cloudEnabled === true));
     let save;

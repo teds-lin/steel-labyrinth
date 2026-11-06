@@ -98,7 +98,7 @@ export class GameOverScene extends Phaser.Scene {
     }
     // 備份保留「戰前」狀態（不是回滿後的），之後再輸還是從同一個戰前狀態計算
     session.preBattle = { state: pre.state, encounter: pre.encounter };
-    session.setState(next);
+    session.setState(next, { cause: 'restore' }); // 回到戰前狀態：探索音效不把差異當成取得道具等
     this.scene.start('Battle', { encounter: pre.encounter, seed: battleSeed(), retry: retryOptions(pre.state) });
   }
 

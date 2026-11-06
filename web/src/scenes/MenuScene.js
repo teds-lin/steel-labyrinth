@@ -7,7 +7,7 @@
 import { WIDTH, HEIGHT, COLORS, GAME_VERSION } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
 import { addText, Button, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
-import { SETTINGS_LABEL, settingsRows, settingsNote, settingsAction, MUTED_MARK } from '../ui/audio-view.js';
+import { SETTINGS_LABEL, settingsRows, settingsNote, settingsAction, MUTED_MARK, soundStatus } from '../ui/audio-view.js';
 import { audio } from '../audio/index.js';
 import { fieldItems, useFieldItem } from '../core/items.js';
 import { partyStatus, availableSkills } from '../core/stats.js';
@@ -373,6 +373,7 @@ export class MenuScene extends Phaser.Scene {
         userAgent: navigator.userAgent,
         screen: { width: window.innerWidth, height: window.innerHeight },
         cloudEnabled,
+        sound: soundStatus(audio.info()),
         lastSave: inGame ? null : readLastSave(backend),
         secrets: collectCloudSecrets(backend),
       },
@@ -616,6 +617,7 @@ export class MenuScene extends Phaser.Scene {
     session.foldPlaytime();
     const r = session.storage.save(slot, session.snapshot());
     if (r.ok) rememberLastSlot(session.backend, slot); // 標題畫面的回報資訊附上這一格
+    if (r.ok) audio.event('save.ok');
     if (r.ok) this.afterManualSave(slot);
     else this.showSlots('save', `${BLOCKED_MSG}\n（${r.reason}）`);
   }

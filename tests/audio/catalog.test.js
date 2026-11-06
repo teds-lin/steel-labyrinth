@@ -73,6 +73,32 @@ describe('validateCatalog', () => {
   });
 });
 
+describe('validateCatalog：events（事件鍵 → cue 的對應表，M6 P2）', () => {
+  it('合法：值是存在的 sfx cue 或 null（刻意不發聲）', () => {
+    const c = ok();
+    c.events = { 'battle.hit': 'ui_move', 'map.change': null, 'battle.victory': 'sfx_bell' };
+    expect(validateCatalog(c)).toEqual({ ok: true, errors: [] });
+  });
+  it('events 不是物件、鍵格式不對、值不是存在的 cue、值是 bgm 都擋下', () => {
+    for (const events of [[], 'x', { 'Battle Hit': 'ui_move' }, { 'battle.hit': 'nope' }, { 'battle.hit': 'bgm_x' }, { 'battle.hit': 3 }]) {
+      const c = ok();
+      c.events = events;
+      expect(validateCatalog(c).ok, JSON.stringify(events)).toBe(false);
+    }
+  });
+});
+
+describe('validateCatalog：burst（同時發聲上限的優先序）', () => {
+  it('只能是 priority（不受上限）或 exempt（不受上限也不佔額度）', () => {
+    const c = ok();
+    c.cues.ui_move.burst = 'priority';
+    c.cues.sfx_bell.burst = 'exempt';
+    expect(validateCatalog(c).ok).toBe(true);
+    c.cues.ui_move.burst = 'high';
+    expect(validateCatalog(c).errors.join()).toMatch(/burst/);
+  });
+});
+
 describe('chooseFormats／cueUrls', () => {
   it('格式只有 ogg 與 m4a', () => {
     expect(AUDIO_FORMATS).toEqual(['ogg', 'm4a']);

@@ -5,6 +5,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCatalog, AUDIO_FORMATS } from '../../web/src/audio/catalog.js';
 import { validateRecipe, renderCredits } from '../../tools/lib/audio-recipe.mjs';
+import { EVENT_KEYS } from '../../web/src/audio/events.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const AUDIO = join(ROOT, 'web', 'audio');
@@ -37,6 +38,28 @@ describe('catalog.json', () => {
     ];
     for (const id of need) expect(catalog.cues[id], id).toBeTruthy();
     expect(catalog.cues.sfx_bell.synth).toBe('bell');
+  });
+  it('events 對應表剛好涵蓋程式用到的所有事件鍵（不多不少），每個值都是 sfx cue', () => {
+    expect(Object.keys(catalog.events ?? {}).sort()).toEqual([...EVENT_KEYS].sort());
+    for (const [k, v] of Object.entries(catalog.events)) {
+      expect(v === null || catalog.cues[v]?.kind === 'sfx', `${k} → ${v}`).toBe(true);
+    }
+  });
+  it('同時發聲上限的優先序：短樂句與存檔音不被擋（priority）；打字音與按鍵的介面音一次輸入一聲、不會湧入，不佔額度（exempt）；其他事件音受上限', () => {
+    const burst = Object.fromEntries(Object.entries(catalog.cues).filter(([, c]) => c.burst).map(([id, c]) => [id, c.burst]));
+    expect(burst).toEqual({
+      jingle_victory: 'priority', jingle_defeat: 'priority', ui_save: 'priority',
+      text_tick: 'exempt', ui_move: 'exempt', ui_confirm: 'exempt', ui_cancel: 'exempt', ui_error: 'exempt',
+    });
+  });
+  it('P2 的探索與戰鬥對應（計畫 §1.4）', () => {
+    expect(catalog.events).toMatchObject({
+      'map.investigate': 'map_investigate', 'map.echo': 'map_echo', 'map.change': 'map_door', 'map.unlock': 'map_door',
+      'item.get': 'item_get', 'save.ok': 'ui_save',
+      'battle.hit': 'bt_hit', 'battle.crit': 'bt_crit', 'battle.hurt': 'bt_hurt', 'battle.miss': 'bt_miss', 'battle.shot': 'bt_shot',
+      'battle.heal': 'bt_skill', 'battle.buff': 'bt_skill', 'battle.debuff': 'bt_skill', 'battle.status': 'bt_skill',
+      'battle.down': 'bt_down', 'battle.victory': 'jingle_victory', 'battle.defeat': 'jingle_defeat', 'battle.lost_control': 'jingle_defeat',
+    });
   });
   it('公開目錄不列地圖或戰鬥 id（防劇透）：cue id 一律用通用前綴，目錄裡找不到任何地圖或遭遇 id', () => {
     const PREFIX = /^(ui|text|map|item|bt|jingle|sfx|bgm|amb)_[a-z0-9_]+$/;

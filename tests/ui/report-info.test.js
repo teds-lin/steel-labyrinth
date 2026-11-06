@@ -97,6 +97,27 @@ describe('describeDevice：userAgent 精簡成作業系統＋瀏覽器名稱與�
   });
 });
 
+describe('buildReportInfo：聲音（M6 P2 選配）', () => {
+  it('env.sound 有給時，在裝置那行之後加一行：開（各通道音量）／靜音／未啟用（原因）', () => {
+    const on = buildReportInfo({ state, data, env: env({ sound: { status: 'on', bgm: 2, amb: 0, sfx: 3, typing: false } }) }).split('\n');
+    expect(on[4]).toBe('聲音：開（音樂 50%、環境音 關、音效 75%、打字音 關）');
+    expect(on[5]).toMatch(/^章節：/);
+    const muted = buildReportInfo({ state: null, data, env: env({ sound: { status: 'muted' } }) }).split('\n');
+    expect(muted[4]).toBe('聲音：靜音');
+    expect(muted[5]).toBe('目前不在遊戲中');
+    const line = (reason) => buildReportInfo({ state: null, data, env: env({ sound: { status: 'off', reason } }) }).split('\n')[4];
+    expect(line('locked')).toBe('聲音：未啟用（尚未點擊畫面）');
+    expect(line('catalog')).toBe('聲音：未啟用（音效目錄載入失敗）');
+    expect(line('unsupported')).toBe('聲音：未啟用（瀏覽器不支援）');
+  });
+  it('沒有給或值不認得：不加這一行（相容舊的呼叫）', () => {
+    for (const sound of [undefined, 'loud', 1, 'on', { status: 'weird' }]) {
+      const lines = buildReportInfo({ state, data, env: env({ sound }) }).split('\n');
+      expect(lines.some((l) => l.startsWith('聲音：')), String(sound)).toBe(false);
+    }
+  });
+});
+
 describe('buildReportInfo：遊戲中', () => {
   it('依格式輸出版本、時間、裝置、章節、地圖、位置、譜系、隊伍、雲端狀態與存檔內容', () => {
     const text = buildReportInfo({ state, data, env: env({ cloudEnabled: true }) });

@@ -166,7 +166,9 @@ export class UIScene extends Phaser.Scene {
       ['選單', 'menu', 606],
     ];
     for (const [label, action, y] of btns) {
-      const b = new Button(this, rx, y, 140, 48, label, { fontSize: 17, onClick: () => this.action(action) });
+      // 調查／殘響不播確認音：由探索事件音發聲（有對象才響），與鍵盤操作一致（M6 P2）
+      const sfx = action === 'investigate' || action === 'echo' ? null : 'confirm';
+      const b = new Button(this, rx, y, 140, 48, label, { fontSize: 17, sfx, onClick: () => this.action(action) });
       if (action === 'echo') this.abilityButton = b;
       this.panel.add(b);
     }

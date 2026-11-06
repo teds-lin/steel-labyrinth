@@ -36,9 +36,14 @@ export const session = {
   /** 尚未併入 state.playtime_s 的秒數（對話進行中 state 由對話執行器持有，先暫存）。 */
   elapsed: 0,
 
-  setState(next) {
+  /**
+   * 換成新的 state 並通知（'state' 事件：next, prev, meta）。meta 是選填的觸發原因，例如地圖的調查／殘響
+   * { cause:'investigate'|'echo', hit }（M6：探索音效由 audio/index.js 統一依 prev → next 的差異判斷）。
+   */
+  setState(next, meta = null) {
+    const prev = this.state;
     this.state = next;
-    this.events.emit('state', next);
+    this.events.emit('state', next, prev, meta);
   },
 
   /** 把累積的整數秒併入 playtime_s（只在沒有對話時呼叫）。 */

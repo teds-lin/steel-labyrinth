@@ -4,7 +4,12 @@
 import { loadAudioSettings, saveAudioSettings, parseAudioSettings, levelGain, channelGain, toggleSetting } from './settings.js';
 import { validateCatalog } from './catalog.js';
 
-const LAST_MAX = 30;
+const LAST_MAX = 200;
+/** 同時發聲上限：BURST_MS 內最多 BURST_MAX 個音效開始播放，超過的略過（一個 frame 湧入多個事件、或快轉時不爆音）。 */
+const BURST_MAX = 3;
+const BURST_MS = 30;
+/** info().requests 保留的筆數（E2E 比對整場戰鬥的完整序列）。 */
+const REQ_MAX = 400;
 /** 同一個 cue 兩次播放的最小間隔（毫秒）：連按或事件重複時不疊成一團。 */
 const MIN_GAP_MS = 40;
 /** 單調遞增的時鐘（不受系統時間調整影響）；沒有 performance 時退回 Date.now。 */
@@ -17,6 +22,8 @@ export class AudioDirector {
     this.storage = storage;
     this.now = now;
     this.lastAt = new Map();
+    this.recent = []; // 最近開始播放的時間（同時發聲上限用）
+    this.requests = []; // 每個「應該要響」的要求與結果：played／gap（同 cue 40 ms 內重複）／burst（同時發聲上限）
     this.state = loadAudioSettings(storage);
     this.backend = null;
     this.catalog = null;
@@ -114,8 +121,13 @@ export class AudioDirector {
       const channel = TYPING_CUES.has(id) ? 'typing' : 'sfx';
       if (channelGain(channel, this.state) <= 0) return;
       const t = this.now();
-      if (t - (this.lastAt.get(id) ?? -Infinity) < MIN_GAP_MS) return;
+      if (t - (this.lastAt.get(id) ?? -Infinity) < MIN_GAP_MS) { this.logRequest(id, 'gap', t); return; }
+      // 同時發聲上限：短樂句、存檔音（priority）不被擋；打字音（exempt）不被擋也不佔額度
+      this.recent = this.recent.filter((x) => t - x < BURST_MS);
+      if (cue.burst === undefined && this.recent.length >= BURST_MAX) { this.logRequest(id, 'burst', t); return; }
+      if (cue.burst !== 'exempt') this.recent.push(t);
       this.lastAt.set(id, t);
+      this.logRequest(id, 'played', t);
       const vol = typeof cue.volume === 'number' ? cue.volume : 1;
       if (cue.synth) this.backend.playSynth(cue.synth, vol);
       else this.backend.playSfx(id, vol);
@@ -124,6 +136,25 @@ export class AudioDirector {
     } catch (e) {
       this.broken.add(id);
       this.warnOnce(`play:${id}`, `音效「${id}」播放失敗，之後保持安靜`, e);
+    }
+  }
+
+  logRequest(id, result, t) {
+    this.requests.push({ id, result, t: Math.round(t) });
+    if (this.requests.length > REQ_MAX) this.requests.splice(0, this.requests.length - REQ_MAX);
+  }
+
+  /** 遊戲事件（事件鍵，見 audio/events.js）：查目錄的 events 對應表；對應為 null 時刻意不發聲。未知的鍵 warn 一次。 */
+  event(key) {
+    try {
+      if (key === null || key === undefined || !this.catalog) return;
+      const table = this.catalog.events;
+      if (!table || typeof table !== 'object') { this.warnOnce('events-missing', '音訊目錄沒有事件對應表（events），事件音效保持安靜'); return; }
+      if (!Object.hasOwn(table, key)) { this.warnOnce(`event:${key}`, `音效對應表沒有事件「${key}」`); return; }
+      const cue = table[key];
+      if (cue !== null) this.sfx(cue);
+    } catch (e) {
+      this.warnOnce(`event-error:${key}`, `事件音效「${key}」出錯`, e);
     }
   }
 
@@ -139,6 +170,7 @@ export class AudioDirector {
       settings: this.settings,
       saved: this.saved,
       lastSfx: [...this.last],
+      requests: this.requests.map((r) => ({ ...r })),
       hint: this.hint,
       broken: [...this.broken],
     };
