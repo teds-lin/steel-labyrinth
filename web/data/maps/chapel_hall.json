@@ -1,6 +1,8 @@
 {
   "id": "chapel_hall",
   "name": "灰鴿街禮拜堂・禮拜廳",
+  "bgm": null,
+  "amb": "amb_wind",
   "tiles": [
     "####SS#SS#SS####",
     "#c....aaaa....c#",

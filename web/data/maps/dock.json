@@ -1,6 +1,8 @@
 {
   "id": "dock",
   "name": "卡斯特維爾・碼頭區",
+  "bgm": null,
+  "amb": "amb_harbor",
   "tiles": [
     "WWWWWWWWWWWWWWWWWWWW",
     "WWWWPPWWWWWWWWWWWPWW",

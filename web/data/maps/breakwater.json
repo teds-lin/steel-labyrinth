@@ -1,6 +1,8 @@
 {
   "id": "breakwater",
   "name": "港口・沉堤",
+  "bgm": null,
+  "amb": "amb_harbor",
   "on_enter": "dlg_ch7_breakwater_arrive",
   "tiles": [
     "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",

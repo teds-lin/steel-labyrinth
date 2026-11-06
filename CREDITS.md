@@ -3,8 +3,10 @@
 > 本檔由 `node tools/audio-encode.mjs --credits` 依 `tools/audio-recipe.json` 自動產生，請勿手改。
 > 授權頁面的存檔放在私有企劃 repo 的 `assets-licenses/`。
 
-《鋼鐵迷都》的音效都是第三方公開授權素材，經裁切、去頭尾靜音、峰值正規化，重新編碼成 Ogg Vorbis 與 AAC（m4a）兩種格式。
-鐘聲（入夢、醒來）是程式即時合成，沒有音檔。
+《鋼鐵迷都》的音效、背景音樂與環境音都是第三方公開授權素材，經裁切、正規化（音效用峰值、音樂與環境音用響度）、
+循環接縫交叉淡化，重新編碼成 Ogg Vorbis 與 AAC（m4a）兩種格式。標示「MIDI 渲染」的音樂是用 CC0 的 MIDI 樂譜改編配器後，
+以 MIT 授權的音色庫離線渲染而成（音色庫的授權全文附在本檔最後）。
+鐘聲（入夢、醒來、遠方鐘聲）與霧笛是程式即時合成，沒有音檔。
 
 ## 每個音檔
 
@@ -29,6 +31,17 @@
 | `sfx/bt_skill.ogg`、`sfx/bt_skill.m4a` | 戰鬥：增益、減益、治療等技能 | Magic Spell SFX（magical_2.ogg） | JaggedStone | CC0 1.0 | https://opengameart.org/content/magic-spell-sfx |
 | `sfx/jingle_victory.ogg`、`sfx/jingle_victory.m4a` | 戰鬥勝利（撥弦短樂句） | 85 Short music jingles（OGG/jingles_PIZZA/jingles_PIZZA03.ogg） | Kenney | CC0 1.0 | https://opengameart.org/content/85-short-music-jingles |
 | `sfx/jingle_defeat.ogg`、`sfx/jingle_defeat.m4a` | 戰敗（撥弦下行短樂句） | 85 Short music jingles（OGG/jingles_PIZZA/jingles_PIZZA14.ogg） | Kenney | CC0 1.0 | https://opengameart.org/content/85-short-music-jingles |
+| `bgm/bgm_theme.ogg`、`bgm/bgm_theme.m4a` | 標題、取名、章節結束、結局（整首就是循環：兩段各 37.16 秒） | At Home - Orchestral（cinematic-calm.wav） | Wolfgang_ | CC0 1.0 | https://opengameart.org/content/at-home-orchestral |
+| `bgm/bgm_city.ogg`、`bgm/bgm_city.m4a` | 家、街區、公司（日常探索） | Death Waltz（death_waltz.mid，MIDI 渲染：FluidR3_GM 音色庫） | northivanastan；音色庫 Frank Wen | CC0 1.0（樂譜）＋MIT（FluidR3_GM 音色庫，全文見檔尾） | https://opengameart.org/content/death-waltz |
+| `bgm/bgm_dream.ogg`、`bgm/bgm_dream.m4a` | 鐘塔之夢、夢客交談（原曲 156 秒是同一段重複兩次，取一段） | 4 Music Box Tracks（musicbox3_sad_tune.ogg） | Aureolus_Omicron | CC0 1.0 | https://opengameart.org/content/4-music-box-tracks |
+| `bgm/bgm_battle.ogg`、`bgm/bgm_battle.m4a` | 一般戰鬥（A 段約 40 秒，原曲重複兩次但不是逐取樣相同：第 8 秒起相關最高（約 0.85），循環長度為實測的 1763967 個取樣點，線性淡化） | Battle Theme（Battle.mp3） | Wolfgang_ | CC0 1.0 | https://opengameart.org/content/battle-theme-0 |
+| `bgm/bgm_boss.ogg`、`bgm/bgm_boss.m4a` | Boss 戰（原曲 108 秒的後半段與前半段在第 18 秒後相同，取 54 秒） | Determined Pursuit (epic orchestra loop)（determined_pursuit_loop.wav） | Emma_MA | CC0 1.0 | https://opengameart.org/content/determined-pursuit-epic-orchestra-loop |
+| `amb/amb_rain.ogg`、`amb/amb_rain.m4a` | 雨聲（隔窗版由執行期低通濾波產生） | Rain (loopable)（1.ogg） | Ylmir | CC0 1.0 | https://opengameart.org/content/rain-loopable |
+| `amb/amb_machine.ogg`、`amb/amb_machine.m4a` | 公司、練習室、倉庫的機械聲 | Steam boiler sound loop（generator_loop.wav） | bart | CC0 1.0 | https://opengameart.org/content/steam-boiler-sound-loop |
+| `amb/amb_harbor.ogg`、`amb/amb_harbor.m4a` | 碼頭、沉堤、燈塔的浪聲 | Sea and river wave sounds（VistulaShort_0.mp3） | RandomMind | CC0 1.0 | https://opengameart.org/content/sea-and-river-wave-sounds |
+| `amb/amb_sewer.ogg`、`amb/amb_sewer.m4a` | 地下水道 | Loopable Dungeon Ambience（dungeon_ambient_1_0.ogg） | JaggedStone | CC0 1.0 | https://opengameart.org/content/loopable-dungeon-ambience |
+| `amb/amb_wind.ogg`、`amb/amb_wind.m4a` | 禮拜堂、燈室的風聲 | wind whoosh loop（wind woosh loop.ogg） | SketchMan3 | CC0 1.0 | https://opengameart.org/content/wind-whoosh-loop |
+| `amb/amb_clock.ogg`、`amb/amb_clock.m4a` | 鐘塔之夢的時鐘滴答 | Ticking clock.（ticking_clock.wav） | bart | CC0 1.0 | https://opengameart.org/content/ticking-clock |
 
 ## 來源素材包
 
@@ -41,3 +54,51 @@
 | jaggedstone-magic | Magic Spell SFX | JaggedStone | CC0 1.0 | https://opengameart.org/content/magic-spell-sfx | https://opengameart.org/sites/default/files/magical_2.ogg | `84a70f63f3f21e5ba4a48285b760a663d422ad3feddba2f3cbadd94b76cdc52e` |
 | cassie-typewriter | Typewriter sounds | Cassie-OrbitGames | CC0 1.0 | https://opengameart.org/content/typewriter-sounds | https://opengameart.org/sites/default/files/typewriter6.wav | `825b668508448212edbf8ddcff2801b0a6251528aaccdf8ab85427023cf0797f` |
 | isaiah658-reverse | Reversing Time / Stuck in Time | isaiah658 | CC0 1.0 | https://opengameart.org/content/reversing-time-stuck-in-time | https://opengameart.org/sites/default/files/Reverse-Time-Loop-isaiah658_0.ogg | `dd970cfede2e4d091004be2d3f036dcc824edb8ea9ab82c4c44d1cb380de679b` |
+| northivanastan-death-waltz | Death Waltz | northivanastan | CC0 1.0 | https://opengameart.org/content/death-waltz | https://opengameart.org/sites/default/files/death_waltz.mid | `6f93e584e22314e5bb2cd175654a1917f4806393ed5545bcdb007a838526d599` |
+| wolfgang-at-home | At Home - Orchestral | Wolfgang_ | CC0 1.0 | https://opengameart.org/content/at-home-orchestral | https://opengameart.org/sites/default/files/cinematic-calm.wav | `2977b4e410edc2d21269406b0d464f3602c4678fbd81d81d6b8b36e30963360f` |
+| aureolus-music-box | 4 Music Box Tracks | Aureolus_Omicron | CC0 1.0 | https://opengameart.org/content/4-music-box-tracks | https://opengameart.org/sites/default/files/4_music_box_tracks_ogg.zip | `93b451f01ea4d530ee41b2239ae23f9be7d5a3b55354bb9893c736a4bd193b2f` |
+| wolfgang-battle | Battle Theme | Wolfgang_ | CC0 1.0 | https://opengameart.org/content/battle-theme-0 | https://opengameart.org/sites/default/files/Battle.mp3 | `dde7bd4f10bde031800ba8e22151fad591b7c13e1c9ae51920341b4e4ae37be5` |
+| emma-determined-pursuit | Determined Pursuit (epic orchestra loop) | Emma_MA | CC0 1.0 | https://opengameart.org/content/determined-pursuit-epic-orchestra-loop | https://opengameart.org/sites/default/files/determined_pursuit_loop.wav | `e4f3be098b50213b56a60aefe60fffae79cd9f7c9008088f93c187ef1bbc856b` |
+| ylmir-rain | Rain (loopable) | Ylmir | CC0 1.0 | https://opengameart.org/content/rain-loopable | https://opengameart.org/sites/default/files/Rain%20OGG.zip | `e68f3e1c77493cf43bec84cebff5043bff6be9ce16d59b24caa988cd460aa75b` |
+| bart-steam-boiler | Steam boiler sound loop | bart | CC0 1.0 | https://opengameart.org/content/steam-boiler-sound-loop | https://opengameart.org/sites/default/files/generator_loop.wav | `64b174cf8ef71e7f71aa03cf29864ab489f7be1f624456cab916043da38911bd` |
+| randommind-waves | Sea and river wave sounds | RandomMind | CC0 1.0 | https://opengameart.org/content/sea-and-river-wave-sounds | https://opengameart.org/sites/default/files/VistulaShort_0.mp3 | `8c24607e41edd6f018ec3582a07e5a8dbc57347276339cb68440951a0fb4cfb1` |
+| jaggedstone-dungeon | Loopable Dungeon Ambience | JaggedStone | CC0 1.0 | https://opengameart.org/content/loopable-dungeon-ambience | https://opengameart.org/sites/default/files/dungeon_ambient_1_0.ogg | `df491823e4877371c34dbda4e9321cd83a4a14fa7573cee0ebca1ae423b70e6e` |
+| sketchman-wind | wind whoosh loop | SketchMan3 | CC0 1.0 | https://opengameart.org/content/wind-whoosh-loop | https://opengameart.org/sites/default/files/wind%20woosh%20loop.ogg | `0cfdbd3f21ed449689a9024264edf267d0037a6495813a7010827672ec191dac` |
+| bart-ticking-clock | Ticking clock. | bart | CC0 1.0 | https://opengameart.org/content/ticking-clock | https://opengameart.org/sites/default/files/ticking_clock.wav | `dc4dc1bf2c4bbeee5fd0841a87610ed19d851a92abc973ce0f5ff3caec40d537` |
+
+## 音色庫（MIDI 渲染用）
+
+### FluidR3_GM（fluidr3-gm）
+
+- 作者：Frank Wen
+- 授權：MIT
+- 頁面：https://packages.debian.org/sid/fluid-soundfont-gm
+- 下載檔：https://deb.debian.org/debian/pool/main/f/fluid-soundfont/fluid-soundfont-gm_3.1-6_all.deb（SHA-256 `9965fbcc6acee17d6f72b685d28c7f968ec64eba14645445b476d5c6cc2eee4c`，使用其中的 `usr/share/sounds/sf2/FluidR3_GM.sf2`）
+
+```
+Fluid (R3) SoundFont
+Copyright (c) 2000-2002, 2008 Frank Wen <getfrank@gmail.com>
+Copyright (c) 2008 Toby Smithe
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+```
+

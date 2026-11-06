@@ -4,8 +4,14 @@
 /** 每個 cue 都有兩種格式：Ogg Vorbis 與 AAC（m4a）。 */
 export const AUDIO_FORMATS = Object.freeze(['ogg', 'm4a']);
 /** 程序合成音（不下載音檔）。 */
-export const SYNTHS = Object.freeze(['bell']);
+export const SYNTHS = Object.freeze(['bell', 'foghorn']);
 export const KINDS = Object.freeze(['bgm', 'amb', 'sfx']);
+/** defaults 的鍵：*_amb 指向環境音，其他指向背景音樂（選曲規則見 audio/pick.js）。 */
+export const DEFAULT_KEYS = Object.freeze({
+  bgm: Object.freeze(['title', 'map', 'dream', 'battle', 'chapter_end', 'ending', 'game_over', 'dream_chat']),
+  amb: Object.freeze(['map_amb', 'dream_amb']),
+});
+const LEN_MAX = 180;
 
 const ID_RE = /^[a-z][a-z0-9_]*$/;
 const EVENT_KEY_RE = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
@@ -42,13 +48,40 @@ export function validateCatalog(cat) {
     if (c.loop !== undefined && typeof c.loop !== 'boolean') errors.push(`${at}：loop 必須是布林值`);
     // 同時發聲上限的優先序（M6 P2）：priority＝不受上限；exempt＝不受上限也不佔額度
     if (c.burst !== undefined && c.burst !== 'priority' && c.burst !== 'exempt') errors.push(`${at}：burst 只能是 priority 或 exempt`);
+    // 背景音樂與環境音（M6 P3）
+    const looping = c.kind === 'bgm' || c.kind === 'amb';
+    if (looping && hasSrc) {
+      if (c.loop !== true) errors.push(`${at}：bgm／amb 必須 loop: true`);
+      if (!(typeof c.len === 'number' && c.len > 0 && c.len <= LEN_MAX)) errors.push(`${at}：len 必須是循環長度（0～${LEN_MAX} 秒）`);
+    } else if (c.len !== undefined) errors.push(`${at}：len 只用在有音檔的 bgm／amb`);
+    if (c.filter !== undefined) {
+      const f = c.filter;
+      const okFilter = looping && f && typeof f === 'object' && !Array.isArray(f) && Object.keys(f).length === 1
+        && typeof f.lowpass === 'number' && f.lowpass >= 100 && f.lowpass <= 20000;
+      if (!okFilter) errors.push(`${at}：filter 只能是 { lowpass: 100～20000 }，且只用在 bgm／amb`);
+    }
+    if (c.scatter !== undefined) {
+      if (c.kind !== 'amb' || !Array.isArray(c.scatter)) errors.push(`${at}：scatter 必須是陣列，且只用在 amb`);
+      else {
+        for (const [i, sc] of c.scatter.entries()) {
+          const e = sc?.every;
+          if (!(typeof sc?.cue === 'string' && cues[sc.cue]?.kind === 'sfx')) errors.push(`${at}.scatter[${i}]：cue 必須是存在的 sfx cue`);
+          if (!(Array.isArray(e) && e.length === 2 && e.every((v) => typeof v === 'number' && v >= 5 && v <= 600) && e[0] <= e[1])) {
+            errors.push(`${at}.scatter[${i}]：every 必須是 [最短, 最長] 秒（5～600）`);
+          }
+        }
+      }
+    }
   }
   if (cat.defaults !== undefined) {
     if (!cat.defaults || typeof cat.defaults !== 'object' || Array.isArray(cat.defaults)) {
       errors.push('defaults 必須是物件');
     } else {
       for (const [k, v] of Object.entries(cat.defaults)) {
+        const want = DEFAULT_KEYS.bgm.includes(k) ? 'bgm' : DEFAULT_KEYS.amb.includes(k) ? 'amb' : null;
+        if (!want) { errors.push(`defaults.${k}：未知的鍵`); continue; }
         if (v !== null && !(typeof v === 'string' && Object.hasOwn(cues, v))) errors.push(`defaults.${k}：找不到 cue「${v}」`);
+        else if (v !== null && cues[v]?.kind !== want) errors.push(`defaults.${k}：必須指向 ${want} cue`);
       }
     }
   }

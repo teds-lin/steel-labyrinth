@@ -6,6 +6,7 @@ import { WebAudioBackend } from './backend-webaudio.js';
 import { chooseFormats } from './catalog.js';
 import { createGestureUnlocker } from './unlock.js';
 import { exploreEventKeys } from './events.js';
+import { endingsOf } from '../core/ending.js';
 import { session } from '../session.js';
 import { muteToast } from '../ui/audio-view.js';
 import { showAudioToast, audioToastText, audioToastRect } from '../ui/audio-toast.js';
@@ -96,6 +97,48 @@ function hookExplore() {
   });
 }
 
+/**
+ * 目前畫面的選曲情境（規則在 audio/pick.js）：地圖＝目前地圖的資料；戰鬥＝遭遇資料；章節結束＝結局資料（結局畫面才有）。
+ */
+function musicContext(game) {
+  const scene = session.scene;
+  const data = session.data;
+  const ctx = { scene };
+  if (scene === 'Map') {
+    const id = session.state?.location?.map;
+    ctx.map = (data?.maps ?? []).find((m) => m?.id === id) ?? null;
+  } else if (scene === 'Battle') {
+    const id = game.scene.getScene('Battle')?.encounterId;
+    ctx.encounter = (data?.encounters ?? []).find((e) => e?.id === id) ?? null;
+  } else if (scene === 'ChapterEnd') {
+    const sc = game.scene.getScene('ChapterEnd');
+    const endId = sc?.texts?.ending?.id;
+    ctx.ending = endId ? endingsOf(sc.chapter, data).find((e) => e?.id === endId) ?? null : null;
+  }
+  return ctx;
+}
+
+/**
+ * 背景音樂與環境音的掛點：畫面切換（session 的 'scene' 事件）與地圖內換圖（'state' 事件的 location.map 改變）。
+ * 畫面切換在場景的 create() 開頭發出，結局等資料要等 create() 跑完才有，所以延到 microtask 再判斷。
+ */
+function hookMusic(game) {
+  let queued = false;
+  const refresh = () => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      try { audio.setScene(musicContext(game)); } catch (e) { audio.warnOnce('music-ctx', '選曲判斷出錯', e?.message ?? e); }
+    });
+  };
+  session.events.on('scene', refresh);
+  session.events.on('state', (next, prev) => {
+    if (session.scene === 'Map' && next?.location?.map !== prev?.location?.map) refresh();
+  });
+  refresh();
+}
+
 export function initAudio(game, { test = false } = {}) {
   try {
     if (!test && game.sound) {
@@ -105,10 +148,11 @@ export function initAudio(game, { test = false } = {}) {
     const backend = makeBackend(game, test);
     audio.attach(backend);
     hookUnlock(game, backend);
-    if (typeof backend.setHidden === 'function') {
+    {
       // 分頁隱藏／回來：掛 Phaser 的 HIDDEN／VISIBLE 事件（Phaser 依 visibilitychange 發出，同時也會停止／恢復遊戲迴圈）。
-      // 這裡只暫停／恢復聲音；遊戲迴圈由 Phaser 自己處理。Phaser 3.88+ 在 VISIBLE 時另有 iOS 的 suspend→resume 修正，保留不動。
-      const hidden = (v) => () => { try { backend.setHidden(v); } catch { /* 不影響遊戲 */ } };
+      // 這裡只暫停／恢復聲音（director 轉給後端；隱藏時隨機單次音不響）；遊戲迴圈由 Phaser 自己處理。
+      // Phaser 3.88+ 在 VISIBLE 時另有 iOS 的 suspend→resume 修正，保留不動。
+      const hidden = (v) => () => audio.setHidden(v);
       game.events.on(Phaser.Core.Events.HIDDEN, hidden(true));
       game.events.on(Phaser.Core.Events.VISIBLE, hidden(false));
     }
@@ -120,6 +164,7 @@ export function initAudio(game, { test = false } = {}) {
     }
     hookMuteKey(game);
     hookExplore();
+    hookMusic(game);
     loadCatalog();
   } catch (e) {
     audio.warnOnce('init', '聲音初始化失敗，遊戲將保持安靜', e?.message ?? e);

@@ -1,6 +1,8 @@
 {
   "id": "sewer_outfall",
   "name": "地下水道・出海口",
+  "bgm": null,
+  "amb": "amb_sewer",
   "tiles": [
     "WWWWWWWWWWWWWWWW",
     "WWWWWW....WWWWWW",

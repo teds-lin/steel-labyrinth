@@ -1,6 +1,8 @@
 {
   "id": "chapel_cloister",
   "name": "灰鴿街禮拜堂・後迴廊",
+  "bgm": null,
+  "amb": "amb_wind",
   "tiles": [
     "##################",
     "#....#ggggggg#..O#",

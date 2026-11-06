@@ -13,4 +13,15 @@ export class NullBackend {
   playSfx() { /* 不出聲 */ }
 
   playSynth() { /* 不出聲 */ }
+
+  // 背景音樂與環境音（M6 P3）：實際播什麼由 AudioDirector 記錄（__SL.audio() 的 bgm／amb／music）
+  playLoop() { /* 不出聲 */ }
+
+  stopLoop() { /* 不出聲 */ }
+
+  pauseLoop() { return 0; }
+
+  duck() { /* 不出聲 */ }
+
+  clearPaused() { /* 沒有記憶體要管 */ }
 }

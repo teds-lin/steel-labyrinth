@@ -12,7 +12,7 @@ const catalog = () => ({
     ui_confirm: { kind: 'sfx', src: 'sfx/ui_confirm', credit: 'k' },
     text_tick: { kind: 'sfx', src: 'sfx/text_tick', credit: 'c' },
     sfx_bell: { kind: 'sfx', synth: 'bell' },
-    bgm_x: { kind: 'bgm', src: 'bgm/bgm_x', credit: 'k' },
+    bgm_x: { kind: 'bgm', src: 'bgm/bgm_x', loop: true, len: 30, credit: 'k' },
   },
 });
 
@@ -395,5 +395,244 @@ describe('info()：E2E 讀的唯讀摘要', () => {
     expect(i).toMatchObject({ backend: 'fake', unlocked: true, settings: AUDIO_DEFAULTS, lastSfx: [], hint: '已靜音', catalog: true });
     i.lastSfx.push('x');
     expect(d.info().lastSfx).toEqual([]); // 回傳的是複本
+  });
+});
+
+// ── M6 P3：背景音樂與環境音 ──
+const musicCatalog = () => ({
+  version: 1,
+  defaults: { title: 'bgm_theme', map: 'bgm_city', dream: 'bgm_dream', battle: 'bgm_battle', game_over: null, map_amb: null, dream_amb: null },
+  events: {},
+  cues: {
+    bgm_theme: { kind: 'bgm', src: 'bgm/bgm_theme', loop: true, len: 74, credit: 'w' },
+    bgm_city: { kind: 'bgm', src: 'bgm/bgm_city', loop: true, len: 86, volume: 0.9, credit: 'n' },
+    bgm_dream: { kind: 'bgm', src: 'bgm/bgm_dream', loop: true, len: 78, credit: 'a' },
+    bgm_battle: { kind: 'bgm', src: 'bgm/bgm_battle', loop: true, len: 40, credit: 'w' },
+    bgm_boss: { kind: 'bgm', src: 'bgm/bgm_boss', loop: true, len: 54, credit: 'e' },
+    amb_rain: { kind: 'amb', src: 'amb/amb_rain', loop: true, len: 27, credit: 'y', scatter: [{ cue: 'sfx_bell_far', every: [60, 120] }] },
+    amb_harbor: { kind: 'amb', src: 'amb/amb_harbor', loop: true, len: 40, credit: 'r', scatter: [{ cue: 'sfx_horn', every: [40, 90] }] },
+    sfx_bell_far: { kind: 'sfx', synth: 'bell', volume: 0.3 },
+    sfx_horn: { kind: 'sfx', synth: 'foghorn', volume: 0.5 },
+  },
+});
+
+function loopBackend({ throwOn = null, pauseAt = 12.5 } = {}) {
+  const b = fakeBackend();
+  b.loops = [];
+  b.playLoop = function (ch, id, opts) {
+    if (id === throwOn) throw new Error('boom');
+    this.loops.push(['play', ch, id, { ...opts }]);
+  };
+  b.stopLoop = function (ch, opts) { this.loops.push(['stop', ch, { ...opts }]); };
+  b.pauseLoop = function (ch, opts) { this.loops.push(['pause', ch, { ...opts }]); return pauseAt; };
+  b.duck = function (ch, level, opts) { this.loops.push(['duck', ch, level, { ...opts }]); };
+  b.clearPaused = function (ch) { this.loops.push(['clearPaused', ch]); };
+  b.playSynth = function (name, gain, ch) { this.synths.push([name, gain, ch]); };
+  return b;
+}
+
+function fakeTimers() {
+  const t = { list: [], next: 1 };
+  t.set = (fn, ms) => { const id = t.next++; t.list.push({ id, fn, ms }); return id; };
+  t.clear = (id) => { t.list = t.list.filter((x) => x.id !== id); };
+  t.fire = () => { const all = t.list; t.list = []; for (const x of all) x.fn(); };
+  return t;
+}
+
+function musicReady({ unlock = true, rng = () => 0.5, ...opts } = {}) {
+  const timers = fakeTimers();
+  const d = new AudioDirector({ storage: fakeStorage(), timers: { set: timers.set, clear: timers.clear }, rng });
+  const b = loopBackend(opts);
+  d.attach(b);
+  d.setCatalog(musicCatalog());
+  if (unlock) d.markUnlocked();
+  return { d, b, timers };
+}
+const plays = (b) => b.loops.filter((x) => x[0] === 'play').map((x) => [x[1], x[2], x[3].offset ?? 0]);
+
+describe('背景音樂與環境音（M6 P3）', () => {
+  it('解鎖前只記下想播的；解鎖後才播，而且只播最後一次的畫面', () => {
+    const { d, b } = musicReady({ unlock: false });
+    d.setScene({ scene: 'Title' });
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    expect(b.loops).toEqual([]);
+    expect(d.info()).toMatchObject({ bgm: null, amb: null });
+    d.markUnlocked();
+    expect(plays(b)).toEqual([['bgm', 'bgm_city', 0], ['amb', 'amb_rain', 0]]);
+    expect(d.info()).toMatchObject({ bgm: 'bgm_city', amb: 'amb_rain', battle: false });
+  });
+  it('目錄晚到：先記下畫面，目錄載入後才播', () => {
+    const d = new AudioDirector({ storage: fakeStorage(), timers: fakeTimers() });
+    const b = loopBackend();
+    d.attach(b);
+    d.markUnlocked();
+    d.setScene({ scene: 'Title' });
+    expect(b.loops).toEqual([]);
+    d.setCatalog(musicCatalog());
+    expect(plays(b)).toEqual([['bgm', 'bgm_theme', 0]]);
+  });
+  it('同一首不重播（辦公室走到街道都是 bgm_city）；只換環境音', () => {
+    const { d, b } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'office' } });
+    b.loops = [];
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    expect(b.loops.map((x) => x.slice(0, 3))).toEqual([['play', 'amb', 'amb_rain']]);
+  });
+  it('換曲：舊曲淡出 0.6 秒、新曲淡入 0.8 秒；環境音交叉淡化 1 秒；改成 null 只停不播', () => {
+    const { d, b } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    b.loops = [];
+    d.setScene({ scene: 'Map', map: { id: 'dock', bgm: null, amb: 'amb_harbor' } });
+    expect(b.loops).toEqual([
+      ['stop', 'bgm', { fadeOut: 0.6 }],
+      ['stop', 'amb', { fadeOut: 1 }],
+      ['play', 'amb', 'amb_harbor', { fadeIn: 1, offset: 0 }],
+    ]);
+    b.loops = [];
+    d.setScene({ scene: 'Title' });
+    expect(b.loops).toEqual([
+      ['play', 'bgm', 'bgm_theme', { fadeIn: 0.8, offset: 0 }],
+      ['stop', 'amb', { fadeOut: 1 }],
+    ]);
+  });
+  it('選單等「不換」的畫面不動聲音', () => {
+    const { d, b } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'office' } });
+    b.loops = [];
+    d.setScene({ scene: 'Menu' });
+    expect(b.loops).toEqual([]);
+  });
+  it('戰鬥：地圖曲暫停並記住位置、戰鬥曲從頭、環境音壓到 30%；結束回地圖時從原位置接回、環境音恢復', () => {
+    const { d, b } = musicReady({ pauseAt: 12.5 });
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    b.loops = [];
+    d.setScene({ scene: 'Battle', encounter: { id: 'e1' } });
+    expect(b.loops).toEqual([
+      ['pause', 'bgm', { fadeOut: 0.3 }],
+      ['play', 'bgm', 'bgm_battle', { fadeIn: 0.3, offset: 0 }],
+      ['duck', 'amb', 0.3, { ramp: 0.5 }],
+    ]);
+    expect(d.info()).toMatchObject({ bgm: 'bgm_battle', amb: 'amb_rain', battle: true, paused: { id: 'bgm_city', offset: 12.5 } });
+    b.loops = [];
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    expect(b.loops).toEqual([
+      ['stop', 'bgm', { fadeOut: 0.6 }],
+      ['play', 'bgm', 'bgm_city', { fadeIn: 0.8, offset: 12.5 }],
+      ['duck', 'amb', 1, { ramp: 1 }],
+    ]);
+    expect(d.info()).toMatchObject({ bgm: 'bgm_city', battle: false, paused: null });
+  });
+  it('Boss 戰用遭遇指定的曲子', () => {
+    const { d, b } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'office' } });
+    d.setScene({ scene: 'Battle', encounter: { id: 'boss', bgm: 'bgm_boss' } });
+    expect(plays(b).at(-1)).toEqual(['bgm', 'bgm_boss', 0]);
+  });
+  it('戰敗 → GameOver：全部停下、丟掉暫停的地圖曲；重新挑戰時戰鬥曲從頭；贏了回地圖時地圖曲從頭', () => {
+    const { d, b } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    d.setScene({ scene: 'Battle', encounter: { id: 'e1' } });
+    b.loops = [];
+    d.setScene({ scene: 'GameOver' });
+    expect(b.loops).toEqual([
+      ['stop', 'bgm', { fadeOut: 0.6 }],
+      ['clearPaused', 'bgm'],
+      ['stop', 'amb', { fadeOut: 1 }],
+      ['duck', 'amb', 1, { ramp: 1 }],
+    ]);
+    expect(d.info()).toMatchObject({ bgm: null, amb: null, battle: false, paused: null });
+    b.loops = [];
+    d.setScene({ scene: 'Battle', encounter: { id: 'e1' } });
+    expect(plays(b)).toEqual([['bgm', 'bgm_battle', 0]]);
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    expect(plays(b).slice(1)).toEqual([['bgm', 'bgm_city', 0], ['amb', 'amb_rain', 0]]);
+  });
+  it('不存在或種類不對的 cue：warn 一次、當作安靜，不丟錯', () => {
+    const { d, b } = musicReady();
+    expect(() => d.setScene({ scene: 'Map', map: { id: 'x', bgm: 'bgm_nope', amb: 'bgm_city' } })).not.toThrow();
+    expect(b.loops).toEqual([]);
+    d.setScene({ scene: 'Map', map: { id: 'y', bgm: 'bgm_nope' } });
+    expect(warn.mock.calls.filter((c) => String(c[0]).includes('bgm_nope'))).toHaveLength(1);
+    expect(d.info()).toMatchObject({ bgm: null, amb: null });
+  });
+  it('後端丟錯：warn、不外漏；之後其他曲子照常', () => {
+    const { d, b } = musicReady({ throwOn: 'bgm_city' });
+    expect(() => d.setScene({ scene: 'Map', map: { id: 'office' } })).not.toThrow();
+    expect(warn).toHaveBeenCalled();
+    d.setScene({ scene: 'Title' });
+    expect(plays(b)).toEqual([['bgm', 'bgm_theme', 0]]);
+  });
+  it('每次換曲記一筆（E2E 比對換場景的序列）', () => {
+    const { d } = musicReady();
+    d.setScene({ scene: 'Title' });
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    expect(d.info().music.map((m) => [m.bgm, m.amb, m.battle])).toEqual([['bgm_theme', null, false], ['bgm_city', 'amb_rain', false]]);
+  });
+});
+
+describe('隨機單次音（遠方鐘聲、霧笛；M6 P3）', () => {
+  it('環境音開始後排程；時間＝最短＋亂數×（最長−最短）；響的時候走環境音通道；響完再排下一次', () => {
+    const { d, timers } = musicReady({ rng: () => 0.25 });
+    d.setScene({ scene: 'Map', map: { id: 'dock', bgm: null, amb: 'amb_harbor' } });
+    expect(timers.list.map((t) => t.ms)).toEqual([(40 + 0.25 * 50) * 1000]);
+    timers.fire();
+    expect(d.backend.synths).toEqual([['foghorn', 0.5, 'amb']]);
+    expect(timers.list).toHaveLength(1);
+    expect(d.info().scatter).toEqual(['sfx_horn']);
+  });
+  it('換環境音時取消舊的排程；換到沒有單次音的環境音就不排', () => {
+    const { d, timers } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'dock', bgm: null, amb: 'amb_harbor' } });
+    d.setScene({ scene: 'Map', map: { id: 'street', amb: 'amb_rain' } });
+    expect(timers.list.map((t) => t.ms)).toEqual([90000]);
+    d.setScene({ scene: 'Title' });
+    expect(timers.list).toEqual([]);
+  });
+  it('戰鬥中不響（暫停排程），回到地圖再排', () => {
+    const { d, timers } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'dock', bgm: null, amb: 'amb_harbor' } });
+    d.setScene({ scene: 'Battle', encounter: { id: 'e' } });
+    expect(timers.list).toEqual([]);
+    d.setScene({ scene: 'Map', map: { id: 'dock', bgm: null, amb: 'amb_harbor' } });
+    expect(timers.list).toHaveLength(1);
+  });
+  it('環境音音量 0、全部靜音、分頁隱藏時，到時間也不響（但繼續排下一次）', () => {
+    const { d, timers } = musicReady();
+    d.setScene({ scene: 'Map', map: { id: 'dock', bgm: null, amb: 'amb_harbor' } });
+    d.setSettings({ ...d.settings, amb: 0 });
+    timers.fire();
+    d.setSettings({ ...d.settings, amb: 2, mute: true });
+    timers.fire();
+    d.setSettings({ ...d.settings, mute: false });
+    d.setHidden(true);
+    timers.fire();
+    expect(d.backend.synths).toEqual([]);
+    expect(timers.list).toHaveLength(1);
+    d.setHidden(false);
+    timers.fire();
+    expect(d.backend.synths).toHaveLength(1);
+  });
+});
+
+describe('第 1 輪審查修正（M6 P3）', () => {
+  it('解鎖時最後一個畫面是選單（不換曲）：仍播上一個畫面（標題）的曲子', () => {
+    const { d, b } = musicReady({ unlock: false });
+    d.setScene({ scene: 'Title' });
+    d.setScene({ scene: 'Menu' });
+    d.markUnlocked();
+    expect(plays(b)).toEqual([['bgm', 'bgm_theme', 0]]);
+  });
+  it('context 沒有在跑（iOS 中斷、resume 被拒）時，單次音到時間也不送出，只排下一次', () => {
+    const { d, timers } = musicReady();
+    d.backend.isRunning = () => false;
+    d.setScene({ scene: 'Map', map: { id: 'dock', bgm: null, amb: 'amb_harbor' } });
+    timers.fire();
+    timers.fire();
+    expect(d.backend.synths).toEqual([]);
+    expect(timers.list).toHaveLength(1);
+    d.backend.isRunning = () => true;
+    timers.fire();
+    expect(d.backend.synths).toHaveLength(1);
   });
 });

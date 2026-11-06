@@ -27,8 +27,17 @@ export const session = {
   backend,
   storageAvailable: backend !== null,
   events: new Phaser.Events.EventEmitter(),
-  /** 目前畫面（給 E2E 掛勾與除錯用）。 */
-  scene: 'Boot',
+  /**
+   * 目前畫面（E2E 掛勾、除錯、選曲）。各場景在 create／onResume 時設定；值改變時發出 'scene' 事件（next, prev），
+   * M6 P3 的背景音樂與環境音依此切換（audio/index.js）。
+   */
+  sceneName: 'Boot',
+  get scene() { return this.sceneName; },
+  set scene(v) {
+    const prev = this.sceneName;
+    this.sceneName = v;
+    if (prev !== v) this.events.emit('scene', v, prev);
+  },
   /** 對話進行中的目前節點（由對話框維護）；沒有對話時為 null。 */
   dialogueView: null,
   get inDialogue() { return this.dialogueView !== null || this.dialogueBusy; },

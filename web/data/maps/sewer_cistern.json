@@ -1,6 +1,8 @@
 {
   "id": "sewer_cistern",
   "name": "地下水道・舊蓄水池",
+  "bgm": null,
+  "amb": "amb_sewer",
   "tiles": [
     "WWWWWWWWWWWWWWWWWWWWWWWW",
     "W......................W",

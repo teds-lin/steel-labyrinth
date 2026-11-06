@@ -3,7 +3,7 @@
 import { expect, game, seedSaves, makeSave } from './helpers.js';
 import { dreamUi } from './dream-ui.js';
 import { useDreamFixture, DREAM_FIXTURE_PREFIX } from './dream-fixture.js';
-import { test, FILE_CUES, REAL_URL, audio, watchAudioRequests, gesture, waitLoaded } from './audio-real-fixture.js';
+import { test, FILE_CUES, SFX_FILE, REAL_URL, audio, watchAudioRequests, gesture, waitLoaded } from './audio-real-fixture.js';
 
 test.describe('M6 真實音訊後端（?test=1&audio=1）', () => {
   test.beforeEach(({}, testInfo) => {
@@ -27,8 +27,12 @@ test.describe('M6 真實音訊後端（?test=1&audio=1）', () => {
     expect(a1.unlocked).toBe(true);
     expect(a1.real.state).toBe('running');
     expect(a1.broken).toEqual([]);
-    expect(reqs).toHaveLength(FILE_CUES.length);
-    expect(new Set(reqs.map((u) => u.replace(/\.(ogg|m4a)$/, ''))).size).toBe(FILE_CUES.length);
+    const sfxReqs = reqs.filter((u) => SFX_FILE.test(u));
+    expect(sfxReqs).toHaveLength(FILE_CUES.length);
+    expect(new Set(sfxReqs.map((u) => u.replace(/\.(ogg|m4a)$/, ''))).size).toBe(FILE_CUES.length);
+    // M6 P3：標題的主題曲在解鎖後才下載（只抓一種格式）並開始循環播放
+    expect(reqs.filter((u) => !SFX_FILE.test(u)).map((u) => u.replace(/^.*\/audio\//, '').replace(/\.(ogg|m4a)$/, ''))).toEqual(['bgm/bgm_theme']);
+    await page.waitForFunction(() => window.__SL.audio().real?.loops?.bgm === 'bgm_theme', null, { timeout: 10_000 });
   });
 
   test('只按 Esc（不算使用者啟動）：不解鎖、也不抓任何音檔；之後點一下才解鎖', async ({ page }) => {
@@ -162,5 +166,87 @@ test.describe('M6 真實音訊後端（?test=1&audio=1）', () => {
     await u.waitMap('attic');
     expect(await bells()).toBe(2);
     expect((await audio(page)).backend).toBe('webaudio');
+  });
+});
+
+test.describe('M6 P3 真實後端：背景音樂與環境音', () => {
+  test.beforeEach(({}, testInfo) => {
+    test.skip(testInfo.project.name === 'mobile', '真實後端 smoke 只跑 desktop');
+  });
+
+  test('新遊戲進閣樓：城市曲＋隔窗雨聲真的在循環播放；開戰時戰鬥曲、環境音壓低；逃跑後接回；解碼的循環 buffer ≤ 100 MB', async ({ page }) => {
+    test.setTimeout(120_000);
+    const reqs = watchAudioRequests(page);
+    const g = game(page);
+    await page.goto(REAL_URL);
+    await g.newGame('艾琳'); // Enter＝手勢解鎖
+    await g.finishDialogue();
+    await page.waitForFunction(() => {
+      const r = window.__SL.audio().real;
+      return r?.loops?.bgm === 'bgm_city' && r?.loops?.amb === 'amb_rain_in';
+    }, null, { timeout: 15_000 });
+    // 隔窗雨聲與雨聲共用同一個檔（只下載一次）
+    expect(reqs.filter((u) => /\/amb\//.test(u)).map((u) => u.replace(/^.*\/audio\//, '').replace(/\.(ogg|m4a)$/, ''))).toEqual(['amb/amb_rain']);
+    // 用遊戲自己的開戰流程；逃跑的種子
+    const seed = await page.evaluate(async () => {
+      const { simulate } = await window.__slImport('./src/core/battle/engine.js');
+      const { session } = await window.__slImport('./src/session.js');
+      for (let s = 1; s <= 400; s++) if (simulate('enc_dock_1', window.__SL.getState(), session.data, s, () => ({ type: 'flee' })).outcome === 'fled') return s;
+      return null;
+    });
+    expect(seed).not.toBeNull();
+    await page.evaluate((s) => history.replaceState(null, '', `${location.pathname}?test=1&audio=1&seed=${s}`), seed);
+    await page.evaluate(async () => {
+      const { game: phaser } = await window.__slImport('./src/main.js');
+      phaser.scene.getScene('Map').doBattle('enc_dock_1');
+    });
+    await g.waitScene('Battle');
+    await page.waitForFunction(() => window.__SL.audio().real?.loops?.bgm === 'bgm_battle', null, { timeout: 15_000 });
+    await page.waitForFunction(() => Math.abs(window.__SL.audio().real.ducked.amb - 0.3) < 0.02, null, { timeout: 5_000 });
+    expect((await audio(page)).real.loops.amb).toBe('amb_rain_in');
+    const r = await g.fightBattle(() => ({ flee: true }));
+    expect(r.scene).toBe('Map');
+    await page.waitForFunction(() => window.__SL.audio().real?.loops?.bgm === 'bgm_city', null, { timeout: 15_000 });
+    await page.waitForFunction(() => Math.abs(window.__SL.audio().real.ducked.amb - 1) < 0.02, null, { timeout: 5_000 });
+    const a = await audio(page);
+    expect(a.broken).toEqual([]);
+    expect(a.real.loopBytes).toBeLessThanOrEqual(100 * 1024 * 1024);
+    // 城市曲只下載一次（戰鬥後接回用的是快取裡的 buffer）
+    expect(reqs.filter((u) => u.includes('bgm_city'))).toHaveLength(1);
+  });
+});
+
+test.describe('M6 P3 壓限器（真實瀏覽器）', () => {
+  test.beforeEach(({}, testInfo) => {
+    test.skip(testInfo.project.name === 'mobile', '只跑 desktop');
+  });
+  test('門檻以下的聲音經過壓限器＋補償抵銷後音量不變（±0.1 dB）；滿刻度被壓到 −1.5 dBFS 以下', async ({ page }) => {
+    await page.goto(REAL_URL);
+    await page.waitForFunction(() => window.__SL?.currentScene() === 'Title', null, { timeout: 15_000 });
+    const r = await page.evaluate(async () => {
+      const { LIMITER, LIMITER_TRIM } = await window.__slImport('./src/audio/backend-webaudio.js');
+      const out = {};
+      for (const amp of [0.05, 0.3, 1]) {
+        const sr = 48000;
+        const ctx = new OfflineAudioContext(1, sr, sr);
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        g.gain.value = amp;
+        const c = ctx.createDynamicsCompressor();
+        for (const [k, v] of Object.entries(LIMITER)) c[k].value = v;
+        const t = ctx.createGain();
+        t.gain.value = LIMITER_TRIM;
+        o.connect(g).connect(c).connect(t).connect(ctx.destination);
+        o.start();
+        const d = (await ctx.startRendering()).getChannelData(0).slice(sr / 2);
+        let pk = 0;
+        for (const x of d) pk = Math.max(pk, Math.abs(x));
+        out[amp] = 20 * Math.log10(pk) - 20 * Math.log10(amp);
+      }
+      return out;
+    });
+    expect(Math.abs(r[0.05])).toBeLessThan(0.1);
+    expect(Math.abs(r[0.3])).toBeLessThan(0.1);
+    expect(r[1]).toBeLessThan(-1.5);
   });
 });

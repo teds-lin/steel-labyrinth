@@ -1,6 +1,8 @@
 {
   "id": "sewer_depths",
   "name": "地下水道・沉閘",
+  "bgm": null,
+  "amb": "amb_sewer",
   "tiles": [
     "WWWWWWWWWWWWWWWWWW",
     "<....WW..........W",

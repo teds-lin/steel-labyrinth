@@ -1,16 +1,25 @@
 #!/usr/bin/env node
 // 用法：node tools/check-data.mjs [資料目錄，預設 web/data]
-// 讀 manifest 組成 bundle → validateBundle；有錯就列出並以結束碼 1 退出。
+// 讀 manifest 組成 bundle → validateBundle，再對照音訊目錄檢查聲音引用（M6 P3）；有錯就列出並以結束碼 1 退出。
+import { readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadBundle } from './lib/bundle.mjs';
+import { checkAudioRefs } from './lib/audio-refs.mjs';
 import { validateBundle } from '../web/src/core/validate.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = resolve(process.argv[2] ?? join(root, 'web', 'data'));
 
 const { bundle, errors: loadErrors } = loadBundle(dataDir);
-const errors = bundle ? [...loadErrors, ...validateBundle(bundle)] : loadErrors;
+let catalog = null;
+const catalogErrors = [];
+try {
+  catalog = JSON.parse(readFileSync(join(root, 'web', 'audio', 'catalog.json'), 'utf8'));
+} catch (e) {
+  catalogErrors.push(`音訊目錄 web/audio/catalog.json 讀不到：${e.message}`);
+}
+const errors = bundle ? [...loadErrors, ...validateBundle(bundle), ...catalogErrors, ...(catalog ? checkAudioRefs(bundle, catalog) : [])] : loadErrors;
 
 if (errors.length) {
   console.error(`資料檢查失敗（${dataDir}），共 ${errors.length} 個錯誤：`);

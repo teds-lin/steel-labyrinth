@@ -1,6 +1,8 @@
 {
   "id": "lighthouse_top",
   "name": "舊燈塔・燈室",
+  "bgm": null,
+  "amb": "amb_wind",
   "on_enter": "dlg_ch7_top_arrive",
   "tiles": [
     "###wwwwww###",

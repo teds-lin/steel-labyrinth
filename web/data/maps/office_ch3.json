@@ -1,6 +1,7 @@
 {
   "id": "office_ch3",
   "name": "白燈保全公司・辦公室",
+  "amb": "amb_machine",
   "tiles": [
     "##ww###L###ww#",
     "#KKK.......CC#",

@@ -110,7 +110,8 @@ describe('磁碟上的音檔', () => {
   it('大小預算（單一格式分別計算）：SFX ≤ 0.3 MB、環境音 ≤ 1.2 MB、BGM ≤ 4.5 MB、合計 ≤ 6 MB', () => {
     for (const f of AUDIO_FORMATS) {
       const sum = { sfx: 0, amb: 0, bgm: 0, total: 0 };
-      for (const [, c] of fileCues) {
+      const seen = new Set(); // 同一個音檔可以給多個 cue 用（例如隔窗雨聲＝雨聲加低通），只算一次
+      for (const [, c] of fileCues.filter(([, x]) => !seen.has(x.src) && seen.add(x.src))) {
         const n = statSync(join(AUDIO, `${c.src}.${f}`)).size;
         sum[c.kind] += n;
         sum.total += n;
@@ -147,6 +148,54 @@ describe('授權與 CREDITS', () => {
         expect(line).toContain(src.license);
         expect(line).toContain(src.page);
       }
+    }
+  });
+});
+
+/** Ogg Vorbis 的實際長度：最後一頁的 granule position ÷ 取樣率（第一個 vorbis 標頭）。 */
+function oggSeconds(buf) {
+  const last = buf.lastIndexOf(Buffer.from('OggS'));
+  const granule = Number(buf.readBigInt64LE(last + 6));
+  const id = buf.indexOf(Buffer.from([1, 0x76, 0x6f, 0x72, 0x62, 0x69, 0x73]));
+  return granule / buf.readUInt32LE(id + 12);
+}
+
+describe('背景音樂與環境音（M6 P3）', () => {
+  it('計畫 §1.2／§1.3 的曲目與環境音都在；預設選曲照計畫', () => {
+    for (const id of ['bgm_theme', 'bgm_city', 'bgm_dream', 'bgm_battle', 'bgm_boss']) expect(catalog.cues[id]?.kind, id).toBe('bgm');
+    for (const id of ['amb_rain', 'amb_rain_in', 'amb_rain_sea', 'amb_machine', 'amb_harbor', 'amb_sewer', 'amb_wind', 'amb_clock']) expect(catalog.cues[id]?.kind, id).toBe('amb');
+    expect(catalog.defaults).toEqual({
+      title: 'bgm_theme', map: 'bgm_city', dream: 'bgm_dream', battle: 'bgm_battle', chapter_end: 'bgm_theme',
+      ending: 'bgm_theme', game_over: null, dream_chat: 'bgm_dream', map_amb: null, dream_amb: 'amb_clock',
+    });
+  });
+  it('len 等於 ogg 的實際長度（誤差 ≤ 1 個取樣點，而且不超過檔案長度：loopEnd 才不會超出 buffer）', () => {
+    for (const [id, c] of fileCues.filter(([, x]) => x.kind !== 'sfx')) {
+      const sec = oggSeconds(readFileSync(join(AUDIO, `${c.src}.ogg`)));
+      expect(Math.abs(c.len - sec), `${id}：len ${c.len}、實際 ${sec}`).toBeLessThanOrEqual(1 / 44100);
+      expect(c.len, id).toBeLessThanOrEqual(sec + 1e-9);
+    }
+  });
+  it('隔窗雨聲、海邊雨聲與雨聲共用同一個檔；隔窗版加低通濾波', () => {
+    expect(catalog.cues.amb_rain_in.src).toBe(catalog.cues.amb_rain.src);
+    expect(catalog.cues.amb_rain_sea.src).toBe(catalog.cues.amb_rain.src);
+    expect(catalog.cues.amb_rain_in.filter).toEqual({ lowpass: 900 });
+  });
+  it('隨機單次音（遠方鐘聲、霧笛）是程式合成，不下載音檔', () => {
+    const used = new Set(Object.values(catalog.cues).flatMap((c) => (c.scatter ?? []).map((x) => x.cue)));
+    expect([...used].sort()).toEqual(['sfx_bell_far', 'sfx_foghorn']);
+    for (const id of used) expect(typeof catalog.cues[id].synth, id).toBe('string');
+  });
+  it('記憶體估計（48 kHz、float32）：最長的 2 首 BGM（立體聲）＋最長的 2 軌環境音（單聲道）≤ 100 MB', () => {
+    const lens = (k) => fileCues.filter(([, c]) => c.kind === k).map(([, c]) => c.len).sort((a, b) => b - a);
+    const bytes = (lens('bgm')[0] + lens('bgm')[1]) * 48000 * 2 * 4 + (lens('amb')[0] + lens('amb')[1]) * 48000 * 4;
+    expect(bytes).toBeLessThanOrEqual(100 * 1024 * 1024);
+  });
+  it('循環素材的聲道數：BGM 立體聲、環境音單聲道（ogg 標頭）', () => {
+    for (const [id, c] of fileCues.filter(([, x]) => x.kind !== 'sfx')) {
+      const buf = readFileSync(join(AUDIO, `${c.src}.ogg`));
+      const ch = buf[buf.indexOf(Buffer.from([1, 0x76, 0x6f, 0x72, 0x62, 0x69, 0x73])) + 11];
+      expect(ch, id).toBe(c.kind === 'bgm' ? 2 : 1);
     }
   });
 });

@@ -1,6 +1,8 @@
 {
   "id": "sewer_entry",
   "name": "舊城・水道入口",
+  "bgm": null,
+  "amb": "amb_sewer",
   "tiles": [
     "WWWWWWWWWWWWWWWW",
     "W^....W#######WW",

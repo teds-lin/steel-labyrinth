@@ -9,7 +9,9 @@ function fakeParam(v = 1) {
     target: v,
     setTargetAtTime(x) { this.target = x; this.value = x; },
     cancelScheduledValues() {},
-    setValueAtTime(x) { this.value = x; },
+    events: [],
+    setValueAtTime(x, t) { this.value = x; this.events.push(['set', x, t]); },
+    linearRampToValueAtTime(x, t) { this.value = x; this.target = x; this.events.push(['ramp', x, t]); },
     exponentialRampToValueAtTime(x) { this.value = x; },
   };
 }
@@ -37,7 +39,14 @@ function fakeCtx({ state = 'running', suspendFails = false, resumeFails = false 
     createGain() { const n = node('gain', nodes); n.gain = fakeParam(1); return n; },
     createBufferSource() {
       const n = node('source', nodes);
-      n.start = () => { n.started = true; };
+      n.start = (when, offset) => { n.started = true; n.startArgs = [when, offset]; };
+      n.stop = (when) => { n.stoppedAt = when; };
+      return n;
+    },
+    createBiquadFilter() { const n = node('biquad', nodes); n.type = 'lowpass'; n.frequency = fakeParam(350); n.Q = fakeParam(1); return n; },
+    createDynamicsCompressor() {
+      const n = node('compressor', nodes);
+      for (const k of ['threshold', 'knee', 'ratio', 'attack', 'release']) n[k] = fakeParam(0);
       return n;
     },
     createOscillator() {
@@ -99,10 +108,24 @@ afterEach(async () => {
 });
 
 describe('音量匯流排', () => {
-  it('master 接到 Phaser 的 destination；bgm／amb／sfx 接到 master', () => {
+  it('節點圖：bgm／amb／sfx 匯流排 → 各自的壓低（duck）節點 → master（靜音）→ 壓限器 → 補償抵銷 → Phaser 的 destination', () => {
     const { be, ctx } = make();
-    expect(be.master.connected).toEqual([ctx.destination]);
-    for (const ch of ['bgm', 'amb', 'sfx']) expect(be.bus[ch].connected).toEqual([be.master]);
+    expect(be.master.connected).toEqual([be.limiter]);
+    expect(be.limiter.connected).toEqual([be.trim]);
+    expect(be.trim.connected).toEqual([ctx.destination]);
+    expect(be.trim.gain.value).toBeCloseTo(10 ** (-1.71 / 20), 6);
+    for (const ch of ['bgm', 'amb', 'sfx']) {
+      expect(be.bus[ch].connected).toEqual([be.ducker[ch]]);
+      expect(be.ducker[ch].connected).toEqual([be.master]);
+    }
+  });
+  it('壓限器：多個聲音疊在一起時不爆音（門檻 −6 dB、高比例、快速 attack）', () => {
+    const { be } = make();
+    expect(be.limiter.kind).toBe('compressor');
+    expect(be.limiter.threshold.value).toBe(-3);
+    expect(be.limiter.knee.value).toBe(0);
+    expect(be.limiter.ratio.value).toBeGreaterThanOrEqual(10);
+    expect(be.limiter.attack.value).toBeLessThanOrEqual(0.01);
   });
   it('applyGains：靜音時 master 為 0、各通道照設定；取消靜音 master 回 1', () => {
     const { be } = make();
@@ -281,5 +304,202 @@ describe('合成音（鐘聲）', () => {
     const before = be.ctx.nodes.length;
     be.playSynth('nope', 1);
     expect(be.ctx.nodes.length).toBe(before);
+  });
+});
+
+// ── M6 P3：循環播放（背景音樂、環境音） ──
+const loopCue = (id, extra = {}) => ({ kind: id.startsWith('amb') ? 'amb' : 'bgm', src: `${id.startsWith('amb') ? 'amb' : 'bgm'}/${id}`, loop: true, len: 40, credit: 'x', ...extra });
+function loopDirector(cues) {
+  const d = fakeDirector([]);
+  d.catalog.cues = cues;
+  return d;
+}
+/** 解碼後的假 buffer：秒數、聲道數（記憶體上限用 length × 聲道 × 4 bytes）。 */
+function bufCtx(spec = {}) {
+  const ctx = fakeCtx();
+  ctx.sampleRate = 48000;
+  ctx.decodeAudioData = (ab) => {
+    const [dur, ch] = spec[ab] ?? [40.02, 2];
+    return Promise.resolve({ tag: ab, duration: dur, length: Math.round(dur * 48000), numberOfChannels: ch, sampleRate: 48000 });
+  };
+  return ctx;
+}
+const okFetch = (ids) => fakeFetch(Object.fromEntries(ids.map((id) => [`audio/${id.startsWith('amb') ? 'amb' : 'bgm'}/${id}.ogg`, { status: 200, body: id }])));
+const sources = (ctx) => ctx.nodes.filter((n) => n.kind === 'source');
+
+describe('循環播放（M6 P3）', () => {
+  it('playLoop：載入後開始播放；loop＝true、loopEnd＝目錄的精確長度（切掉 AAC 尾端補白）；音量從 0 淡入到 cue 音量；接到該通道', async () => {
+    const ctx = bufCtx({ bgm_a: [40.017, 2] });
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a', { volume: 0.8 }) }), fetchFn: okFetch(['bgm_a']) });
+    ctx.currentTime = 5;
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0.8, offset: 0 });
+    await flush();
+    const src = sources(ctx).at(-1);
+    expect(src.buffer.tag).toBe('bgm_a');
+    expect([src.loop, src.loopStart, src.loopEnd]).toEqual([true, 0, 40]);
+    expect(src.startArgs).toEqual([5, 0]);
+    const g = src.connected[0];
+    expect(g.gain.events).toEqual([['set', 0, 5], ['ramp', 0.8, 5.8]]);
+    expect(g.connected).toEqual([be.bus.bgm]);
+    expect(be.debugInfo().loops).toEqual({ bgm: 'bgm_a', amb: null });
+  });
+  it('目錄長度比 buffer 長（或沒有）時用 buffer 的長度', async () => {
+    const ctx = bufCtx({ bgm_a: [39.5, 2] });
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a') }), fetchFn: okFetch(['bgm_a']) });
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0, offset: 0 });
+    await flush();
+    expect(sources(ctx).at(-1).loopEnd).toBe(39.5);
+  });
+  it('從指定位置開始（戰鬥後接回）；位置超過長度時取餘數', async () => {
+    const ctx = bufCtx();
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a') }), fetchFn: okFetch(['bgm_a']) });
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0.8, offset: 92.5 });
+    await flush();
+    expect(sources(ctx).at(-1).startArgs[1]).toBeCloseTo(12.5);
+  });
+  it('stopLoop：音量淡出到 0，淡出完才停止 source；source 結束時斷開節點', async () => {
+    const ctx = bufCtx();
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a') }), fetchFn: okFetch(['bgm_a']) });
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0, offset: 0 });
+    await flush();
+    const src = sources(ctx).at(-1);
+    ctx.currentTime = 10;
+    be.stopLoop('bgm', { fadeOut: 0.6 });
+    expect(src.connected[0].gain.events.at(-1)).toEqual(['ramp', 0, 10.6]);
+    expect(src.stoppedAt).toBeCloseTo(10.65);
+    src.onended();
+    expect(src.disconnects).toBeGreaterThan(0);
+    expect(be.debugInfo().loops.bgm).toBeNull();
+  });
+  it('pauseLoop：回傳目前播到的位置（從開始播放的位置與經過時間算，取循環長度的餘數），並淡出停止', async () => {
+    const ctx = bufCtx();
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a') }), fetchFn: okFetch(['bgm_a']) });
+    ctx.currentTime = 100;
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0, offset: 30 });
+    await flush();
+    ctx.currentTime = 125;
+    expect(be.pauseLoop('bgm', { fadeOut: 0.3 })).toBeCloseTo(15); // (30 + 25) mod 40
+    expect(sources(ctx).at(-1).stoppedAt).toBeCloseTo(125.35);
+  });
+  it('還在下載時就被換掉或停止：下載完成後不播（只播最後要求的）', async () => {
+    const ctx = bufCtx();
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a'), bgm_b: loopCue('bgm_b') }), fetchFn: okFetch(['bgm_a', 'bgm_b']) });
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0, offset: 0 });
+    be.playLoop('bgm', 'bgm_b', { fadeIn: 0, offset: 0 });
+    await flush();
+    expect(sources(ctx).map((s) => s.buffer.tag)).toEqual(['bgm_b']);
+    be.stopLoop('bgm', { fadeOut: 0 });
+    be.playLoop('amb', 'amb_x', { fadeIn: 0, offset: 0 }); // 目錄沒有：什麼都不做
+    await flush();
+    expect(sources(ctx)).toHaveLength(1);
+  });
+  it('下載中被暫停（進戰鬥）：回傳原本要求的位置', () => {
+    const ctx = bufCtx();
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a') }), fetchFn: okFetch(['bgm_a']) });
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0, offset: 7 });
+    expect(be.pauseLoop('bgm', { fadeOut: 0.3 })).toBe(7);
+  });
+  it('cue 有 filter.lowpass：source → 低通濾波 → 增益（隔窗雨聲）', async () => {
+    const ctx = bufCtx();
+    const { be } = make({ ctx, director: loopDirector({ amb_in: loopCue('amb_in', { src: 'amb/amb_rain', filter: { lowpass: 900 } }) }), fetchFn: fakeFetch({ 'audio/amb/amb_rain.ogg': { status: 200, body: 'rain' } }) });
+    be.playLoop('amb', 'amb_in', { fadeIn: 1, offset: 0 });
+    await flush();
+    const src = sources(ctx).at(-1);
+    const f = src.connected[0];
+    expect(f.kind).toBe('biquad');
+    expect([f.type, f.frequency.value]).toEqual(['lowpass', 900]);
+    expect(f.connected[0].connected).toEqual([be.bus.amb]);
+  });
+  it('duck：該通道的壓低節點在 ramp 秒內線性變到指定比例', () => {
+    const { be, ctx } = make();
+    ctx.currentTime = 3;
+    be.duck('amb', 0.3, { ramp: 0.5 });
+    expect(be.ducker.amb.gain.events.at(-1)).toEqual(['ramp', 0.3, 3.5]);
+    be.duck('nope', 0.3, { ramp: 0.5 }); // 未知通道：不動
+  });
+  it('記憶體上限：解碼後的循環 buffer 超過上限時，丟掉最久沒用、目前沒在播也沒在等的；音效 buffer 不丟', async () => {
+    const ctx = bufCtx({ bgm_a: [90, 2], bgm_b: [90, 2], bgm_c: [90, 2] });
+    const cues = { bgm_a: loopCue('bgm_a'), bgm_b: loopCue('bgm_b'), bgm_c: loopCue('bgm_c') };
+    const { be } = make({ ctx, director: loopDirector(cues), fetchFn: okFetch(['bgm_a', 'bgm_b', 'bgm_c']) });
+    be.memoryBudget = 2 * 90 * 48000 * 2 * 4; // 剛好兩首
+    for (const id of ['bgm_a', 'bgm_b', 'bgm_c']) {
+      be.playLoop('bgm', id, { fadeIn: 0, offset: 0 });
+      await flush();
+    }
+    expect([...be.buffers.keys()].sort()).toEqual(['bgm_b', 'bgm_c']);
+    expect(be.debugInfo().loopBytes).toBeLessThanOrEqual(be.memoryBudget);
+  });
+  it('合成音與音效可以指定通道（遠方鐘聲、霧笛走環境音）；未知通道退回 sfx', () => {
+    const { be, ctx } = make();
+    be.playSynth('bell', 0.3, 'amb');
+    expect(ctx.nodes.filter((n) => n.kind === 'gain' && n.connected.includes(be.bus.amb)).map((n) => n.gain.value)).toEqual([0.3]);
+    be.playSynth('foghorn', 0.5, 'weird');
+    const outs = ctx.nodes.filter((n) => n.kind === 'gain' && n.connected.includes(be.bus.sfx));
+    expect(outs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('第 1 輪審查修正（M6 P3）', () => {
+  it('淡出：先讀目前音量再取消排程（取消後 value 會變的實作也不跳音）', async () => {
+    const ctx = bufCtx();
+    const { be } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a') }), fetchFn: okFetch(['bgm_a']) });
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0.8, offset: 0 });
+    await flush();
+    const p = sources(ctx).at(-1).connected[0].gain;
+    p.value = 0.42; // 淡入到一半
+    p.cancelScheduledValues = function () { this.value = 0; }; // 模擬「取消後回到時間軸上的舊值」
+    ctx.currentTime = 1;
+    be.stopLoop('bgm', { fadeOut: 0.6 });
+    expect(p.events.at(-2)).toEqual(['set', 0.42, 1]);
+    be.ducker.amb.gain.value = 0.7;
+    be.ducker.amb.gain.cancelScheduledValues = function () { this.value = 1; };
+    be.duck('amb', 0.3, { ramp: 0.5 });
+    expect(be.ducker.amb.gain.events.at(-2)).toEqual(['set', 0.7, 1]);
+  });
+  it('記憶體整理不丟暫停中的地圖曲（戰鬥後立刻接回）', async () => {
+    const ctx = bufCtx({ bgm_city: [90, 2], amb_r: [30, 1], bgm_battle: [90, 2] });
+    const cues = { bgm_city: loopCue('bgm_city'), amb_r: loopCue('amb_r'), bgm_battle: loopCue('bgm_battle') };
+    const { be } = make({ ctx, director: loopDirector(cues), fetchFn: okFetch(['bgm_city', 'amb_r', 'bgm_battle']) });
+    be.memoryBudget = 2 * 90 * 48000 * 2 * 4; // 放不下兩首 BGM＋環境音
+    be.playLoop('bgm', 'bgm_city', { fadeIn: 0, offset: 0 });
+    be.playLoop('amb', 'amb_r', { fadeIn: 0, offset: 0 });
+    await flush();
+    be.pauseLoop('bgm', { fadeOut: 0.3 });
+    be.playLoop('bgm', 'bgm_battle', { fadeIn: 0, offset: 0 });
+    await flush();
+    expect(be.buffers.has('bgm_city')).toBe(true);
+    expect(be.buffers.has('bgm_battle')).toBe(true);
+  });
+  it('載入後開始播放時出錯：warn，不當成音檔壞掉', async () => {
+    const ctx = bufCtx();
+    const { be, director } = make({ ctx, director: loopDirector({ bgm_a: loopCue('bgm_a') }), fetchFn: okFetch(['bgm_a']) });
+    ctx.createBufferSource = () => { throw new Error('boom'); };
+    be.playLoop('bgm', 'bgm_a', { fadeIn: 0, offset: 0 });
+    await flush();
+    expect(director.broken).toEqual([]);
+    expect(director.warns.map((w) => w[0])).toContain('loop:start:bgm_a');
+  });
+  it('clearPaused：暫停的那首不再接回時，記憶體整理可以丟掉它', async () => {
+    const ctx = bufCtx({ bgm_city: [90, 2], bgm_battle: [90, 2], bgm_theme: [90, 2] });
+    const cues = { bgm_city: loopCue('bgm_city'), bgm_battle: loopCue('bgm_battle'), bgm_theme: loopCue('bgm_theme') };
+    const { be } = make({ ctx, director: loopDirector(cues), fetchFn: okFetch(['bgm_city', 'bgm_battle', 'bgm_theme']) });
+    be.memoryBudget = 2 * 90 * 48000 * 2 * 4;
+    be.playLoop('bgm', 'bgm_city', { fadeIn: 0, offset: 0 });
+    await flush();
+    be.pauseLoop('bgm', {});
+    be.playLoop('bgm', 'bgm_battle', { fadeIn: 0, offset: 0 });
+    await flush();
+    be.stopLoop('bgm', {});
+    be.clearPaused('bgm');
+    be.playLoop('bgm', 'bgm_theme', { fadeIn: 0, offset: 0 });
+    await flush();
+    expect(be.buffers.has('bgm_theme')).toBe(true);
+    expect(be.buffers.has('bgm_city')).toBe(false);
+  });
+  it('isRunning：context 是 running 才回 true', () => {
+    const { be, ctx } = make();
+    expect(be.isRunning()).toBe(true);
+    ctx.state = 'interrupted';
+    expect(be.isRunning()).toBe(false);
   });
 });

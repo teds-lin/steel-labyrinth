@@ -71,6 +71,7 @@
   },
   {
     "id": "enc_boss",
+    "bgm": "bgm_boss",
     "enemies": [
       "silent_hauler"
     ],
@@ -146,6 +147,7 @@
   },
   {
     "id": "enc_ch4_boss",
+    "bgm": "bgm_boss",
     "enemies": [
       "choir_leader",
       "hush_acolyte",
@@ -273,6 +275,7 @@
   },
   {
     "id": "enc_ch5_boss",
+    "bgm": "bgm_boss",
     "enemies": [
       "brother_oswald",
       "hush_acolyte"
@@ -312,6 +315,7 @@
   },
   {
     "id": "enc_ch6_lane_boss",
+    "bgm": "bgm_boss",
     "enemies": [
       "hush_monk_elder",
       "hush_monk_elder"
@@ -407,6 +411,7 @@
   },
   {
     "id": "enc_ch7_priest",
+    "bgm": "bgm_boss",
     "enemies": [
       "tide_priest",
       "hush_acolyte"
@@ -425,6 +430,7 @@
   },
   {
     "id": "enc_ch7_omen",
+    "bgm": "bgm_boss",
     "enemies": [
       "tide_omen"
     ],
@@ -442,6 +448,7 @@
   },
   {
     "id": "enc_ch7_omen_heeded",
+    "bgm": "bgm_boss",
     "enemies": [
       "tide_omen_waned"
     ],
@@ -459,6 +466,7 @@
   },
   {
     "id": "enc_ch7_omen_nocap",
+    "bgm": "bgm_boss",
     "enemies": [
       "tide_omen_nocap"
     ],
@@ -476,6 +484,7 @@
   },
   {
     "id": "enc_ch7_omen_heeded_nocap",
+    "bgm": "bgm_boss",
     "enemies": [
       "tide_omen_waned_nocap"
     ],

@@ -1,6 +1,7 @@
 {
   "id": "attic_ch6",
   "name": "鐵橋街 17 號・閣樓",
+  "amb": "amb_rain_in",
   "tiles": [
     "####w#######",
     "#B.....DD.W#",

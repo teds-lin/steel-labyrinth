@@ -1,6 +1,8 @@
 {
   "id": "sewer_canal",
   "name": "地下水道・主渠",
+  "bgm": null,
+  "amb": "amb_sewer",
   "tiles": [
     "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",
     "W..........................W",

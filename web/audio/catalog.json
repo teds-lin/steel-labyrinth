@@ -1,13 +1,16 @@
 {
   "version": 1,
   "defaults": {
-    "title": null,
-    "map": null,
-    "dream": null,
-    "battle": null,
-    "chapter_end": null,
-    "ending": null,
-    "game_over": null
+    "title": "bgm_theme",
+    "map": "bgm_city",
+    "dream": "bgm_dream",
+    "battle": "bgm_battle",
+    "chapter_end": "bgm_theme",
+    "ending": "bgm_theme",
+    "game_over": null,
+    "dream_chat": "bgm_dream",
+    "map_amb": null,
+    "dream_amb": "amb_clock"
   },
   "events": {
     "map.investigate": "map_investigate",
@@ -149,6 +152,153 @@
     "sfx_bell": {
       "kind": "sfx",
       "synth": "bell"
+    },
+    "bgm_theme": {
+      "kind": "bgm",
+      "src": "bgm/bgm_theme",
+      "loop": true,
+      "len": 74.318117,
+      "credit": "wolfgang-at-home"
+    },
+    "bgm_city": {
+      "kind": "bgm",
+      "src": "bgm/bgm_city",
+      "loop": true,
+      "len": 86.4,
+      "credit": "northivanastan-death-waltz"
+    },
+    "bgm_dream": {
+      "kind": "bgm",
+      "src": "bgm/bgm_dream",
+      "loop": true,
+      "len": 78.001609,
+      "credit": "aureolus-music-box"
+    },
+    "bgm_battle": {
+      "kind": "bgm",
+      "src": "bgm/bgm_battle",
+      "loop": true,
+      "len": 39.999251,
+      "credit": "wolfgang-battle"
+    },
+    "bgm_boss": {
+      "kind": "bgm",
+      "src": "bgm/bgm_boss",
+      "loop": true,
+      "len": 54.0,
+      "credit": "emma-determined-pursuit"
+    },
+    "amb_rain": {
+      "kind": "amb",
+      "src": "amb/amb_rain",
+      "loop": true,
+      "len": 27.0,
+      "credit": "ylmir-rain",
+      "scatter": [
+        {
+          "cue": "sfx_bell_far",
+          "every": [
+            60,
+            120
+          ]
+        }
+      ]
+    },
+    "amb_rain_in": {
+      "kind": "amb",
+      "src": "amb/amb_rain",
+      "loop": true,
+      "len": 27.0,
+      "credit": "ylmir-rain",
+      "filter": {
+        "lowpass": 900
+      },
+      "scatter": [
+        {
+          "cue": "sfx_bell_far",
+          "every": [
+            60,
+            120
+          ]
+        }
+      ]
+    },
+    "amb_rain_sea": {
+      "kind": "amb",
+      "src": "amb/amb_rain",
+      "loop": true,
+      "len": 27.0,
+      "credit": "ylmir-rain",
+      "scatter": [
+        {
+          "cue": "sfx_foghorn",
+          "every": [
+            40,
+            90
+          ]
+        }
+      ]
+    },
+    "amb_machine": {
+      "kind": "amb",
+      "src": "amb/amb_machine",
+      "loop": true,
+      "len": 22.0,
+      "credit": "bart-steam-boiler"
+    },
+    "amb_harbor": {
+      "kind": "amb",
+      "src": "amb/amb_harbor",
+      "loop": true,
+      "len": 40.0,
+      "credit": "randommind-waves",
+      "scatter": [
+        {
+          "cue": "sfx_foghorn",
+          "every": [
+            40,
+            90
+          ]
+        },
+        {
+          "cue": "sfx_bell_far",
+          "every": [
+            60,
+            120
+          ]
+        }
+      ]
+    },
+    "amb_sewer": {
+      "kind": "amb",
+      "src": "amb/amb_sewer",
+      "loop": true,
+      "len": 45.0,
+      "credit": "jaggedstone-dungeon"
+    },
+    "amb_wind": {
+      "kind": "amb",
+      "src": "amb/amb_wind",
+      "loop": true,
+      "len": 5.959297,
+      "credit": "sketchman-wind"
+    },
+    "amb_clock": {
+      "kind": "amb",
+      "src": "amb/amb_clock",
+      "loop": true,
+      "len": 8.0,
+      "credit": "bart-ticking-clock"
+    },
+    "sfx_bell_far": {
+      "kind": "sfx",
+      "synth": "bell",
+      "volume": 0.35
+    },
+    "sfx_foghorn": {
+      "kind": "sfx",
+      "synth": "foghorn",
+      "volume": 0.6
     }
   }
 }

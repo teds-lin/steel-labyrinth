@@ -1,6 +1,7 @@
 {
   "id": "hallway_ch6",
   "name": "鐵橋街 17 號・二樓走廊",
+  "amb": "amb_rain_in",
   "on_enter": "dlg_ch6_hall_arrive",
   "tiles": [
     "####L####L##M#",

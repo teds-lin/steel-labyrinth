@@ -5,9 +5,12 @@ import { readFileSync } from 'node:fs';
 import { test as base } from '@playwright/test';
 import { expect } from './helpers.js';
 import { installFakeTurnstile } from './fake-turnstile.js';
+import { installPageImport } from './page-import.js';
 
 export const CATALOG = JSON.parse(readFileSync(new URL('../../web/audio/catalog.json', import.meta.url), 'utf8'));
-export const FILE_CUES = Object.entries(CATALOG.cues).filter(([, c]) => c.src).map(([id]) => id);
+/** 第一次手勢後預載的音效（有音檔的 sfx）。背景音樂與環境音（M6 P3）不預載，換到用得到的畫面才下載。 */
+export const FILE_CUES = Object.entries(CATALOG.cues).filter(([, c]) => c.src && c.kind === 'sfx').map(([id]) => id);
+export const SFX_FILE = /\/audio\/sfx\//;
 export const AUDIO_FILE = /\/audio\/.+\.(ogg|m4a)(\?|$)/i;
 export const REAL_URL = './?test=1&audio=1';
 
@@ -27,6 +30,7 @@ export const test = base.extend({
   },
   page: async ({ page, allow404, gateAudio }, use) => {
     await installFakeTurnstile(page);
+    await installPageImport(page);
     if (gateAudio) await page.addInitScript(() => {
       window.__slActivating = false;
       for (const t of ['keydown', 'pointerdown', 'mousedown', 'mouseup', 'touchstart', 'touchend']) {
@@ -77,8 +81,9 @@ export async function gesture(page) {
   const box = await page.locator('canvas').boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.08);
 }
+/** 等音效預載完成：已解碼的 sfx buffer 數＝n，而且沒有下載中的檔（背景音樂也下載完）。 */
 export const waitLoaded = (page, n) => page.waitForFunction((k) => {
   const r = window.__SL.audio().real;
-  return r && r.loading === 0 && r.buffers === k;
+  return r && r.loading === 0 && r.sfxBuffers === k;
 }, n, { timeout: 15_000 });
 

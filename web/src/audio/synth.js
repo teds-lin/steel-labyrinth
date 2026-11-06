@@ -25,4 +25,35 @@ export function bellSynth(ctx, dest, t0 = ctx.currentTime + 0.02) {
   return last;
 }
 
-export const SYNTH_FNS = { bell: bellSynth };
+/**
+ * 遠方霧笛（M6 P3，碼頭的隨機單次音）：兩個略微走音的鋸齒波（約 82 Hz）加低八度方波，經低通濾波變悶，
+ * 0.5 秒漸強、持續約 2 秒、1.2 秒漸弱。回傳最後停止的 oscillator。
+ */
+export function foghornSynth(ctx, dest, t0 = ctx.currentTime + 0.02) {
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(0.16, t0 + 0.5);
+  out.gain.setValueAtTime(0.16, t0 + 2.4);
+  out.gain.exponentialRampToValueAtTime(0.0001, t0 + 3.6);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 320;
+  lp.Q.value = 0.8;
+  lp.connect(out);
+  out.connect(dest);
+  let last = null;
+  for (const [type, freq, amp] of [['sawtooth', 82, 0.6], ['sawtooth', 82.7, 0.6], ['square', 41, 0.35]]) {
+    const o = ctx.createOscillator();
+    last = o;
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.value = amp;
+    o.connect(g).connect(lp);
+    o.start(t0);
+    o.stop(t0 + 3.7);
+  }
+  return last;
+}
+
+export const SYNTH_FNS = { bell: bellSynth, foghorn: foghornSynth };

@@ -1,6 +1,8 @@
 {
   "id": "warehouse",
   "name": "碼頭區・東倉",
+  "bgm": null,
+  "amb": "amb_machine",
   "tiles": [
     "DDDDDDDDDDDDDDDD",
     "D.cc........cc.D",

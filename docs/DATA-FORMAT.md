@@ -446,3 +446,20 @@ web/data/
 8. **夢客的預寫台詞依章節上傳**：`tools/upload-dream.mjs` 讀全部章節的 story，人設資料帶
    `scripted`（章節順序最早的一份）與 `scripted_by_chapter`（`{ 章節: 預寫台詞 }`，每章都要有 greeting／fallback／quota／filtered）。
    Worker 回預寫台詞時，取 `CHAPTERS` 順序中 ≤ 玩家宣稱的章節、最近的一份（當章沒有就往前一章找，不會用到後面章節）。
+
+## 補充（2026-11-07，M6 背景音樂與環境音）
+1. **地圖** `maps/<id>.json` 可以加 `"bgm"`、`"amb"`（選填）：值是音訊目錄（`web/audio/catalog.json`）的 cue id，`null`＝安靜；
+   欄位不存在＝用目錄的預設（夢境地圖 `dream: true` 用 `defaults.dream`／`defaults.dream_amb`，其他用 `defaults.map`／`defaults.map_amb`）。
+   ```json
+   { "id": "dock", "name": "…", "bgm": null, "amb": "amb_harbor" }
+   ```
+   同一首曲子在地圖之間切換時不會重播（例如辦公室走到街道都是預設的城市曲）。
+2. **遭遇** `encounters.json` 可以加 `"bgm"`（選填，Boss 戰用 `"bgm_boss"`）；不寫用 `defaults.battle`。
+   戰鬥中地圖曲暫停、環境音壓低到 30%，戰鬥結束回地圖時從原位置接回。
+3. **結局** `endings[]` 可以加 `"bgm"`（選填）；不寫用 `defaults.ending`。一般章節結束畫面用 `defaults.chapter_end`。
+4. **驗證**：`validate.js` 只檢查型別（cue id 字串或 null；型別錯誤和其他資料錯誤一樣會擋下遊戲啟動），**不檢查 cue 是否存在**——
+   cue 不存在時遊戲照常、該處保持安靜。cue 是否存在、種類（bgm／amb）對不對，由 `npm run check`（`tools/lib/audio-refs.mjs`）對照音訊目錄檢查，CI 會跑，發布前就擋下。
+5. 對應關係寫在各筆資料（私有原稿）而不是公開的總表，所以會跟著章節開放（防劇透）。這些欄位是 cue id，不是玩家看得到的字串（字串匯出的 HIDDEN）。
+6. 音訊目錄的 cue（公開）：`bgm_theme`、`bgm_city`、`bgm_dream`、`bgm_battle`、`bgm_boss`；
+   `amb_rain`、`amb_rain_in`（隔窗：雨聲加低通）、`amb_rain_sea`（雨聲加遠方霧笛）、`amb_machine`、`amb_harbor`、`amb_sewer`、`amb_wind`、`amb_clock`。
+   環境音的隨機單次音（遠方鐘聲、霧笛）寫在目錄 cue 的 `scatter`，是程式合成，不下載音檔。

@@ -1,6 +1,8 @@
 {
   "id": "harbor_night",
   "name": "碼頭區・最濃的霧夜",
+  "bgm": null,
+  "amb": "amb_rain_sea",
   "on_enter": "dlg_ch7_harbor_arrive",
   "tiles": [
     "WWWWWWWWWWWWWWWWWWWWWWWW",

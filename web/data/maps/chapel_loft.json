@@ -1,6 +1,8 @@
 {
   "id": "chapel_loft",
   "name": "灰鴿街禮拜堂・鐘樓",
+  "bgm": null,
+  "amb": "amb_wind",
   "tiles": [
     "############",
     "#....BB....#",

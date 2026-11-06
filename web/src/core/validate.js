@@ -620,6 +620,16 @@ function maxEnemiesOnField(ids, ctx) {
   return [...cap.values()].reduce((a, b) => a + b, 0);
 }
 
+/**
+ * 聲音欄位（M6 P3）：地圖的 bgm／amb、遭遇與結局的 bgm。只檢查型別（cue id 字串或 null＝安靜），
+ * 不檢查 cue 是否存在——遊戲啟動時跑這裡，聲音的問題不能擋住遊戲；存在與否由 tools/check-data.mjs 對照音訊目錄檢查。
+ */
+const AUDIO_CUE_RE = /^[a-z][a-z0-9_]*$/;
+function checkAudioField(o, k, where, errors) {
+  if (o[k] === undefined || o[k] === null) return;
+  if (!(typeof o[k] === 'string' && AUDIO_CUE_RE.test(o[k]))) errors.push(`${where}：${k} 必須是 cue id（小寫英數與底線）或 null（安靜）`);
+}
+
 function checkEncounter(enc, ctx) {
   const { errors } = ctx;
   const where = `encounters.json 遭遇「${enc.id}」`;
@@ -631,6 +641,7 @@ function checkEncounter(enc, ctx) {
     if (n > MAX_ENEMIES_ON_FIELD) errors.push(`${where}：含召喚，同時在場的敵人最多可能有 ${n} 名，超過 ${MAX_ENEMIES_ON_FIELD}`);
   }
   if (enc.bg !== undefined && !isStr(enc.bg)) errors.push(`${where}：bg 必須是字串`);
+  checkAudioField(enc, 'bgm', where, errors);
   if (enc.can_flee !== undefined && !isBool(enc.can_flee)) errors.push(`${where}：can_flee 必須是 true/false`);
   if (enc.on_lose !== undefined && !ON_LOSE.includes(enc.on_lose)) errors.push(`${where}：on_lose「${q(enc.on_lose)}」必須是 retry 或 continue`);
   if (enc.on_win !== undefined) {
@@ -709,7 +720,8 @@ function checkEndings(story, W, ctx) {
     else if (ctx.endingIds.has(e.id)) errors.push(`${W}：結局 id「${e.id}」重複（先前出現在 story/${ctx.endingIds.get(e.id)}.json）`);
     else ctx.endingIds.set(e.id, story.id);
     const ew = `${W} 結局「${q(e.id)}」`;
-    for (const k of extraKeys(e, ['id', 'title', 'if', 'dialogue'])) errors.push(`${ew}：不認得的欄位「${k}」`);
+    for (const k of extraKeys(e, ['id', 'title', 'if', 'dialogue', 'bgm'])) errors.push(`${ew}：不認得的欄位「${k}」`);
+    checkAudioField(e, 'bgm', ew, errors);
     if (!(typeof e.title === 'string' && e.title.trim() !== '')) errors.push(`${ew}：title 必須是非空字串（結局畫面顯示的結局名稱）`);
     if (e.if !== undefined) checkCond(e.if, ew, ctx);
     const last = i === list.length - 1;
@@ -1163,6 +1175,7 @@ function checkMap(map, ctx) {
   const { errors } = ctx;
   if (!isStr(map.name)) errors.push(`${W}：缺少 name`);
   if (map.dream !== undefined && !isBool(map.dream)) errors.push(`${W}：dream 必須是 true/false`);
+  for (const k of ['bgm', 'amb']) checkAudioField(map, k, W, errors);
 
   // 地形
   const rows = Array.isArray(map.tiles) && map.tiles.every((r) => typeof r === 'string') ? map.tiles.map((r) => Array.from(r)) : null;

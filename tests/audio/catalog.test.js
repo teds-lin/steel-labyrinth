@@ -7,7 +7,7 @@ const ok = () => ({
   defaults: { map: null, battle: null },
   cues: {
     ui_move: { kind: 'sfx', src: 'sfx/ui_move', volume: 0.8, credit: 'kenney-interface' },
-    bgm_x: { kind: 'bgm', src: 'bgm/bgm_x', loop: true, credit: 'someone' },
+    bgm_x: { kind: 'bgm', src: 'bgm/bgm_x', loop: true, len: 40, credit: 'someone' },
     sfx_bell: { kind: 'sfx', synth: 'bell' },
   },
 });
@@ -112,5 +112,56 @@ describe('chooseFormats／cueUrls', () => {
     const c = ok();
     expect(cueUrls(c.cues.ui_move, ['ogg', 'm4a'], 'audio/')).toEqual(['audio/sfx/ui_move.ogg', 'audio/sfx/ui_move.m4a']);
     expect(cueUrls(c.cues.sfx_bell, ['ogg', 'm4a'], 'audio/')).toEqual([]);
+  });
+});
+
+describe('validateCatalog：背景音樂與環境音（M6 P3）', () => {
+  const p3 = () => {
+    const c = ok();
+    c.cues.amb_rain = { kind: 'amb', src: 'amb/amb_rain', loop: true, len: 27, credit: 'ylmir-rain' };
+    c.cues.amb_rain_in = { kind: 'amb', src: 'amb/amb_rain', loop: true, len: 27, credit: 'ylmir-rain', filter: { lowpass: 900 } };
+    c.cues.sfx_horn = { kind: 'sfx', synth: 'foghorn', volume: 0.5 };
+    c.cues.amb_sea = { kind: 'amb', src: 'amb/amb_sea', loop: true, len: 40, credit: 'w', scatter: [{ cue: 'sfx_horn', every: [40, 90] }] };
+    c.defaults = { title: 'bgm_x', map: 'bgm_x', map_amb: null, dream_amb: 'amb_rain' };
+    return c;
+  };
+  it('合法：循環長度 len、低通濾波、隨機單次音、各種預設值', () => {
+    expect(validateCatalog(p3())).toEqual({ ok: true, errors: [] });
+    expect(SYNTHS).toContain('foghorn');
+  });
+  it('有音檔的 bgm／amb 必須 loop: true 並記錄精確循環長度 len（秒，AAC 尾端補白靠它切掉）', () => {
+    for (const f of [(c) => { delete c.cues.bgm_x.len; }, (c) => { c.cues.bgm_x.len = 0; }, (c) => { c.cues.bgm_x.len = 'x'; }, (c) => { c.cues.amb_rain.loop = false; }, (c) => { c.cues.ui_move.len = 1; }]) {
+      const c = p3();
+      f(c);
+      expect(validateCatalog(c).ok, f.toString()).toBe(false);
+    }
+  });
+  it('filter 只能是 { lowpass: 100～20000 }，只用在 bgm／amb', () => {
+    for (const f of [(c) => { c.cues.amb_rain_in.filter = { lowpass: 50 }; }, (c) => { c.cues.amb_rain_in.filter = { highpass: 900 }; }, (c) => { c.cues.ui_move.filter = { lowpass: 900 }; }]) {
+      const c = p3();
+      f(c);
+      expect(validateCatalog(c).ok, f.toString()).toBe(false);
+    }
+  });
+  it('scatter 只用在 amb；每項是存在的 sfx cue 與 every [最短, 最長] 秒（5～600）', () => {
+    for (const f of [
+      (c) => { c.cues.bgm_x.scatter = [{ cue: 'sfx_horn', every: [40, 90] }]; },
+      (c) => { c.cues.amb_sea.scatter = [{ cue: 'nope', every: [40, 90] }]; },
+      (c) => { c.cues.amb_sea.scatter = [{ cue: 'amb_rain', every: [40, 90] }]; },
+      (c) => { c.cues.amb_sea.scatter = [{ cue: 'sfx_horn', every: [90, 40] }]; },
+      (c) => { c.cues.amb_sea.scatter = [{ cue: 'sfx_horn', every: [1, 4] }]; },
+      (c) => { c.cues.amb_sea.scatter = { cue: 'sfx_horn' }; },
+    ]) {
+      const c = p3();
+      f(c);
+      expect(validateCatalog(c).ok, f.toString()).toBe(false);
+    }
+  });
+  it('defaults：只能用已知的鍵；*_amb 指向 amb、其他指向 bgm', () => {
+    for (const f of [(c) => { c.defaults.boss = 'bgm_x'; }, (c) => { c.defaults.map = 'amb_rain'; }, (c) => { c.defaults.map_amb = 'bgm_x'; }]) {
+      const c = p3();
+      f(c);
+      expect(validateCatalog(c).ok, f.toString()).toBe(false);
+    }
   });
 });

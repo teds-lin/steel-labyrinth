@@ -99,6 +99,7 @@ const HIDDEN = [
   /^items\[\]\.target$/,
   /^lineages\[\]\.source$/, /^lineages\[\]\.ranks\[\]\.(field|skills)\[\]$/, /^lineages\[\]\.ranks\[\]\.potion\.materials\[\]\.item$/,
   /^maps\[\]\.(tiles\[\]|legend\.\*|on_enter)$/, /^maps\[\]\.spawns\[\]\.dir$/,
+  /^maps\[\]\.(bgm|amb)$/, /^story\[\]\.endings\[\]\.bgm$/, // 聲音 cue id（M6 P3）
   /^maps\[\]\.objects\[\]\.(sprite|look|echo|guest|battle)$/, /^maps\[\]\.objects\[\]\.lock\./, /^maps\[\]\.objects\[\]\.dream\.(map|spawn)$/,
   /^maps\[\]\.exits\[\]\.(to|spawn|blocked)$/, /^maps\[\]\.triggers\[\]\.(dialogue|battle)$/,
   /^characters\[\]\.(sprite|skills\[\]|lineage\.id)$/,

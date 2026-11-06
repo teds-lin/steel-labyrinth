@@ -56,8 +56,154 @@
       "page": "https://opengameart.org/content/reversing-time-stuck-in-time",
       "download": "https://opengameart.org/sites/default/files/Reverse-Time-Loop-isaiah658_0.ogg",
       "sha256": "dd970cfede2e4d091004be2d3f036dcc824edb8ea9ab82c4c44d1cb380de679b"
+    },
+    "northivanastan-death-waltz": {
+      "title": "Death Waltz",
+      "author": "northivanastan",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/death-waltz",
+      "download": "https://opengameart.org/sites/default/files/death_waltz.mid",
+      "sha256": "6f93e584e22314e5bb2cd175654a1917f4806393ed5545bcdb007a838526d599"
+    },
+    "wolfgang-at-home": {
+      "title": "At Home - Orchestral",
+      "author": "Wolfgang_",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/at-home-orchestral",
+      "download": "https://opengameart.org/sites/default/files/cinematic-calm.wav",
+      "sha256": "2977b4e410edc2d21269406b0d464f3602c4678fbd81d81d6b8b36e30963360f"
+    },
+    "aureolus-music-box": {
+      "title": "4 Music Box Tracks",
+      "author": "Aureolus_Omicron",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/4-music-box-tracks",
+      "download": "https://opengameart.org/sites/default/files/4_music_box_tracks_ogg.zip",
+      "sha256": "93b451f01ea4d530ee41b2239ae23f9be7d5a3b55354bb9893c736a4bd193b2f"
+    },
+    "wolfgang-battle": {
+      "title": "Battle Theme",
+      "author": "Wolfgang_",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/battle-theme-0",
+      "download": "https://opengameart.org/sites/default/files/Battle.mp3",
+      "sha256": "dde7bd4f10bde031800ba8e22151fad591b7c13e1c9ae51920341b4e4ae37be5"
+    },
+    "emma-determined-pursuit": {
+      "title": "Determined Pursuit (epic orchestra loop)",
+      "author": "Emma_MA",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/determined-pursuit-epic-orchestra-loop",
+      "download": "https://opengameart.org/sites/default/files/determined_pursuit_loop.wav",
+      "sha256": "e4f3be098b50213b56a60aefe60fffae79cd9f7c9008088f93c187ef1bbc856b"
+    },
+    "ylmir-rain": {
+      "title": "Rain (loopable)",
+      "author": "Ylmir",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/rain-loopable",
+      "download": "https://opengameart.org/sites/default/files/Rain%20OGG.zip",
+      "sha256": "e68f3e1c77493cf43bec84cebff5043bff6be9ce16d59b24caa988cd460aa75b"
+    },
+    "bart-steam-boiler": {
+      "title": "Steam boiler sound loop",
+      "author": "bart",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/steam-boiler-sound-loop",
+      "download": "https://opengameart.org/sites/default/files/generator_loop.wav",
+      "sha256": "64b174cf8ef71e7f71aa03cf29864ab489f7be1f624456cab916043da38911bd"
+    },
+    "randommind-waves": {
+      "title": "Sea and river wave sounds",
+      "author": "RandomMind",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/sea-and-river-wave-sounds",
+      "download": "https://opengameart.org/sites/default/files/VistulaShort_0.mp3",
+      "sha256": "8c24607e41edd6f018ec3582a07e5a8dbc57347276339cb68440951a0fb4cfb1"
+    },
+    "jaggedstone-dungeon": {
+      "title": "Loopable Dungeon Ambience",
+      "author": "JaggedStone",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/loopable-dungeon-ambience",
+      "download": "https://opengameart.org/sites/default/files/dungeon_ambient_1_0.ogg",
+      "sha256": "df491823e4877371c34dbda4e9321cd83a4a14fa7573cee0ebca1ae423b70e6e"
+    },
+    "sketchman-wind": {
+      "title": "wind whoosh loop",
+      "author": "SketchMan3",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/wind-whoosh-loop",
+      "download": "https://opengameart.org/sites/default/files/wind%20woosh%20loop.ogg",
+      "sha256": "0cfdbd3f21ed449689a9024264edf267d0037a6495813a7010827672ec191dac"
+    },
+    "bart-ticking-clock": {
+      "title": "Ticking clock.",
+      "author": "bart",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/ticking-clock",
+      "download": "https://opengameart.org/sites/default/files/ticking_clock.wav",
+      "sha256": "dc4dc1bf2c4bbeee5fd0841a87610ed19d851a92abc973ce0f5ff3caec40d537"
     }
   },
+  "soundfonts": {
+    "fluidr3-gm": {
+      "title": "FluidR3_GM",
+      "author": "Frank Wen",
+      "license": "MIT",
+      "page": "https://packages.debian.org/sid/fluid-soundfont-gm",
+      "download": "https://deb.debian.org/debian/pool/main/f/fluid-soundfont/fluid-soundfont-gm_3.1-6_all.deb",
+      "sha256": "9965fbcc6acee17d6f72b685d28c7f968ec64eba14645445b476d5c6cc2eee4c",
+      "file": "usr/share/sounds/sf2/FluidR3_GM.sf2",
+      "file_sha256": "74594e8f4250680adf590507a306655a299935343583256f3b722c48a1bc1cb0",
+      "notice": "Fluid (R3) SoundFont\nCopyright (c) 2000-2002, 2008 Frank Wen <getfrank@gmail.com>\nCopyright (c) 2008 Toby Smithe\n\nPermission is hereby granted, free of charge, to any person\nobtaining a copy of this software and associated documentation\nfiles (the \"Software\"), to deal in the Software without\nrestriction, including without limitation the rights to use,\ncopy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the\nSoftware is furnished to do so, subject to the following\nconditions:\n\nThe above copyright notice and this permission notice shall be\nincluded in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,\nEXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES\nOF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND\nNONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT\nHOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,\nWHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING\nFROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR\nOTHER DEALINGS IN THE SOFTWARE."
+    }
+  },
+  "renders": [
+    {
+      "id": "city_waltz",
+      "source": "northivanastan-death-waltz",
+      "midi": "death_waltz.mid",
+      "soundfont": "fluidr3-gm",
+      "fromBar": 12,
+      "toBar": 60,
+      "repeats": 2,
+      "gain": 0.5,
+      "tracks": {
+        "1": {
+          "channel": 6
+        }
+      },
+      "channels": {
+        "0": {
+          "program": 21,
+          "velocity": 0.85
+        },
+        "6": {
+          "program": 49,
+          "velocity": 0.7,
+          "controls": {
+            "7": 117,
+            "10": 64,
+            "91": 0,
+            "93": 0
+          }
+        },
+        "3": {
+          "program": 32,
+          "velocity": 0.8
+        },
+        "4": {
+          "program": 45,
+          "velocity": 0.75
+        },
+        "5": {
+          "drop": true
+        }
+      },
+      "note": "旋律（弦樂）→ 手風琴；魯特琴和弦 → 弦樂撥奏；低音吉他 → 原聲貝斯；低音弦樂（與旋律同聲道，先搬到第 6 聲道，帶入原聲道的音量 117、聲相置中、無殘響）→ 慢速弦樂；拿掉銅管。取第 12～59 小節（兩次完整旋律段，約 86.4 秒）"
+    }
+  ],
   "outputs": [
     { "out": "sfx/ui_move", "source": "kenney-interface", "file": "Audio/select_001.ogg", "use": "選單游標移動" },
     { "out": "sfx/ui_confirm", "source": "kenney-interface", "file": "Audio/confirmation_001.ogg", "use": "確認" },
@@ -77,6 +223,17 @@
     { "out": "sfx/bt_down", "source": "rubberduck-100", "file": "slam_01.ogg", "use": "戰鬥：敵人倒下" },
     { "out": "sfx/bt_skill", "source": "jaggedstone-magic", "file": "magical_2.ogg", "fade_out": 0.1, "use": "戰鬥：增益、減益、治療等技能" },
     { "out": "sfx/jingle_victory", "source": "kenney-jingles", "file": "OGG/jingles_PIZZA/jingles_PIZZA03.ogg", "use": "戰鬥勝利（撥弦短樂句）" },
-    { "out": "sfx/jingle_defeat", "source": "kenney-jingles", "file": "OGG/jingles_PIZZA/jingles_PIZZA14.ogg", "use": "戰敗（撥弦下行短樂句）" }
+    { "out": "sfx/jingle_defeat", "source": "kenney-jingles", "file": "OGG/jingles_PIZZA/jingles_PIZZA14.ogg", "use": "戰敗（撥弦下行短樂句）" },
+    { "out": "bgm/bgm_theme", "source": "wolfgang-at-home", "file": "cinematic-calm.wav", "loudness": -20, "channels": 2, "use": "標題、取名、章節結束、結局（整首就是循環：兩段各 37.16 秒）" },
+    { "out": "bgm/bgm_city", "source": "northivanastan-death-waltz", "file": "render/city_waltz.wav", "loudness": -20, "channels": 2, "use": "家、街區、公司（日常探索）" },
+    { "out": "bgm/bgm_dream", "source": "aureolus-music-box", "file": "musicbox3_sad_tune.ogg", "start": 20, "duration": 78.0016, "xfade": 0.5, "loudness": -22, "channels": 2, "use": "鐘塔之夢、夢客交談（原曲 156 秒是同一段重複兩次，取一段）" },
+    { "out": "bgm/bgm_battle", "source": "wolfgang-battle", "file": "Battle.mp3", "start": 8, "duration": 39.999252, "xfade": 0.2, "loudness": -20, "channels": 2, "use": "一般戰鬥（A 段約 40 秒，原曲重複兩次但不是逐取樣相同：第 8 秒起相關最高（約 0.85），循環長度為實測的 1763967 個取樣點，線性淡化）" },
+    { "out": "bgm/bgm_boss", "source": "emma-determined-pursuit", "file": "determined_pursuit_loop.wav", "start": 45, "duration": 54, "xfade": 0.05, "loudness": -20, "channels": 2, "use": "Boss 戰（原曲 108 秒的後半段與前半段在第 18 秒後相同，取 54 秒）" },
+    { "out": "amb/amb_rain", "source": "ylmir-rain", "file": "1.ogg", "loudness": -26, "use": "雨聲（隔窗版由執行期低通濾波產生）" },
+    { "out": "amb/amb_machine", "source": "bart-steam-boiler", "file": "generator_loop.wav", "duration": 22, "xfade": 0.15, "loudness": -28, "use": "公司、練習室、倉庫的機械聲" },
+    { "out": "amb/amb_harbor", "source": "randommind-waves", "file": "VistulaShort_0.mp3", "start": 60, "duration": 40, "xfade": 3, "loudness": -26, "use": "碼頭、沉堤、燈塔的浪聲" },
+    { "out": "amb/amb_sewer", "source": "jaggedstone-dungeon", "file": "dungeon_ambient_1_0.ogg", "start": 21, "duration": 45, "xfade": 2, "loudness": -27, "use": "地下水道" },
+    { "out": "amb/amb_wind", "source": "sketchman-wind", "file": "wind woosh loop.ogg", "loudness": -28, "use": "禮拜堂、燈室的風聲" },
+    { "out": "amb/amb_clock", "source": "bart-ticking-clock", "file": "ticking_clock.wav", "loudness": -28, "use": "鐘塔之夢的時鐘滴答" }
   ]
 }

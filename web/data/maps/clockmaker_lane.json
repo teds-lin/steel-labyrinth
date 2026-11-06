@@ -1,6 +1,7 @@
 {
   "id": "clockmaker_lane",
   "name": "舊城・鐘匠巷",
+  "amb": "amb_rain",
   "on_enter": "dlg_ch6_lane_arrive",
   "tiles": [
     "####################",
