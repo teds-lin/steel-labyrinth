@@ -93,7 +93,8 @@ test.describe('載入失敗提示', () => {
     const html = readFileSync(new URL('../../web/index.html', import.meta.url), 'utf8');
     const old = html.replace(/<script nomodule>/, '<script>').replace(/<script type="module"/g, '<script type="text/x-old-browser"');
     expect(old).not.toBe(html);
-    await page.route((url) => url.pathname === '/' || url.pathname.endsWith('/index.html'), (r) => r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: old }));
+    // 只攔頁面本身：本機是 /，線上是 /steel-labyrinth/（子目錄），所以比對「以 / 或 /index.html 結尾」
+    await page.route((url) => url.pathname.endsWith('/') || url.pathname.endsWith('/index.html'), (r) => r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: old }));
     await page.goto('./?test=1&bootslow=500');
     await expect(status(page)).toBeVisible();
     await expect(page.locator('#load-status-msg')).toHaveText(OLD_TEXT);

@@ -35,8 +35,8 @@ function basicPolicy(view) {
  */
 async function useSeedFor(page, enc, want = ['victory'], policy = basicPolicy) {
   const seed = await page.evaluate(async ({ enc, src, want }) => {
-    const { simulate } = await import('./src/core/battle/engine.js');
-    const { session } = await import('./src/session.js');
+    const { simulate } = await window.__slImport('./src/core/battle/engine.js');
+    const { session } = await window.__slImport('./src/session.js');
     const pol = new Function(`return (${src});`)();
     const state = window.__SL.getState();
     const toCmd = (c) => (c.flee ? { type: 'flee' } : c.item ? { type: 'item', item: c.item, target: c.target } : { type: 'skill', skill: c.skill, target: c.target });
@@ -696,7 +696,7 @@ test.describe('M2 戰鬥', () => {
   /** 以 Phaser 的 Map 場景開指定遭遇戰（測試用；不改遊戲程式）。 */
   async function startEncounter(page, enc) {
     await page.evaluate(async (e) => {
-      const { game } = await import('./src/main.js');
+      const { game } = await window.__slImport('./src/main.js');
       game.scene.getScene('Map').doBattle(e);
     }, enc);
   }

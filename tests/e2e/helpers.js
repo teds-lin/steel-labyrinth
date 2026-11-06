@@ -2,6 +2,7 @@
 import { test as base, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { installFakeTurnstile } from './fake-turnstile.js';
+import { installPageImport } from './page-import.js';
 
 /** 遊戲資料的 manifest（新遊戲的殘響次數等以它為準，不在測試寫死）。 */
 export const MANIFEST = JSON.parse(readFileSync(new URL('../../web/data/manifest.json', import.meta.url), 'utf8'));
@@ -22,6 +23,8 @@ export const TEST_URL = './?test=1';
 export const test = base.extend({
   page: async ({ page }, use) => {
     await installFakeTurnstile(page); // 不連外網：Turnstile 一律用假的（cloud-live 另外處理）
+    // 頁面內 import 遊戲模組一律用 window.__slImport('./src/…')：沿用 main.js 的 ?v=，發布版網站上才是同一個模組實例
+    await installPageImport(page);
     const errors = [];
     page.on('console', (m) => {
       if (m.type() === 'error' && !/GL Driver Message/.test(m.text())) errors.push(`[console.error] ${m.text()}`);

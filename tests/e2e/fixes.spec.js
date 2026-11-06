@@ -51,7 +51,7 @@ test.describe('M1 修正', () => {
     await page.goto(TEST_URL);
     await game(page).waitScene('Title', 15_000);
     const r = await sl(page, async () => {
-      const m = await import('./src/ui/hud.js');
+      const m = await window.__slImport('./src/ui/hud.js');
       const cases = [
         { charges: NaN }, { charges: -3 }, { charges: 1e9 }, { charges: 2.5 }, { charges: '7' }, { charges: undefined },
         { charges: 50, free: false, max: 3 }, { charges: 0, free: false, max: 3 }, { charges: 0, free: true, max: 3 },

@@ -127,7 +127,7 @@ test.describe('規格補充 3（畫面層）', () => {
     await page.screenshot({ path: shot });
     if (process.env.SL_SHOT_DIR) await page.screenshot({ path: join(process.env.SL_SHOT_DIR, `battle-root-${testInfo.project.name}.png`) });
 
-    const msg = await page.evaluate(async () => (await import('./src/battle-view.js')).describe({ type: 'wake', uid: 'e0' }, { e0: '沉默的搬運工' }, {}));
+    const msg = await page.evaluate(async () => (await window.__slImport('./src/battle-view.js')).describe({ type: 'wake', uid: 'e0' }, { e0: '沉默的搬運工' }, {}));
     expect(msg).toBe('沉默的搬運工醒過來了！');
   });
 });

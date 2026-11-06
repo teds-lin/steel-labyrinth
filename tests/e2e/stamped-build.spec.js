@@ -30,7 +30,9 @@ function hashTree(d) {
   return out;
 }
 
-const node = (args) => spawnSync(process.execPath, args, { cwd: ROOT, encoding: 'utf8' });
+// 複本可能不在 repo 裡（例如 playwright --output 指到別處）：stamp-version／stamp-urls 的 git 指令一律指向本 repo
+const GIT_DIR = spawnSync('git', ['rev-parse', '--absolute-git-dir'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+const node = (args) => spawnSync(process.execPath, args, { cwd: ROOT, encoding: 'utf8', env: { ...process.env, GIT_DIR } });
 
 test.describe('發布版（stamp-version＋stamp-urls）', () => {
   test.beforeAll(async ({}, testInfo) => {

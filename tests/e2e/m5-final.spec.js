@@ -26,8 +26,8 @@ function finalPolicy(view) {
 /** 從目前 state 找一個 enc 會打贏的種子，放進網址（battleSeed() 每場戰鬥都重讀）。 */
 async function useSeedFor(page, enc) {
   const seed = await page.evaluate(async ({ enc, src }) => {
-    const { simulate } = await import('./src/core/battle/engine.js');
-    const { session } = await import('./src/session.js');
+    const { simulate } = await window.__slImport('./src/core/battle/engine.js');
+    const { session } = await window.__slImport('./src/session.js');
     const pol = new Function(`return (${src});`)();
     const state = window.__SL.getState();
     const toCmd = (c) => (c.item ? { type: 'item', item: c.item, target: c.target } : { type: 'skill', skill: c.skill, target: c.target });

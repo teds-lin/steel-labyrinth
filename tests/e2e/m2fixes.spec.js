@@ -101,7 +101,7 @@ function expectRetryState(b, preCollapse, preAmmo) {
 
 /** 把頁面記憶體裡的戰前備份清掉（模擬重新整理後只剩 localStorage 的情況）。 */
 const dropMemoryBackup = (page) => page.evaluate(async () => {
-  const { session } = await import('./src/session.js');
+  const { session } = await window.__slImport('./src/session.js');
   session.preBattle = null;
 });
 
@@ -325,7 +325,7 @@ test.describe('M2 修正（畫面層）', () => {
     await g.waitScene('Title', 15_000);
     // 召喚訊息（純函式）
     const msgs = await page.evaluate(async () => {
-      const { describe } = await import('./src/battle-view.js');
+      const { describe } = await window.__slImport('./src/battle-view.js');
       const data = { enemies: [{ id: 'a', name: '甲', summon_text: '從霧裡爬了出來！' }, { id: 'b', name: '乙' }, { id: 'c', name: '丙', summon_text: '{name}從地底冒出來！' }] };
       const labels = { e1: '甲', e2: '乙', e3: '丙' };
       return ['a', 'b', 'c'].map((enemy, i) => describe({ type: 'summon', uid: `e${i + 1}`, enemy }, labels, data));
@@ -334,7 +334,7 @@ test.describe('M2 修正（畫面層）', () => {
 
     // 共鳴度：譜系 show_resonance 決定（測試裡把「守望」設為顯示）
     await page.evaluate(async () => {
-      const { session } = await import('./src/session.js');
+      const { session } = await window.__slImport('./src/session.js');
       for (const l of session.data.lineages) l.show_resonance = l.id === 'watch';
       for (const s of session.data.skills) if (s.id === 'guard') s.menu = undefined;
     });
@@ -401,7 +401,7 @@ test.describe('M2 修正（畫面層）', () => {
     expect(bad).toEqual([]);
     await page.goto(TEST_URL);
     await game(page).waitScene('Title', 15_000);
-    const t = await page.evaluate(async () => (await import('./src/battle-view.js')).describe({ type: 'crit' }, {}, {}));
+    const t = await page.evaluate(async () => (await window.__slImport('./src/battle-view.js')).describe({ type: 'crit' }, {}, {}));
     expect(t).toBe('爆擊！');
   });
 

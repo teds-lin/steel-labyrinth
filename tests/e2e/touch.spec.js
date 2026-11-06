@@ -1,5 +1,5 @@
 // 純觸控、正常模式（不加 ?test=1：打字機開啟、霧氣動畫開啟）的全程通關。只在 mobile project 跑。
-// 正常模式不暴露 window.__SL，所以用 dynamic import 取得與遊戲同一個模組實例，裝一個與 __SL 相容的唯讀觀測墊片，
+// 正常模式不暴露 window.__SL，所以用 window.__slImport（page-import.js：沿用 main.js 的 ?v=）取得與遊戲同一個模組實例，裝一個與 __SL 相容的唯讀觀測墊片，
 // 讓 helpers.js 的 game()（finishDialogue／useOn／takeExit…）照常可用。所有輸入都只用 tap。
 import { test, expect, game } from './helpers.js';
 
@@ -9,8 +9,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function installProbe(page) {
   await page.waitForFunction(() => document.querySelector('canvas'));
   await page.evaluate(async () => {
-    const { session } = await import('./src/session.js');
-    const { game: phaserGame } = await import('./src/main.js');
+    const { session } = await window.__slImport('./src/session.js');
+    const { game: phaserGame } = await window.__slImport('./src/main.js');
     const act = (k) => {
       const sc = phaserGame.scene.getScene(k);
       return sc && (sc.sys.isActive() || sc.sys.isPaused()) ? sc : null;
