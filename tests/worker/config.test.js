@@ -18,6 +18,10 @@ describe('wrangler.toml', () => {
     expect(cfg.compatibility_date <= '2026-10-17').toBe(true);
   });
 
+  it('開啟 Workers Logs（observability），Cron 清理等 console 紀錄才能事後查詢', () => {
+    expect(cfg.observability?.enabled).toBe(true);
+  });
+
   it('D1 綁定 DB（database_name steel-labyrinth）', () => {
     expect(cfg.d1_databases).toHaveLength(1);
     expect(cfg.d1_databases[0]).toMatchObject({ binding: 'DB', database_name: 'steel-labyrinth' });

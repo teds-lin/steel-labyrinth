@@ -21,6 +21,11 @@ binding = "AI"
 [triggers]
 crons = ["17 3 * * *"]
 
+# Workers Logs：保存 console 紀錄（免費方案每天 20 萬筆、保留 3 天），Cron 清理的執行紀錄才查得到。
+# 紀錄內容不含玩家 ID、權杖或轉移碼。
+[observability]
+enabled = true
+
 [vars]
 # 正式只允許 GitHub Pages。本機開發與測試用 `--var ALLOWED_ORIGINS:...` 覆寫（見 package.json 的 worker:dev）。
 ALLOWED_ORIGINS = "https://teds-lin.github.io"
