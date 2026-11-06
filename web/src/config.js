@@ -47,6 +47,18 @@ export const TEST_MODE = (() => {
   }
 })();
 
+/**
+ * ?test=1&audio=1：測試模式下改用真實的 WebAudio 後端（只給真實音訊 smoke 測試用，見 tests/e2e/audio-real.spec.js）。
+ * 其餘測試模式行為（逐字顯示、__SL 等）照舊。沒有 test=1 時這個參數無效。
+ */
+export const TEST_REAL_AUDIO = TEST_MODE && (() => {
+  try {
+    return new URLSearchParams(window.location.search).get('audio') === '1';
+  } catch {
+    return false;
+  }
+})();
+
 /** 文字貼圖解析度：避免高解析度螢幕上中文字模糊。 */
 export const TEXT_RESOLUTION = Math.min(3, Math.max(2, Math.ceil(window.devicePixelRatio || 1)));
 

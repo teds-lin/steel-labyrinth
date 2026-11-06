@@ -1,5 +1,5 @@
 // 進入點：建立 Phaser 遊戲、註冊場景、測試模式掛勾。
-import { WIDTH, HEIGHT, COLORS, TEST_MODE } from './config.js';
+import { WIDTH, HEIGHT, COLORS, TEST_MODE, TEST_REAL_AUDIO } from './config.js';
 import { session } from './session.js';
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
@@ -14,6 +14,7 @@ import { DreamChatScene } from './scenes/DreamChatScene.js';
 import { artReport } from './textures.js';
 import { cloud, cloudApiBase } from './cloud-client.js';
 import { loadAnalytics } from './analytics.js';
+import { initAudio, audioDebugInfo } from './audio/index.js';
 
 loadAnalytics();
 
@@ -27,9 +28,13 @@ const game = new Phaser.Game({
   dom: { createContainer: true },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   input: { activePointers: 3 },
+  // ?test=1：完全不建立 AudioContext（聲音改用 NullBackend，只記錄要求播放了什麼）；?test=1&audio=1 才用真實後端
+  audio: TEST_MODE && !TEST_REAL_AUDIO ? { noAudio: true } : {},
   // 順序＝繪製順序：Battle 蓋在（睡眠中的）Map／UI 上，Menu 一律 bringToTop
   scene: [BootScene, TitleScene, NameScene, MapScene, UIScene, BattleScene, GameOverScene, DreamChatScene, MenuScene, ChapterEndScene],
 });
+
+initAudio(game, { test: TEST_MODE && !TEST_REAL_AUDIO });
 
 // 旋轉或改變視窗大小（例如遊戲中 375×667 → 667×375）：讓 FIT 重新計算畫布大小。
 // 行動裝置旋轉時 innerWidth／innerHeight 可能晚一點才更新，所以下一幀與稍後各再算一次。
@@ -89,6 +94,12 @@ if (TEST_MODE) {
     measureHelp: (texts) => ro(activeScene('Battle')?.measureHelp(Array.isArray(texts) ? texts.map(String) : []) ?? null),
     /** 夢客自由交談畫面（訊息、剩餘句數、輸入框狀態、人機驗證、按鈕位置）。不在該畫面時為 null。 */
     chat: () => ro(activeScene('DreamChat')?.debugInfo()),
+    /**
+     * 聲音（M6）：{ backend（測試模式一律 'null'）, unlocked, catalog（目錄已載入）, settings, saved（最後一次寫入 localStorage 是否成功）,
+     * lastSfx（最近實際送出播放的音效 id，靜音或音量 0 時不會增加）, hint／toast／toastRect（M 鍵提示與位置）, broken（載入失敗的 cue）,
+     * real（?test=1&audio=1 的真實後端：context 狀態、master 增益、已載入的 buffer 數；NullBackend 時 null） }。
+     */
+    audio: () => ro(audioDebugInfo()),
     /** 地圖場景的唯讀資訊（目前地圖、夢境視覺）。 */
     map: () => ro(activeScene('Map')?.debugInfo()),
     /** Game Over 畫面（標題、按鈕位置）。不在該畫面時為 null。 */

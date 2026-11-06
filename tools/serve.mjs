@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('../web/', import.meta.url)));
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png' };
+  '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png',
+  '.ogg': 'audio/ogg', '.m4a': 'audio/mp4' }; // 音檔（M6）
 const port = Number(process.env.PORT || 8080);
 
 function send(res, code, msg) {

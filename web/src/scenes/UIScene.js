@@ -213,7 +213,7 @@ export class UIScene extends Phaser.Scene {
     this.tweens.killTweensOf([...targets, this.bellText]);
     for (const t of [...targets, this.bellText]) t.setVisible(true);
     if (cover) {
-      playBell({ muted: TEST_MODE });
+      playBell(); // 測試模式由 NullBackend 保持安靜（M6）
       for (let i = 0; i < 3; i++) {
         const ring = this.add.circle(WIDTH / 2, HEIGHT / 2, 20, 0x000000, 0).setStrokeStyle(2, 0x6f86b8, 0.9).setDepth(63);
         this.tweens.add({ targets: ring, radius: 260, alpha: 0, delay: TEST_MODE ? 0 : i * 260, duration: TEST_MODE ? 60 : 1100, onComplete: () => ring.destroy() });
@@ -273,7 +273,8 @@ export class UIScene extends Phaser.Scene {
       if (claimKey(ev)) this.action('investigate');
     } else if (ev.code === 'KeyE' || ev.code === 'KeyX') {
       if (claimKey(ev)) this.action('echo');
-    } else if (ev.code === 'Escape' || ev.code === 'KeyM') {
+    } else if (ev.code === 'Escape') {
+      // M 鍵改為切換全部靜音（M6，audio/index.js 統一處理），選單只用 Esc
       if (claimKey(ev)) this.action('menu');
     }
   }

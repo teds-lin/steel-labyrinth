@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "sources": {
+    "kenney-interface": {
+      "title": "Interface Sounds",
+      "author": "Kenney",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/interface-sounds",
+      "download": "https://opengameart.org/sites/default/files/kenney_interfaceSounds.zip",
+      "sha256": "f2193d072726d6758a5f7871b2dcc54dcce0d5c35c6f0a62f92549b327c81232"
+    },
+    "kenney-rpg": {
+      "title": "50 RPG sound effects",
+      "author": "Kenney",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/50-rpg-sound-effects",
+      "download": "https://opengameart.org/sites/default/files/RPGsounds_Kenney.zip",
+      "sha256": "3ae398ad63e293f9c450bda22d5d81c3af69c74df66fc1400f33c012c0bbc231"
+    },
+    "kenney-jingles": {
+      "title": "85 Short music jingles",
+      "author": "Kenney",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/85-short-music-jingles",
+      "download": "https://opengameart.org/sites/default/files/jingleSounds_Kenney.zip",
+      "sha256": "be324b6cf26e35c95c2a344569a2470512819d0246cc81328bef3499de3682e5"
+    },
+    "rubberduck-100": {
+      "title": "100 CC0 SFX",
+      "author": "rubberduck",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/100-cc0-sfx",
+      "download": "https://opengameart.org/sites/default/files/100-CC0-SFX_0.zip",
+      "sha256": "a5c135878c132f1c59cca54e60061c296cd0ac27ad031ca2c41b8cd5cab3c706"
+    },
+    "jaggedstone-magic": {
+      "title": "Magic Spell SFX",
+      "author": "JaggedStone",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/magic-spell-sfx",
+      "download": "https://opengameart.org/sites/default/files/magical_2.ogg",
+      "sha256": "84a70f63f3f21e5ba4a48285b760a663d422ad3feddba2f3cbadd94b76cdc52e"
+    },
+    "cassie-typewriter": {
+      "title": "Typewriter sounds",
+      "author": "Cassie-OrbitGames",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/typewriter-sounds",
+      "download": "https://opengameart.org/sites/default/files/typewriter6.wav",
+      "sha256": "825b668508448212edbf8ddcff2801b0a6251528aaccdf8ab85427023cf0797f"
+    },
+    "isaiah658-reverse": {
+      "title": "Reversing Time / Stuck in Time",
+      "author": "isaiah658",
+      "license": "CC0 1.0",
+      "page": "https://opengameart.org/content/reversing-time-stuck-in-time",
+      "download": "https://opengameart.org/sites/default/files/Reverse-Time-Loop-isaiah658_0.ogg",
+      "sha256": "dd970cfede2e4d091004be2d3f036dcc824edb8ea9ab82c4c44d1cb380de679b"
+    }
+  },
+  "outputs": [
+    { "out": "sfx/ui_move", "source": "kenney-interface", "file": "Audio/select_001.ogg", "use": "選單游標移動" },
+    { "out": "sfx/ui_confirm", "source": "kenney-interface", "file": "Audio/confirmation_001.ogg", "use": "確認" },
+    { "out": "sfx/ui_cancel", "source": "kenney-interface", "file": "Audio/back_001.ogg", "use": "返回、取消" },
+    { "out": "sfx/ui_error", "source": "kenney-interface", "file": "Audio/error_004.ogg", "use": "無法使用的項目" },
+    { "out": "sfx/ui_save", "source": "kenney-interface", "file": "Audio/maximize_003.ogg", "use": "存檔成功" },
+    { "out": "sfx/map_investigate", "source": "kenney-interface", "file": "Audio/pluck_001.ogg", "use": "調查" },
+    { "out": "sfx/text_tick", "source": "cassie-typewriter", "file": "typewriter6.wav", "start": 0.03, "duration": 0.12, "fade_out": 0.04, "peak": -6, "use": "對話送字" },
+    { "out": "sfx/map_echo", "source": "isaiah658-reverse", "file": "Reverse-Time-Loop-isaiah658_0.ogg", "start": 2, "duration": 1.2, "fade_in": 0.15, "fade_out": 0.4, "trim": false, "use": "殘響、回溯" },
+    { "out": "sfx/map_door", "source": "kenney-rpg", "file": "OGG/doorOpen_1.ogg", "use": "換地圖、開鎖" },
+    { "out": "sfx/item_get", "source": "kenney-rpg", "file": "OGG/handleSmallLeather.ogg", "use": "取得道具" },
+    { "out": "sfx/bt_miss", "source": "kenney-rpg", "file": "OGG/cloth1.ogg", "use": "戰鬥：未命中" },
+    { "out": "sfx/bt_hit", "source": "rubberduck-100", "file": "hit_01.ogg", "use": "戰鬥：敵人受傷" },
+    { "out": "sfx/bt_crit", "source": "rubberduck-100", "file": "hit_04.ogg", "use": "戰鬥：爆擊" },
+    { "out": "sfx/bt_hurt", "source": "rubberduck-100", "file": "hit_02.ogg", "use": "戰鬥：我方受傷" },
+    { "out": "sfx/bt_shot", "source": "rubberduck-100", "file": "shot_02.ogg", "use": "戰鬥：開槍" },
+    { "out": "sfx/bt_down", "source": "rubberduck-100", "file": "slam_01.ogg", "use": "戰鬥：敵人倒下" },
+    { "out": "sfx/bt_skill", "source": "jaggedstone-magic", "file": "magical_2.ogg", "fade_out": 0.1, "use": "戰鬥：增益、減益、治療等技能" },
+    { "out": "sfx/jingle_victory", "source": "kenney-jingles", "file": "OGG/jingles_PIZZA/jingles_PIZZA03.ogg", "use": "戰鬥勝利（撥弦短樂句）" },
+    { "out": "sfx/jingle_defeat", "source": "kenney-jingles", "file": "OGG/jingles_PIZZA/jingles_PIZZA14.ogg", "use": "戰敗（撥弦下行短樂句）" }
+  ]
+}

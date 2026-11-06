@@ -8,6 +8,7 @@ import { WIDTH, HEIGHT, COLORS, TEST_MODE } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, Button, panel, fitText } from '../ui/widgets.js';
 import { DialogueBox } from '../ui/DialogueBox.js';
+import { audio } from '../audio/index.js';
 import {
   startBattle, currentActor, isPlayerTurn, commands, act, advanceEnemy, turnOrder, finishBattle, intentOf,
 } from '../core/battle/engine.js';
@@ -720,7 +721,7 @@ export class BattleScene extends Phaser.Scene {
       const sub = e.sub ?? (layout === 'list' && helpText(e) ? '' : null);
       const b = new Button(this, x, y, w, h, e.label, {
         sub, fontSize: layout === 'list' ? 16 : 17, align: layout === 'list' ? 'left' : 'center',
-        onClick: (_btn, ptr) => this.pick(i, ptr),
+        onClick: (_btn, ptr) => this.pick(i, ptr), sfx: null, // 介面音由 pick 統一處理（鍵盤與觸控一致）
       });
       b.setDepth(DEPTH.cmd);
       b.setEnabled(e.enabled !== false);
@@ -755,13 +756,16 @@ export class BattleScene extends Phaser.Scene {
     const e = this.menu.entries[i];
     if (!e) return;
     if (shouldFocusFirst({ touch: ptr?.wasTouch, layout: this.menu.layout, focused: this.menu.index === i, hasDetail: !!helpText(e) })) {
+      audio.sfx('ui_move');
       this.focusMenu(i);
       return;
     }
     if (e.enabled === false) {
+      audio.sfx('ui_error');
       if (e.reason) this.toast(e.reason);
       return;
     }
+    audio.sfx(e.label === '返回' ? 'ui_cancel' : 'ui_confirm');
     e.onSelect?.();
   }
 
@@ -880,6 +884,7 @@ export class BattleScene extends Phaser.Scene {
   onUnitTap(uid) {
     if (this.mode !== 'target' || this.dialogue.active || !this.targetUids?.includes(uid)) return;
     const pick = this.targetPick;
+    if (pick) audio.sfx('ui_confirm'); // 直接點敵人立繪選目標＝確認（M6）
     pick?.(uid);
   }
 
@@ -895,12 +900,17 @@ export class BattleScene extends Phaser.Scene {
     const m = this.menu;
     const n = m.buttons.length;
     const code = ev.code;
+    const before = m.index;
     if (code === 'ArrowLeft' || code === 'KeyA') this.focusMenu(m.index - 1);
     else if (code === 'ArrowRight' || code === 'KeyD') this.focusMenu(m.index + 1);
     else if (code === 'ArrowUp' || code === 'KeyW') this.focusMenu(m.cols === 1 ? m.index - 1 : (m.index - m.cols >= 0 ? m.index - m.cols : m.index));
     else if (code === 'ArrowDown' || code === 'KeyS') this.focusMenu(m.cols === 1 ? m.index + 1 : Math.min(n - 1, m.index + m.cols));
-    else if (code === 'Enter' || code === 'Space' || code === 'NumpadEnter' || code === 'KeyZ') this.pick(m.index);
-    else if (code === 'Escape' || code === 'KeyX' || code === 'Backspace') m.onBack?.();
+    else if (code === 'Enter' || code === 'Space' || code === 'NumpadEnter' || code === 'KeyZ') { this.pick(m.index); return; }
+    else if (code === 'Escape' || code === 'KeyX' || code === 'Backspace') {
+      if (m.onBack) { audio.sfx('ui_cancel'); m.onBack(); }
+      return;
+    }
+    if (this.menu === m && m.index !== before) audio.sfx('ui_move');
   }
 
   // ---------- 結束 ----------
@@ -945,7 +955,7 @@ export class BattleScene extends Phaser.Scene {
       objs.push(addText(this, WIDTH / 2, 300, body, { fontSize: '15px', color: COLORS.text, align: 'center', lineSpacing: 6 }).setOrigin(0.5).setDepth(DEPTH.overlay));
       this.clearMenu();
       this.mode = 'result';
-      const btn = new Button(this, WIDTH / 2, 398, 200, 52, '繼續', { onClick: () => done() });
+      const btn = new Button(this, WIDTH / 2, 398, 200, 52, '繼續', { onClick: () => done() }); // 觸控：Button 播確認音；鍵盤：pick 播
       btn.setDepth(DEPTH.cmd);
       btn.setFocused(true);
       objs.push(btn);

@@ -11,6 +11,7 @@
 import { WIDTH, HEIGHT, TEST_MODE } from '../config.js';
 import { session } from '../session.js';
 import { addText, Button, fitText } from '../ui/widgets.js';
+import { audio } from '../audio/index.js';
 import { spriteKey } from '../textures.js';
 import { guestFor, pickScripted } from '../core/dream.js';
 import { cloud, dream } from '../cloud-client.js';
@@ -79,7 +80,7 @@ export class DreamChatScene extends Phaser.Scene {
     this.buildVerify();
 
     this.input.keyboard.on('keydown', (ev) => {
-      if (ev.code === 'Escape') { ev.preventDefault?.(); this.leave(); }
+      if (ev.code === 'Escape') { ev.preventDefault?.(); audio.sfx('ui_cancel'); this.leave(); }
     });
 
     if (this.log.length === 0) {
@@ -146,7 +147,7 @@ export class DreamChatScene extends Phaser.Scene {
     this.nameText = addText(this, 66, 22, '', { fontSize: '18px', fontStyle: 'bold', color: '#d8e4ff' }).setOrigin(0, 0.5);
     fitText(this.nameText, this.guest.name, 150);
     this.remainText = addText(this, 66, 48, '', { fontSize: '12px', color: '#9fb0cf' }).setOrigin(0, 0.5);
-    this.leaveBtn = new Button(this, 306, 34, 84, 42, '離開', { fontSize: 16, onClick: () => this.leave() });
+    this.leaveBtn = new Button(this, 306, 34, 84, 42, '離開', { fontSize: 16, sfx: 'cancel', onClick: () => this.leave() });
   }
 
   buildLog() {
@@ -182,7 +183,7 @@ export class DreamChatScene extends Phaser.Scene {
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); this.submit(); }
-      if (e.key === 'Escape') { e.preventDefault(); this.leave(); }
+      if (e.key === 'Escape') { e.preventDefault(); audio.sfx('ui_cancel'); this.leave(); }
     });
     this.inputEl = input;
     this.add.dom(8 + 128, INPUT_Y, input);

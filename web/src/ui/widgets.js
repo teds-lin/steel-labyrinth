@@ -2,6 +2,10 @@
 // 所有字串一律經 Phaser Text 的 setText 顯示（不經過 HTML）。
 import { FONT, COLORS, TEXT_RESOLUTION } from '../config.js';
 import { graphemes } from '../core/name.js';
+import { audio } from '../audio/index.js';
+
+/** 按鈕的介面音：confirm（預設）／cancel（返回、取消類）／null（不響，例如由呼叫端自己決定音效的按鈕）。 */
+const BUTTON_SFX = { confirm: 'ui_confirm', cancel: 'ui_cancel' };
 
 export const ELLIPSIS = '…';
 
@@ -57,16 +61,19 @@ export function addText(scene, x, y, str, style = {}) {
   return t;
 }
 
-/** 按鈕：圓角底板＋文字（可有第二行小字）。onClick 在放開時觸發。 */
+/** 按鈕：圓角底板＋文字（可有第二行小字）。onClick 在放開時觸發；觸發時播 sfx 指定的介面音（M6）。 */
 export class Button extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, w, h, label, { onClick, sub = null, fontSize = 17, align = 'center' } = {}) {
+  constructor(scene, x, y, w, h, label, { onClick, sub = null, fontSize = 17, align = 'center', sfx = 'confirm' } = {}) {
     super(scene, x, y);
     this.w = w;
     this.h = h;
     this.onClick = onClick;
+    this.sfx = sfx;
     this.enabled = true;
     this.focused = false;
     this.pressed = false;
+    this.pressedDisabled = false;
+    this.dimmed = false;
     this.align = align;
     this.bg = scene.add.graphics();
     this.hit = scene.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
@@ -85,13 +92,18 @@ export class Button extends Phaser.GameObjects.Container {
     this.fit();
 
     this.hit.on('pointerover', (ptr) => this.emit('hover', this, ptr));
-    this.hit.on('pointerdown', () => { if (this.enabled) { this.pressed = true; this.redraw(); } });
-    this.hit.on('pointerout', () => { this.pressed = false; this.redraw(); });
+    this.hit.on('pointerdown', () => {
+      if (this.enabled) { this.pressed = true; this.redraw(); } else this.pressedDisabled = true;
+    });
+    this.hit.on('pointerout', () => { this.pressed = false; this.pressedDisabled = false; this.redraw(); });
     this.hit.on('pointerup', (ptr) => {
       const was = this.pressed;
+      const wasDisabled = this.pressedDisabled;
       this.pressed = false;
+      this.pressedDisabled = false;
       this.redraw();
       if (was && this.enabled) this.activate(ptr);
+      else if (wasDisabled && !this.enabled) this.denied();
     });
     this.redraw();
     scene.add.existing(this);
@@ -99,7 +111,22 @@ export class Button extends Phaser.GameObjects.Container {
 
   /** ptr：觸發點擊的指標（滑鼠或觸控；鍵盤啟動時沒有）。 */
   activate(ptr) {
-    if (this.enabled && typeof this.onClick === 'function') this.onClick(this, ptr);
+    if (!this.enabled) { this.denied(); return; }
+    if (typeof this.onClick !== 'function') return;
+    if (BUTTON_SFX[this.sfx]) audio.sfx(BUTTON_SFX[this.sfx]);
+    this.onClick(this, ptr);
+  }
+
+  /** 點到停用的按鈕：播 ui_error（sfx 為 null 的按鈕由呼叫端自己處理，例如戰鬥選單）。 */
+  denied() {
+    if (this.sfx !== null) audio.sfx('ui_error');
+  }
+
+  /** 變暗（仍可操作），例如全部靜音時的音量列。 */
+  setDimmed(v) {
+    this.dimmed = !!v;
+    this.redraw();
+    return this;
   }
 
   setLabel(text, sub) {
@@ -142,15 +169,17 @@ export class Button extends Phaser.GameObjects.Container {
     g.fillRoundedRect(-w / 2, -h / 2, w, h, 6);
     g.lineStyle(2, stroke, 1);
     g.strokeRoundedRect(-w / 2, -h / 2, w, h, 6);
-    this.label.setColor(this.enabled ? (this.focused ? '#ffe2b0' : COLORS.text) : COLORS.textDisabled);
+    const on = this.dimmed ? COLORS.textDim : COLORS.text;
+    this.label.setColor(this.enabled ? (this.focused ? '#ffe2b0' : on) : COLORS.textDisabled);
     if (this.sub) this.sub.setColor(this.enabled ? COLORS.textDim : COLORS.textDisabled);
   }
 }
 
 /**
  * 垂直按鈕清單：滑鼠移過去會聚焦，方向鍵上下移動、Enter/空白鍵確認。
- * items: [{ label, sub?, enabled?, onSelect, x?, y?, w?, h?, fontSize?, align? }]
+ * items: [{ label, sub?, enabled?, onSelect, x?, y?, w?, h?, fontSize?, align?, sfx? }]
  * 個別項目可以用 x／y／w／h／fontSize 指定自己的位置與大小（自訂版面，例如雲端存檔頁）；鍵盤仍依清單順序移動。
+ * sfx：確認時的介面音（'confirm' 預設、'cancel'、null）；方向鍵移動焦點時播 ui_move（M6）。
  */
 export class ButtonList {
   constructor(scene, { x, y, w, h = 48, gap = 10, items, fontSize = 17, align = 'center' }) {
@@ -159,6 +188,7 @@ export class ButtonList {
     this.buttons = items.map((it, i) => {
       const b = new Button(scene, it.x ?? x, it.y ?? y + i * (h + gap), it.w ?? w, it.h ?? h, it.label, {
         sub: it.sub ?? null, fontSize: it.fontSize ?? fontSize, align: it.align ?? align, onClick: () => it.onSelect?.(i),
+        sfx: it.sfx === undefined ? 'confirm' : it.sfx,
       });
       b.setEnabled(it.enabled !== false);
       b.on('hover', () => { if (b.enabled) this.focus(i); });
@@ -180,13 +210,17 @@ export class ButtonList {
     let i = this.index;
     for (let step = 0; step < n; step++) {
       i = (i + delta + n) % n;
-      if (this.buttons[i].enabled) { this.focus(i); return; }
+      if (this.buttons[i].enabled) {
+        if (i !== this.index) audio.sfx('ui_move');
+        this.focus(i);
+        return;
+      }
     }
   }
 
+  /** 確認目前焦點的按鈕；停用的按鈕播 ui_error（Button.activate 處理）。 */
   activate() {
-    const b = this.buttons[this.index];
-    if (b && b.enabled) b.activate();
+    this.buttons[this.index]?.activate();
   }
 
   /** 處理鍵盤；有用到回 true。 */

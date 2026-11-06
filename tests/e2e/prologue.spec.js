@@ -179,9 +179,11 @@ test.describe('序章', () => {
     await g.waitScene('Title', 15_000);
     await g.sleep(300);
 
-    // 「繼續」「用轉移碼接續」停用：游標跳過兩者落在「意見回饋」，再往下繞回「新遊戲」，Enter 進不了讀檔畫面（Menu）
+    // 「繼續」「用轉移碼接續」停用：游標跳過兩者落在「設定」（M6），再往下是「意見回饋」，再繞回「新遊戲」，Enter 進不了讀檔畫面（Menu）
     await g.key('ArrowDown');
     const focused = async () => (await page.evaluate(() => window.__SL.title())).items.find((x) => x.focused)?.label;
+    expect(await focused()).toBe('設定');
+    await g.key('ArrowDown');
     expect(await focused()).toBe('意見回饋');
     await g.key('ArrowDown');
     expect(await focused()).toBe('新遊戲');

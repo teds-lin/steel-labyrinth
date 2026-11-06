@@ -1,9 +1,10 @@
 import { titleFooter, TITLE_KEY_HINT } from '../ui/m5-view.js';
-// 標題畫面：遊戲名稱、新遊戲、繼續（沒有可讀存檔時停用）、用轉移碼接續（雲端存檔）、意見回饋、霧氣飄動。
+// 標題畫面：遊戲名稱、新遊戲、繼續（沒有可讀存檔時停用）、用轉移碼接續（雲端存檔）、設定（聲音，M6）、意見回饋、霧氣飄動。
 import { WIDTH, HEIGHT, COLORS, TEST_MODE } from '../config.js';
 import { session, claimKey } from '../session.js';
 import { addText, ButtonList } from '../ui/widgets.js';
 import { FEEDBACK_LABEL } from '../ui/feedback.js';
+import { SETTINGS_LABEL } from '../ui/audio-view.js';
 
 export class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
@@ -24,8 +25,8 @@ export class TitleScene extends Phaser.Scene {
     // 只要有任何非空的存檔槽（包含損壞、版本較新）就可以按「繼續」，在讀取選單裡看到狀態
     const hasSave = session.hasAnySave();
     this.menu = new ButtonList(this, {
-      // 四個按鈕：往上移、間距縮小，最後一個不壓到下方的操作說明
-      x: WIDTH / 2, y: 340, w: 220, h: 52, gap: 12,
+      // 五個按鈕（M6 加「設定」）：從 y=316 起排、高 48、間距 10，最後一個下緣 572，不壓到下方的操作說明（約 581 起）
+      x: WIDTH / 2, y: 316, w: 220, h: 48, gap: 10,
       items: [
         { label: '新遊戲', onSelect: () => this.scene.start('Name') },
         {
@@ -36,12 +37,15 @@ export class TitleScene extends Phaser.Scene {
           label: '用轉移碼接續', enabled: session.storageAvailable, onSelect: () => this.openTransfer(),
           sub: session.storageAvailable ? null : '瀏覽器封鎖了儲存空間',
         },
+        { label: SETTINGS_LABEL, onSelect: () => this.openSettings() },
         { label: FEEDBACK_LABEL, onSelect: () => this.openFeedback() },
       ],
     });
-    addText(this, WIDTH / 2, HEIGHT - 52, TITLE_KEY_HINT, {
+    this.keyHint = addText(this, WIDTH / 2, HEIGHT - 52, TITLE_KEY_HINT, {
       fontSize: '11px', color: COLORS.textDisabled,
     }).setOrigin(0.5);
+    // 操作說明太寬（字型不同時寬度會變）就等比縮小，左右各留 8
+    if (this.keyHint.width > WIDTH - 16) this.keyHint.setScale((WIDTH - 16) / this.keyHint.width);
     const footer = titleFooter(session.data);
     if (footer) {
       addText(this, WIDTH / 2, HEIGHT - 30, footer, { fontSize: '11px', color: COLORS.textDisabled }).setOrigin(0.5);
@@ -83,12 +87,19 @@ export class TitleScene extends Phaser.Scene {
         label: b.label.text, enabled: b.enabled, focused: i === this.menu.index, sub: b.sub?.text ?? null, x: b.x, y: b.y, w: b.w, h: b.h,
       })),
       landscapeHint: !!this.landscapeHint?.visible,
+      hintWidth: this.keyHint.displayWidth,
     };
   }
 
   openTransfer() {
     this.scene.pause();
     this.scene.launch('Menu', { mode: 'transfer', from: 'Title' });
+  }
+
+  /** 設定（聲音）：選單場景的 settings 模式疊在標題上，關閉後回到標題。 */
+  openSettings() {
+    this.scene.pause();
+    this.scene.launch('Menu', { mode: 'settings', from: 'Title' });
   }
 
   /** 意見回饋：提示頁（選單場景的 feedback 模式）疊在標題上，關閉後回到標題。 */

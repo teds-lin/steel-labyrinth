@@ -4,6 +4,7 @@
 import { WIDTH, COLORS } from '../config.js';
 import { session, formatPlaytime } from '../session.js';
 import { addText, fitText } from '../ui/widgets.js';
+import { audio } from '../audio/index.js';
 import { cloud, formatStamp } from '../cloud-client.js';
 import { MSG, normalizeTransferCode } from '../cloud/sync.js';
 import { mountTurnstile } from '../ui/turnstile-panel.js';
@@ -436,7 +437,7 @@ export const cloudPages = {
     });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); this.submitTransfer(); }
-      if (e.key === 'Escape') { e.preventDefault(); this.leaveTransfer(); }
+      if (e.key === 'Escape') { e.preventDefault(); audio.sfx('ui_cancel'); this.leaveTransfer(); }
     });
     this.codeInput = input;
     this.keep(this.add.dom(WIDTH / 2, inputY, input));

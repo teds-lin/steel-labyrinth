@@ -101,7 +101,7 @@ test.describe('意見回饋', () => {
     await g.sleep(300);
 
     const title = await sl(page, () => window.__SL.title());
-    expect(title.items.map((x) => x.label)).toEqual(['新遊戲', '繼續', '用轉移碼接續', '意見回饋']);
+    expect(title.items.map((x) => x.label)).toEqual(['新遊戲', '繼續', '用轉移碼接續', '設定', '意見回饋']); // M6 加「設定」
     expect(title.items.find((x) => x.label === '意見回饋').enabled).toBe(true);
     // 標題按鈕不能壓到下方的操作說明（HEIGHT - 52 附近）
     await expectLayout(page, g, title.items, { maxBottom: 578 });

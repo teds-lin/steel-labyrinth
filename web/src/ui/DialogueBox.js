@@ -4,6 +4,8 @@ import { session } from '../session.js';
 import { startDialogue } from '../core/dialogue.js';
 import { graphemes } from '../core/name.js';
 import { addText, ButtonList, fitText } from './widgets.js';
+import { audio } from '../audio/index.js';
+import { createTypingTicker } from '../audio/typing.js';
 import { promotionFxView } from './m5-view.js';
 
 const BOX = { x: 8, y: 462, w: WIDTH - 16, h: 170 };
@@ -141,10 +143,12 @@ export class DialogueBox {
       this.typing = true;
       this.next.setVisible(false);
       this.typeTimer?.remove();
+      const tick = createTypingTicker(); // 對話送字音：每 3 個字響一次，空白與標點不響（M6）
       this.typeTimer = this.scene.time.addEvent({
         delay: CHAR_MS, loop: true,
         callback: () => {
           this.shown += 1;
+          if (tick(this.chars[this.shown - 1])) audio.sfx('text_tick');
           this.text.setText(this.chars.slice(0, this.shown).join(''));
           if (this.shown >= this.chars.length) this.finishTyping();
         },

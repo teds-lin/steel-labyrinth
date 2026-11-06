@@ -1,11 +1,14 @@
 // 選單（疊在其他場景上方）：存檔（3 槽，覆蓋前確認）、讀取、雲端存檔、道具、隊伍、回標題。
 // mode：'game'（遊戲中 Esc）、'load'（標題的「繼續」）、'save'（章節結束後的存檔提示）、'transfer'（標題的「用轉移碼接續」）、
 //       'trade'（M5：夢客的交換；地圖的 open_trade 開啟，關閉時呼叫 onClose）、
-//       'feedback'（標題的「意見回饋」：只有提示頁，關閉後回到標題）。
+//       'feedback'（標題的「意見回饋」：只有提示頁，關閉後回到標題）、
+//       'settings'（標題的「設定」：只有聲音設定頁，關閉後回到標題；遊戲中從選單主頁的「設定」進入，M6）。
 // 雲端存檔的各頁面在 cloud-pages.js（mixin）。
 import { WIDTH, HEIGHT, COLORS, GAME_VERSION } from '../config.js';
 import { session, claimKey, formatPlaytime } from '../session.js';
-import { addText, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
+import { addText, Button, ButtonList, panel, fitPart, fitText } from '../ui/widgets.js';
+import { SETTINGS_LABEL, settingsRows, settingsNote, settingsAction, MUTED_MARK } from '../ui/audio-view.js';
+import { audio } from '../audio/index.js';
 import { fieldItems, useFieldItem } from '../core/items.js';
 import { partyStatus, availableSkills } from '../core/stats.js';
 import { cloudPages } from './cloud-pages.js';
@@ -27,6 +30,26 @@ const STAT_LABELS = [['atk', '攻擊'], ['def', '防禦'], ['spd', '速度'], ['
 const ITEMS_PER_PAGE = 4;
 
 const BLOCKED_MSG = '目前無法存檔（瀏覽器封鎖了儲存空間），\n遊戲仍可繼續';
+/** 選單主頁「存檔」的副標（儲存空間被封鎖時）。 */
+const BLOCKED_SUB = '瀏覽器封鎖了儲存空間，遊戲仍可繼續';
+
+/** 這些標籤的按鈕確認時播「取消」音（M6）；其他按鈕播「確認」音。 */
+const BACK_LABELS = new Set(['返回', '取消', '離開', '返回遊戲']);
+
+/** 設定頁版面：音量列縮窄，右邊放 ◀ ▶（觸控用；鍵盤用左右鍵）。內容區 x 36～324。 */
+const SET_ROW = { x: 130, w: 188 };
+const SET_ARROW = { w: 44, minus: 252, plus: 302 };
+/** 音量列內三欄的 x（相對按鈕中心；按鈕寬 188，左緣 −94）：名稱、方塊、數值。 */
+const SET_COL = { name: -80, bar: -24, value: 42 };
+
+/** 主要用觸控操作的裝置（手機、平板）：設定頁不提鍵盤操作。 */
+function isTouchUi() {
+  try {
+    return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  } catch {
+    return false;
+  }
+}
 
 export class MenuScene extends Phaser.Scene {
   constructor() { super('Menu'); }
@@ -61,7 +84,8 @@ export class MenuScene extends Phaser.Scene {
       if (typeof HTMLInputElement !== 'undefined' && ev.target instanceof HTMLInputElement) return;
       if (typeof HTMLTextAreaElement !== 'undefined' && ev.target instanceof HTMLTextAreaElement) return;
       if (ev.repeat || !claimKey(ev)) return;
-      if (ev.code === 'Escape') { this.back(); return; }
+      if (ev.code === 'Escape') { audio.sfx('ui_cancel'); this.back(); return; }
+      if (this.page === 'settings' && this.settingsKey(ev.code)) return;
       this.list?.handleKey(ev.code);
     });
     if (this.mode === 'load') this.showSlots('load');
@@ -69,6 +93,7 @@ export class MenuScene extends Phaser.Scene {
     else if (this.mode === 'transfer') this.showTransferInput();
     else if (this.mode === 'trade') this.showTrade(0);
     else if (this.mode === 'feedback') this.showFeedback();
+    else if (this.mode === 'settings') this.showSettings();
     else this.showMain();
   }
 
@@ -82,6 +107,7 @@ export class MenuScene extends Phaser.Scene {
 
   /**
    * maxBottom：按鈕清單最下緣不能超過的 y（說明文字把清單往下推時，先縮間距、再縮按鈕高度，最矮 44）。
+   * 標籤是「返回／取消／離開／返回遊戲」的項目確認時播取消音（項目自己有 sfx 就照它）。
    */
   setPage(page, title, note, items, { y = 200, h = 52, fontSize = 17, gap = 10, noteAlign = 'center', maxBottom = null } = {}) {
     this.page = page;
@@ -104,6 +130,9 @@ export class MenuScene extends Phaser.Scene {
       if (over() && n > 1) gap = Math.max(4, Math.floor((maxBottom - top - n * h) / (n - 1)));
       if (over()) h = Math.max(44, Math.floor((maxBottom - top - (n - 1) * gap) / n));
     }
+    items = items.map((it) => (it.sfx === undefined && BACK_LABELS.has(it.label) ? { ...it, sfx: 'cancel' } : it));
+    this.settingsArrows = [];
+    this.settingsCols = [];
     this.pageItems = items;
     this.list = new ButtonList(this, { x: WIDTH / 2, y: top + h / 2, w: WIDTH - 72, h, gap, items, align: 'left', fontSize });
     // 副標（名字、損壞原因）太長時以「…」截斷：只截名字／原因的部分
@@ -127,10 +156,17 @@ export class MenuScene extends Phaser.Scene {
       dimmed: this.dim.visible && this.dim.fillAlpha >= 0.5,
       items: (this.list?.buttons ?? []).map((b, i) => ({
         id: this.pageItems?.[i]?.id ?? null,
-        label: b.label.text, sub: b.sub?.text ?? null, enabled: b.enabled, focused: i === this.list.index, x: b.x, y: b.y, w: b.w, h: b.h,
+        label: b.debugLabel ?? b.label.text, sub: b.sub?.text ?? null, enabled: b.enabled, focused: i === this.list.index, x: b.x, y: b.y, w: b.w, h: b.h,
+        dimmed: !!b.dimmed,
         subWidth: b.sub ? b.sub.displayWidth : 0, room: b.w - 24,
       })),
       cloud: this.cloudView ?? null,
+      // 設定頁的 ◀ ▶（row：哪一列，dir：'-' 或 '+'）
+      arrows: (this.settingsArrows ?? []).map((a) => ({ row: a.row, dir: a.dir, x: a.btn.x, y: a.btn.y, w: a.btn.w, h: a.btn.h })),
+      // 設定頁音量列三欄的 x（邏輯座標，對齊檢查用）
+      settingsCols: (this.settingsCols ?? []).map((c) => ({
+        row: c.row, nameX: c.btn.x + c.btn.label.x, barX: c.btn.x + c.bar.x, valueX: c.btn.x + c.value.x,
+      })),
     };
   }
 
@@ -153,23 +189,111 @@ export class MenuScene extends Phaser.Scene {
     };
   }
 
-  showMain(note = null) {
+  /** focusId：回到主頁時要聚焦的項目（從設定、意見回饋返回時回到原本的項目）。 */
+  showMain(note = null, focusId = null) {
     const blocked = !session.storageAvailable;
     const hasParty = (session.data?.characters ?? []).length > 0;
     const items = [
-      { label: '存檔', enabled: !blocked, onSelect: () => this.showSlots('save') },
+      // 儲存空間被封鎖時，提示放在停用的「存檔」副標（9 項＋兩行說明放不進面板）
+      { label: '存檔', enabled: !blocked, sub: blocked ? BLOCKED_SUB : null, onSelect: () => this.showSlots('save') },
       { label: '讀取', enabled: !blocked, onSelect: () => this.showSlots('load') },
       { label: '雲端存檔', enabled: !blocked, onSelect: () => this.showCloud() },
       { label: '道具', onSelect: () => this.showItems(0) },
     ];
     if (hasParty) items.push({ label: '隊伍', onSelect: () => this.showParty() });
     items.push(
+      { id: 'settings', label: SETTINGS_LABEL, onSelect: () => this.showSettings() },
       { id: 'feedback', label: FEEDBACK_LABEL, onSelect: () => this.showFeedback() },
       { label: '回標題', onSelect: () => this.confirmTitle() },
       { label: '返回遊戲', onSelect: () => this.close() },
     );
-    // 最多 8 項：從標題下方開始排，最下緣留在面板（y 70～570）內
-    this.setPage('main', '選單', note ?? (blocked ? BLOCKED_MSG : null), items, { y: 136, h: 46, gap: 8, maxBottom: 562 });
+    // 最多 9 項（M6 加「設定」）：從 y=132 起排、高 44（手機觸控目標至少 44 CSS px）、間距 4，最下緣 560 留在面板（y 70～570）內
+    this.setPage('main', '選單', note, items, { y: 132, h: 44, gap: 4, maxBottom: 562 });
+    const fi = focusId ? this.pageItems.findIndex((it) => it.id === focusId) : -1;
+    if (fi >= 0 && this.list.buttons[fi]?.enabled) this.list.focus(fi);
+  }
+
+  // ---------- 設定（聲音，M6） ----------
+  /**
+   * 音樂／環境音／音效（5 段）、全部靜音、對話打字音。上下選列、左右調整；觸控點 ◀ ▶ 或點整列（循環）。
+   * 音量列的名稱、方塊、數值是三個文字物件，放在固定欄位（SET_COL）對齊；全部靜音時三條變暗並標「（靜音中）」。
+   */
+  showSettings() {
+    const rows = settingsRows(audio.settings);
+    const items = rows.map((r) => ({
+      // 確認音由 settingsDo 在切換「之後」播（取消靜音時聽得到、開啟靜音時不響）
+      id: r.id, label: r.kind === 'level' ? r.name : r.label, sfx: null, onSelect: () => this.settingsDo(r.id, 'confirm'),
+      ...(r.kind === 'level' ? SET_ROW : {}),
+    }));
+    items.push({ id: 'back', label: '返回', onSelect: () => this.leaveSettings() });
+    const note = settingsNote(session.storageAvailable, { touch: isTouchUi() });
+    this.setPage('settings', SETTINGS_LABEL, note, items, { y: 200, h: 48, gap: 8, fontSize: 16, maxBottom: 562 });
+    this.backAction = () => this.leaveSettings();
+    rows.forEach((r, i) => {
+      if (r.kind !== 'level') return;
+      const row = this.list.buttons[i];
+      const bar = addText(this, SET_COL.bar, 0, '', { fontSize: '15px' }).setOrigin(0, 0.5);
+      const value = addText(this, SET_COL.value, 0, '', { fontSize: '16px' }).setOrigin(0, 0.5);
+      const mark = addText(this, SET_COL.name, 13, MUTED_MARK, { fontSize: '11px', color: COLORS.textDim }).setOrigin(0, 0.5);
+      row.add([bar, value, mark]);
+      this.settingsCols.push({ row: r.id, btn: row, bar, value, mark });
+      for (const [dir, x, glyph, action] of [['-', SET_ARROW.minus, '◀', 'left'], ['+', SET_ARROW.plus, '▶', 'right']]) {
+        const btn = new Button(this, x, row.y, SET_ARROW.w, row.h, glyph, {
+          fontSize: 16, sfx: null, onClick: () => { this.list.focus(i); this.settingsDo(r.id, action); },
+        });
+        this.extra.push(btn);
+        this.settingsArrows.push({ row: r.id, dir, btn });
+      }
+    });
+    this.refreshSettings();
+    // M 鍵等其他地方改了設定時，畫面跟著更新
+    this.pageCleanup.push(audio.onChange(() => this.refreshSettings()));
+  }
+
+  refreshSettings() {
+    if (this.page !== 'settings' || !this.list) return;
+    settingsRows(audio.settings).forEach((r, i) => {
+      const b = this.list.buttons[i];
+      if (!b) return;
+      b.debugLabel = r.label;
+      if (r.kind !== 'level') { b.setLabel(r.label); return; }
+      const c = this.settingsCols.find((x) => x.row === r.id);
+      const y = r.dimmed ? -7 : 0; // 靜音中：上移，下面放「（靜音中）」
+      const color = r.dimmed ? COLORS.textDisabled : COLORS.text;
+      b.label.setY(y);
+      c.bar.setText(r.bar).setY(y).setColor(color);
+      c.value.setText(r.value).setY(y).setColor(color);
+      c.mark.setVisible(r.dimmed);
+      b.setDimmed(r.dimmed);
+    });
+  }
+
+  /**
+   * action：left／right／confirm。先改設定再播音效：確認播 ui_confirm；左右有變動播 ui_move（當作試聽），
+   * 已經到 0 或滿格而沒有變動時播 ui_error。靜音或音量 0 時 director 自然不出聲。
+   */
+  settingsDo(rowId, action) {
+    const before = audio.settings;
+    const next = settingsAction(before, rowId, action);
+    const changed = JSON.stringify(next) !== JSON.stringify(before);
+    if (changed) audio.setSettings(next);
+    if (action === 'confirm') audio.sfx('ui_confirm');
+    else audio.sfx(changed ? 'ui_move' : 'ui_error');
+  }
+
+  /** 設定頁的左右鍵：調整目前焦點所在的列。有處理回 true。 */
+  settingsKey(code) {
+    const dir = (code === 'ArrowLeft' || code === 'KeyA') ? 'left' : (code === 'ArrowRight' || code === 'KeyD') ? 'right' : null;
+    if (!dir) return false;
+    const id = this.pageItems?.[this.list?.index]?.id;
+    if (!id || id === 'back') return true;
+    this.settingsDo(id, dir);
+    return true;
+  }
+
+  leaveSettings() {
+    if (this.mode === 'settings') this.close();
+    else this.showMain(null, 'settings');
   }
 
   // ---------- 意見回饋 ----------
@@ -221,7 +345,7 @@ export class MenuScene extends Phaser.Scene {
     el.addEventListener('focus', selectAll);
     el.addEventListener('click', selectAll);
     el.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); this.leaveFeedback(); }
+      if (e.key === 'Escape') { e.preventDefault(); audio.sfx('ui_cancel'); this.leaveFeedback(); }
     });
     const dom = this.add.dom(WIDTH / 2, top + h / 2, el);
     this.extra.push(dom);
@@ -282,7 +406,7 @@ export class MenuScene extends Phaser.Scene {
     this.feedbackBlocked = false;
     this.reportCopy = null;
     if (this.mode === 'feedback') this.close();
-    else this.showMain();
+    else this.showMain(null, 'feedback');
   }
 
   // ---------- 道具 ----------

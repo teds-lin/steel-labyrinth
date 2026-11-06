@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "defaults": {
+    "title": null,
+    "map": null,
+    "dream": null,
+    "battle": null,
+    "chapter_end": null,
+    "ending": null,
+    "game_over": null
+  },
+  "cues": {
+    "ui_move": { "kind": "sfx", "src": "sfx/ui_move", "volume": 0.7, "credit": "kenney-interface" },
+    "ui_confirm": { "kind": "sfx", "src": "sfx/ui_confirm", "volume": 0.8, "credit": "kenney-interface" },
+    "ui_cancel": { "kind": "sfx", "src": "sfx/ui_cancel", "volume": 0.8, "credit": "kenney-interface" },
+    "ui_error": { "kind": "sfx", "src": "sfx/ui_error", "volume": 0.8, "credit": "kenney-interface" },
+    "ui_save": { "kind": "sfx", "src": "sfx/ui_save", "volume": 0.8, "credit": "kenney-interface" },
+    "text_tick": { "kind": "sfx", "src": "sfx/text_tick", "volume": 0.45, "credit": "cassie-typewriter" },
+    "map_investigate": { "kind": "sfx", "src": "sfx/map_investigate", "credit": "kenney-interface" },
+    "map_echo": { "kind": "sfx", "src": "sfx/map_echo", "volume": 0.8, "credit": "isaiah658-reverse" },
+    "map_door": { "kind": "sfx", "src": "sfx/map_door", "volume": 0.7, "credit": "kenney-rpg" },
+    "item_get": { "kind": "sfx", "src": "sfx/item_get", "credit": "kenney-rpg" },
+    "bt_hit": { "kind": "sfx", "src": "sfx/bt_hit", "credit": "rubberduck-100" },
+    "bt_crit": { "kind": "sfx", "src": "sfx/bt_crit", "credit": "rubberduck-100" },
+    "bt_hurt": { "kind": "sfx", "src": "sfx/bt_hurt", "credit": "rubberduck-100" },
+    "bt_miss": { "kind": "sfx", "src": "sfx/bt_miss", "volume": 0.7, "credit": "kenney-rpg" },
+    "bt_shot": { "kind": "sfx", "src": "sfx/bt_shot", "credit": "rubberduck-100" },
+    "bt_skill": { "kind": "sfx", "src": "sfx/bt_skill", "volume": 0.8, "credit": "jaggedstone-magic" },
+    "bt_down": { "kind": "sfx", "src": "sfx/bt_down", "credit": "rubberduck-100" },
+    "jingle_victory": { "kind": "sfx", "src": "sfx/jingle_victory", "volume": 0.8, "credit": "kenney-jingles" },
+    "jingle_defeat": { "kind": "sfx", "src": "sfx/jingle_defeat", "volume": 0.8, "credit": "kenney-jingles" },
+    "sfx_bell": { "kind": "sfx", "synth": "bell" }
+  }
+}
