@@ -8,6 +8,7 @@ import {
   tsToken, loadDreamFixtures, getPass, dreamChat, aiReply, TEST_PEPPER,
 } from './helpers.js';
 import { purge } from '../../worker/src/index.js';
+import { recordPurgeRun, PURGE_RUNS_KEEP_DAYS } from '../../worker/src/purge-runs.js';
 import { ipBucketKey } from '../../worker/src/codes.js';
 
 const DAY = 86400;
@@ -357,6 +358,26 @@ async function purgeRowsPerPlayer(w) {
   return meter.written();
 }
 
+/**
+ * 每日清理執行紀錄（purge_runs）的寫入列數：表裡已有滿 60 天（穩定狀態）時再寫一天＝新增 1 列＋刪最舊 1 列；
+ * 同一天重跑（ON CONFLICT DO UPDATE）取兩者較大值。
+ */
+async function purgeRunRows(w) {
+  const now = Math.floor(Date.now() / 1000);
+  const day = (sec) => new Date(sec * 1000).toISOString().slice(0, 10);
+  await w.db.prepare('DELETE FROM purge_runs').run();
+  for (let d = PURGE_RUNS_KEEP_DAYS; d >= 1; d--) {
+    await w.db.prepare('INSERT INTO purge_runs (day, at, deleted_players, expired_rate_limits, batch, ms) VALUES (?, ?, 0, 0, 450, 1)').bind(day(now - d * 86400), now - d * 86400).run();
+  }
+  const summary = { deleted_players: 0, expired_rate_limits: 0, batch: 450, ms: 1 };
+  const m1 = metered(w.db);
+  await recordPurgeRun(m1.db, now, summary);
+  const m2 = metered(w.db);
+  await recordPurgeRun(m2.db, now + 60, summary);
+  expect((await w.db.prepare('SELECT COUNT(*) AS n FROM purge_runs').first()).n).toBe(PURGE_RUNS_KEEP_DAYS);
+  return Math.max(m1.written(), m2.written());
+}
+
 /** 包一層 D1：累計 batch／all／run 的寫入列數。 */
 function metered(db) {
   let written = 0;
@@ -480,7 +501,12 @@ describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；�
     // Cron：每天一次，最多 PURGE_BATCH 人
     const w = await startWorker();
     let perPerson;
-    try { perPerson = await purgeRowsPerPlayer(w); } finally { await w.close(); }
+    let purgeLog;
+    try {
+      perPerson = await purgeRowsPerPlayer(w);
+      purgeLog = await purgeRunRows(w); // 2026-11-07：每日清理執行紀錄（purge_runs）
+    } finally { await w.close(); }
+    expect(purgeLog).toBeLessThanOrEqual(3);
     const cron = n('PURGE_BATCH') * perPerson;
     // 限流紀錄清理：IP bucket 每天換鹽，建立後 Cron 刪除時再寫 1 列。每個請求最多新增幾列由下一個測試實測斷言：
     // 建立玩家／轉移（IPv6 的 /64＋/48）≤ 2；全域 bucket（g:player、g:transfer、g:write、g:wday）每天至多 4 列。
@@ -509,9 +535,9 @@ describe('惡意流量的每日寫入上限 < 10 萬列（修訂 4 第 6 節；�
     const dreamIpPurge = aiCalls;
     // 全域 bucket 多三列：g:dpass、g:dpassfail、g:neurons:<日期>（每天由 Cron 刪除時各再寫 1 列）
     const dreamRlPurge = 3;
-    const total = players + transfers + hourly + reserved + lastSeen + cron + rlPurge + raceWaste + passes + chats + dreamIpPurge + dreamRlPurge;
+    const total = players + transfers + hourly + reserved + lastSeen + cron + purgeLog + rlPurge + raceWaste + passes + chats + dreamIpPurge + dreamRlPurge;
     const line = `惡意流量每日寫入上限：建立玩家 ${players}＋轉移 ${transfers}＋已登入每小時通道 ${hourly}（${hourlyReq} 次 × ${lane('每小時', plainKinds)} 列）`
-      + `＋保留通道 ${reserved}（${reservedReq} 次 × ${lane('保留', plainKinds)} 列）＋last_seen ${lastSeen}＋Cron ${cron}（${n('PURGE_BATCH')} 人 × ${perPerson} 列）`
+      + `＋保留通道 ${reserved}（${reservedReq} 次 × ${lane('保留', plainKinds)} 列）＋last_seen ${lastSeen}＋Cron ${cron}（${n('PURGE_BATCH')} 人 × ${perPerson} 列）＋清理執行紀錄 ${purgeLog}`
       + `＋限流紀錄清理 ${rlPurge}＋並行失敗路徑 ${raceWaste}`
       + `＋夢境通行證 ${passes}（成功 ${passReq} 次 × ${wr('POST /api/dream/pass')} 列＋失敗 ${passFailReq} 次 × ${wr('POST /api/dream/pass（Turnstile 失敗）')} 列）＋夢客對話 ${chats}（${aiCalls} 次 AI 呼叫 × ${rowsPerCall} 列）＋ip:dcall 清理 ${dreamIpPurge}＋夢境限流紀錄清理 ${dreamRlPurge}＝${total} 列`;
     mkdirSync(join(ROOT, 'test-results'), { recursive: true });

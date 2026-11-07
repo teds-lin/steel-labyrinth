@@ -18,7 +18,9 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
 - `0001_init.sql`：初始資料表。**已套用的 migration 不可修改**（測試會比對 0001 的雜湊）。
 - `0002_revision2.sql`：修訂 2——`saves.data_sha256`；`rate_limits` 改成 WITHOUT ROWID 並移除 `reset_at` 索引；`counters`（玩家數，trigger 維護，給 `MAX_PLAYERS` 用）；`chapter_stats`（統計彙總，trigger 維護）；移除 `clears_by_chapter` 索引。
 - `0003_dream.sql`：M4——`dream_personas`（夢客人設＋預寫台詞）、`dream_lexicon`（簡體字／陸用語詞表）。內容只由 `tools/upload-dream.mjs` 產生的 SQL 寫入。
-- 新的變更一律加新檔（`0004_*.sql`…）。
+- `0004_dream_blocklist.sql`：鐘塔之夢修訂 1——`dream_blocklist`（夢客回覆的拒絕清單）。
+- `0005_purge_runs.sql`：每日清理的執行紀錄（`purge_runs`，保留 60 天；docs/API.md「補充（2026-11-07）」）。
+- 新的變更一律加新檔（`0006_*.sql`…）。**`wrangler deploy` 不會自動套用 migration**：部署前先跑 `npm run worker:migrate:remote`。
 
 ## 部署（需要 `wrangler login` 一次）
 1. `npx wrangler d1 create steel-labyrinth`，把回傳的 `database_id` 填進 `worker/wrangler.toml`。
@@ -35,7 +37,7 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
 
 ### 部署前檢查清單
 - [ ] `npm test` 全綠（含 `tests/worker`、`tests/core`）；`npm run worker:build` 成功。
-- [ ] `test-results/cron-cost-total.txt`（`npm test` 產生）的每日最壞寫入低於 10 萬列，而且有合理餘裕（目前 91,557 列，M5 修正輪之後；餘裕約 8%，見下方「成本與限制」與 docs/API.md「修訂 5」）。
+- [ ] `test-results/cron-cost-total.txt`（`npm test` 產生）的每日最壞寫入低於 10 萬列，而且有合理餘裕（目前 91,559 列，2026-11-07 加上清理執行紀錄之後；餘裕約 8%，見下方「成本與限制」與 docs/API.md「修訂 5」）。
 - [ ] `[vars]` 有修訂 4 的新值：`RL_WRITE_PER_HOUR=20`、`RL_ROTATE_PER_HOUR=3`、`RL_CLEAR_PER_HOUR=10`、`RL_RESERVED_PER_HOUR=3`、`RL_WRITE_GLOBAL_PER_HOUR=100`、`RL_WRITE_GLOBAL_PER_DAY=4000`、`RL_PLAYER_PER_HOUR_V6_48=10`、`RL_TRANSFER_PER_HOUR_V6_48=20`、`MAX_PLAYER_SECONDS=36000`，以及 M5 修正輪的 `RL_PLAYER_GLOBAL_PER_HOUR=15`、`PURGE_BATCH=450`、`ENDINGS="finale:fog_walker,finale:lamp_kept,finale:dawn"`（「章節:結局」配對）（`tests/worker/config.test.js`、`clear-ending.test.js` 把關）。
 - [ ] `wrangler.toml` 的 `database_id` 已換成實際值（不是全 0）。
 - [ ] `ALLOWED_ORIGINS` 只有 `https://teds-lin.github.io`（沒有 localhost；測試會擋）。
@@ -57,7 +59,7 @@ Cloudflare Worker＋D1＋Workers AI。API 規格見 `docs/API.md`（與前文衝
 - `MAX_PLAYERS=5000`：最壞 5000 × 3 格 × 16 KB ≈ 240 MB，低於 D1 免費方案每個資料庫 500 MB 的一半。建立超過 7 天、沒有存檔也沒有通關紀錄的空帳號由 Cron 刪除，釋出名額——看 `created_at` 而不看 `last_seen`（API.md 修訂 5a），所以惡意建立的空帳號不能靠定期讀取一直佔住名額。玩家這一側的代價：啟用雲端 7 天內都沒上傳過存檔的帳號會被清除，回到遊戲時會看到連結失效的重新連結頁面，重新啟用雲端存檔即可。
 - Cron 每次最多刪 `PURGE_BATCH=450` 人（M5 修正輪起；必須 ≥ 每日最多新建帳號數 15 × 25＝375，空帳號才不會累積；單次最多約 14,400 列寫入；開放到終章後每人 32 列（M4 時 22 列）：3 格存檔、每章通關、統計 trigger、容量計數、9 個玩家限流 bucket〔write、clear、rotate、rsv、transfer、dpass、dchat、dcall、dmin〕）；玩家的限流紀錄與玩家一起刪，IP 與全域的過期限流紀錄每天清。
 - `GET /api/stats` 讀 `chapter_stats`（讀取列數＝章節數），並用 Cache API 快取 60 秒。注意：Cache API 在 `*.workers.dev` 網域上可能不生效；即使不生效，每次也只讀幾列。回報通關的遊戲時間上限 `MAX_PLAYER_SECONDS=36000`（10 小時）。
-- 惡意流量的每日寫入上限由 `tests/worker/cron-cost.test.js` 依 API.md 修訂 4 第 6 節／4a 的算式（一個 UTC 日 25 個時間窗、每次已登入寫入以最貴的「新通關」計、Cron 以每日 `PURGE_BATCH` 人計、含 IP 限流紀錄清理），用 `wrangler.toml` 的實際值與實測的每請求寫入列數計算，另含並行失敗路徑（實測 0 列），斷言低於免費的 10 萬列（目前 91,557 列，含夢境通行證與夢客對話），並斷言 `PURGE_BATCH` ≥ 每日最多新建帳號數；調整 `[vars]` 時這個測試會把關。
+- 惡意流量的每日寫入上限由 `tests/worker/cron-cost.test.js` 依 API.md 修訂 4 第 6 節／4a 的算式（一個 UTC 日 25 個時間窗、每次已登入寫入以最貴的「新通關」計、Cron 以每日 `PURGE_BATCH` 人計、含 IP 限流紀錄清理），用 `wrangler.toml` 的實際值與實測的每請求寫入列數計算，另含並行失敗路徑（實測 0 列），斷言低於免費的 10 萬列（目前 91,559 列，含夢境通行證、夢客對話與清理執行紀錄），並斷言 `PURGE_BATCH` ≥ 每日最多新建帳號數；調整 `[vars]` 時這個測試會把關。
 - **在加上 Turnstile 之前，全域額度仍可被有心人耗盡（門檻與時間點，修訂 4b 重估）**：要讓正常玩家連保留通道都寫不進去，必須「全域每日預算 4,000 用完」**而且**「全域每小時上限 100 被佔滿」。修訂 4b 之後每個帳號每小時最多只能消耗 3 次每日預算（並行也一樣），所以 N 個帳號從 UTC 午夜起持續寫入，約在 4,000 ÷ (3N) 小時後用完每日預算，之後鎖死到下一個 UTC 午夜（台灣時間早上 8 點）；佔滿每小時上限只需另外約 4 個帳號（每帳號每小時 30 次一般寫入）。換算：約 170 個帳號 → UTC 8 點（台灣下午 4 點）起鎖死；約 340 個 → UTC 4 點起；約 1,340 個 → UTC 1 點起，幾乎整天。少於約 56 個帳號整天也用不完每日預算（修正前約 5 個帳號以並行請求就能在一天內用完）。帳號建立受每 IP 每小時 5 個、每 /48 每小時 10 個、全域每小時 15 個限制（M5 修正輪由 60 調降）：170 個帳號至少約 12 小時、1,340 個至少約 90 小時（約 4 天；都需要 3 個以上的 IPv4 或 2 個以上的 IPv6 /48 才能跑滿全域 15）；帳號可以事先慢慢建好囤著（有存檔就不會被 Cron 清掉，上限 `MAX_PLAYERS=5000`）。另外約 3 個 IPv4 就能佔滿建立玩家（15）、約 12 個 IPv4 佔滿轉移（120）的全域每小時上限（/48 限制只對 IPv6 有效）；轉移額度被佔滿時，新玩家也無法啟用雲端存檔（修訂 4b 第 2 節的代價）。被耗盡時影響是「雲端暫時無法使用」，本機遊戲不受影響；通關紀錄會留在本機，之後補送。
 
 ## 鐘塔之夢（M4）

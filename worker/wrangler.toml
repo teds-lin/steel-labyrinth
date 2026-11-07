@@ -14,6 +14,7 @@ database_id = "fac6b0f7-d6aa-422b-bda1-a0a30446482f"
 migrations_dir = "migrations"
 
 # 定期清理（每天一次，UTC 03:17）：刪除 180 天未登入的玩家、超過 7 天沒有使用的空帳號（每次最多 PURGE_BATCH 人）及其資料、過期的限流紀錄。部署時自動註冊，不需另外設定。
+# 每次清理完成後在 D1 的 purge_runs 寫一列執行紀錄（保留 60 天，docs/API.md「補充（2026-11-07）」）。
 # M4 鐘塔之夢：Workers AI（夢客對話）。模型由 vars 的 DREAM_MODEL 決定。
 [ai]
 binding = "AI"

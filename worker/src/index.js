@@ -3,6 +3,7 @@
 // 安全重點：SQL 一律參數綁定；權杖與轉移碼由客戶端產生、伺服器只存雜湊、低熵秘密拒收；權杖用常數時間比較；
 // IP 只以「每日鹽＋IP（IPv6 取 /64，另加 /48 一層）」雜湊當限流 key；已登入寫入有每位玩家的保留通道；不在允許清單的 Origin 一律 403；POST／PUT 必須是 JSON（415）；
 // 超過限流不寫入 D1；錯誤回應不含內部細節；body 先看 content-length、讀取時再實際限制大小。
+import { recordPurgeRun } from './purge-runs.js';
 import {
   HttpError, badRequest, jsonResponse, errorResponse, internalError, readJson, isPlainObject,
   checkOrigin, withCors, requireJsonContentType, MESSAGES,
@@ -443,10 +444,10 @@ const PURGE_TARGETS = `SELECT p.player_id FROM players p JOIN json_each(?3) j ON
 /**
  * Cron（每天一次）：刪除超過 180 天未登入的玩家，以及建立超過 7 天的空帳號（修訂 4 第 2 節、修訂 5a），連同其存檔、通關紀錄；
  * 每次最多 batch（PURGE_BATCH）人，避免單次寫入暴增，剩下的下一次再刪。另外刪除過期的限流紀錄。
- * 回傳這次刪除的玩家數；另外 console.log 一行結構化 JSON（event、at、deleted_players、expired_rate_limits、batch、ms），
- * 不含 player_id 或權杖；過期限流數取自 meta.changes，不增加任何 D1 讀寫。
+ * 回傳匯總 { at, deleted_players, expired_rate_limits, batch, ms }；另外 console.log 一行結構化 JSON（event:'purge' 加上這些欄位），
+ * 不含 player_id 或權杖；過期限流數取自 meta.changes，不增加任何 D1 讀寫。執行紀錄（purge_runs）由 scheduled 另外寫（recordPurgeRun）。
  */
-export async function purge(db, now, { batch = 500 } = {}) {
+export async function purgeRun(db, now, { batch = 500 } = {}) {
   const t0 = Date.now();
   const stale = now - INACTIVE_SEC;
   const empty = now - EMPTY_ACCOUNT_SEC;
@@ -465,12 +466,17 @@ export async function purge(db, now, { batch = 500 } = {}) {
     deleted = rs[3]?.results?.length ?? 0;
   }
   const [expiredRs] = await db.batch([purgeExpired(db, now)]);
-  console.log(JSON.stringify({
-    event: 'purge', at: new Date(now * 1000).toISOString(), deleted_players: deleted,
-    expired_rate_limits: expiredRs?.meta?.changes ?? 0, batch, ms: Date.now() - t0,
-  }));
-  return deleted;
+  const summary = { at: now, deleted_players: deleted, expired_rate_limits: expiredRs?.meta?.changes ?? 0, batch, ms: Date.now() - t0 };
+  console.log(JSON.stringify({ event: 'purge', ...summary, at: new Date(now * 1000).toISOString() }));
+  return summary;
 }
+
+/** 清理並回傳刪除的玩家數（purgeRun 的簡便版；測試與額度量測用）。 */
+export async function purge(db, now, opts) {
+  return (await purgeRun(db, now, opts)).deleted_players;
+}
+
+// 執行紀錄（purge_runs）：worker/src/purge-runs.js 的 recordPurgeRun，由 scheduled 呼叫。
 
 // ---------- 鐘塔之夢（M4） ----------
 
@@ -594,7 +600,14 @@ export default {
 
   async scheduled(controller, env, ctx) {
     const now = Math.floor((controller?.scheduledTime ?? Date.now()) / 1000);
-    const job = purge(env.DB, now, { batch: limitOf(env, 'PURGE_BATCH', 500) });
+    // 先清理，再另外寫執行紀錄：紀錄寫失敗（資料表還沒建、D1 暫時錯誤）不影響已完成的清理，只多印一行 purge_record_failed
+    const job = purgeRun(env.DB, now, { batch: limitOf(env, 'PURGE_BATCH', 500) }).then(async (summary) => {
+      try {
+        await recordPurgeRun(env.DB, now, summary);
+      } catch (e) {
+        console.log(JSON.stringify({ event: 'purge_record_failed', at: new Date(now * 1000).toISOString(), error: String(e?.message ?? e).slice(0, 200) }));
+      }
+    });
     if (ctx?.waitUntil) ctx.waitUntil(job.catch(() => {}));
     await job;
   },
