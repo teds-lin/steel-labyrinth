@@ -99,7 +99,9 @@ if (TEST_MODE) {
     chat: () => ro(activeScene('DreamChat')?.debugInfo()),
     /**
      * 聲音（M6）：{ backend（測試模式一律 'null'）, unlocked, catalog（目錄已載入）, settings, saved（最後一次寫入 localStorage 是否成功）,
-     * lastSfx（最近實際送出播放的音效 id，靜音或音量 0 時不會增加）, hint／toast／toastRect（M 鍵提示與位置）, broken（載入失敗的 cue）,
+     * lastSfx（最近實際送出播放的音效 id，靜音或音量 0 時不會增加）, requests（每個播放要求：id、result、t＝毫秒、
+     * f＝送出時的 game.loop.frame（該步更新完成後的值））, hint／toast／toastRect（M 鍵提示與位置）, broken（無法播放的 cue）,
+     * bgm／amb／battle／paused／music（M6 P3 的背景音樂與環境音）, scatter（響過的隨機單次音）,
      * real（?test=1&audio=1 的真實後端：context 狀態、master 增益、已載入的 buffer 數；NullBackend 時 null） }。
      */
     audio: () => ro(audioDebugInfo()),

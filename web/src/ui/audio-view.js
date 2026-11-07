@@ -57,16 +57,21 @@ export function settingsAction(s, rowId, action) {
 
 /**
  * 回報資訊用的聲音狀態（AudioDirector.info() → buildReportInfo 的 env.sound）。依序判斷：
- * 靜音 → muted；瀏覽器不支援（後端 none 或沒有後端）→ off/unsupported；音效目錄載入失敗 → off/catalog；
- * 尚未解鎖（還沒點過畫面）→ off/locked；其他 → on＋各通道音量段數與打字音開關。
+ * 瀏覽器不支援（後端 none 或沒有後端）→ off/unsupported；音效目錄載入失敗 → off/catalog（這兩種取消靜音也不會有聲音，所以優先於靜音）；
+ * 靜音 → muted；尚未解鎖（還沒點過畫面）→ off/locked；其他 → on＋各通道音量段數與打字音開關。
+ * on／muted 時，有無法播放的音效（載入失敗、播放出錯）另附 broken 數量。
  */
 export function soundStatus(info) {
   const s = info?.settings;
-  if (s?.mute) return { status: 'muted' };
+  // 瀏覽器不支援優先於靜音：回報時才看得出「就算取消靜音也不會有聲音」
   if (!info || !info.backend || info.backend === 'none') return { status: 'off', reason: 'unsupported' };
   if (!info.catalog) return { status: 'off', reason: 'catalog' };
+  const broken = Array.isArray(info.broken) ? info.broken.length : 0;
+  if (s?.mute) return broken > 0 ? { status: 'muted', broken } : { status: 'muted' };
   if (!info.unlocked) return { status: 'off', reason: 'locked' };
-  return { status: 'on', bgm: s.bgm, amb: s.amb, sfx: s.sfx, typing: !!s.typing };
+  // 打字音跟音效音量：音效調到 0 時打字音實際上也不響
+  const on = { status: 'on', bgm: s.bgm, amb: s.amb, sfx: s.sfx, typing: !!s.typing && s.sfx > 0 };
+  return broken > 0 ? { ...on, broken } : on;
 }
 
 /** M 鍵切換後的短提示。menuHint：地圖上第一次按 M 時提醒選單改用 Esc（M 以前會開選單）。 */

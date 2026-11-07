@@ -207,10 +207,15 @@ describe('第 1 輪審查修正', () => {
 });
 
 describe('第 2 輪審查修正', () => {
-  it('零長度的音（同一 tick 開又關）略過，不會變成卡住的長音', () => {
+  it('零長度的音（同一 tick 開又關，打擊樂的一擊）：保留，note off 排在自己的 note on 之後（不會卡成長音）', () => {
     const t = track([[0, 0x99, 36, 100], [0, 0x89, 36, 0], [480, 0x90, 60, 80], [480, 0x80, 60, 0]]);
     const m = loopSection(parseMidi(midi([conductor(), t])), { fromBar: 0, toBar: 1, repeats: 1 });
-    expect(m.tracks[1].filter((e) => e.bytes[0] < 0xf0).map((e) => [e.tick, e.bytes[0], e.bytes[1]])).toEqual([[480, 0x90, 60], [960, 0x80, 60]]);
+    expect(m.tracks[1].filter((e) => e.bytes[0] < 0xf0).map((e) => [e.tick, e.bytes[0], e.bytes[1]])).toEqual([[0, 0x99, 36], [0, 0x89, 36], [480, 0x90, 60], [960, 0x80, 60]]);
+  });
+  it('零長度的音後面在同一 tick 接同音高的一般音：零長度音的 note off 不會切掉後面那個音', () => {
+    const t = track([[0, 0x99, 36, 100], [0, 0x89, 36, 0], [0, 0x99, 36, 90], [240, 0x89, 36, 0]]);
+    const m = loopSection(parseMidi(midi([conductor(), t])), { fromBar: 0, toBar: 1, repeats: 1 });
+    expect(m.tracks[1].filter((e) => e.bytes[0] < 0xf0).map((e) => [e.tick, e.bytes[0], e.bytes[1]])).toEqual([[0, 0x99, 36], [0, 0x89, 36], [0, 0x99, 36], [240, 0x89, 36]]);
   });
   it('中途重寫相同的拍號不算換拍號；不同才丟錯', () => {
     const same = track([[0, 0xff, 0x51, 3, 0x09, 0x27, 0xc0], [0, 0xff, 0x58, 4, 3, 2, 24, 8], [BAR * 2, 0xff, 0x58, 4, 3, 2, 24, 8]]);

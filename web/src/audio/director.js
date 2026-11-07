@@ -42,6 +42,7 @@ export class AudioDirector {
     this.scatterGen = 0;
     this.scattered = [];
     this.hidden = false;
+    this.frame = null; // () => 目前影格序號（initAudio 注入 Phaser 的 game.loop.frame）
     this.lastAt = new Map();
     this.recent = []; // 最近開始播放的時間（同時發聲上限用）
     this.requests = []; // 每個「應該要響」的要求與結果：played／gap（同 cue 40 ms 內重複）／burst（同時發聲上限）
@@ -164,7 +165,10 @@ export class AudioDirector {
   }
 
   logRequest(id, result, t) {
-    this.requests.push({ id, result, t: Math.round(t) });
+    // f：送出時的遊戲影格序號（initAudio 設定 frame；E2E 用來確認戰鬥音效沒有擠在同一影格送出）
+    let f = null;
+    try { f = typeof this.frame === 'function' ? this.frame() : null; } catch { /* 拿不到就不記 */ }
+    this.requests.push({ id, result, t: Math.round(t), f });
     if (this.requests.length > REQ_MAX) this.requests.splice(0, this.requests.length - REQ_MAX);
   }
 

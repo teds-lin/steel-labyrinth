@@ -24,6 +24,36 @@ const requests = async (page) => (await page.evaluate(() => window.__SL.audio())
 const since = async (page, n, kinds) => (await sfx(page)).slice(n).filter((x) => kinds.has(x));
 /** 從第 n 筆要求之後、戰鬥 cue 的要求（含被節流略過的）。 */
 const battleRequests = async (page, n) => (await requests(page)).slice(n).filter((r) => BATTLE.has(r.id));
+const BURST_MAX = 3; // 同 web/src/audio/director.js
+const BURST_MS = 30;
+/**
+ * 沒播出的要求是否都有正當理由（依 requests[].t 重算，與畫面更新率無關）：
+ * - gap（同 cue 40 ms 內重複）：放行。
+ * - burst（同時發聲上限）：只能是一般音效（catalog 沒有 burst 欄位），而且前 30 ms 內真的已有 3 個非 exempt 的音播出（t 已四捨五入，容 1 ms）。
+ * 用全部的要求重算（priority 也佔額度，exempt 不算）。
+ */
+function unjustifiedDrops(all) {
+  const played = [];
+  const bad = [];
+  for (const r of all) {
+    const c = CATALOG.cues[r.id];
+    if (r.result === 'burst') {
+      const n = played.filter((t) => r.t - t < BURST_MS + 1).length;
+      if (c?.burst !== undefined || n < BURST_MAX) bad.push(r);
+    } else if (r.result === 'played') {
+      if (c?.burst !== 'exempt') played.push(r.t);
+    } else if (r.result !== 'gap') bad.push(r);
+  }
+  return bad;
+}
+/**
+ * TEST_MODE 下每個會出聲的戰鬥事件之後都有一次 delayedCall（下一個影格才處理下一個事件），所以相鄰的戰鬥音效一定落在不同影格
+ * （requests[].f＝送出時 Phaser 的 game.loop.frame）。整回合的音效被擠在同一影格送出（例如 playLog 少了 await）時，
+ * 上面的重算會把 burst 當成合理、毫秒也可能被同步繪圖拉開，只有影格編號抓得到。與畫面更新率無關。
+ */
+function sameFrameBattleCues(req) {
+  return req.filter((r, i) => i > 0 && r.f !== null && r.f === req[i - 1].f);
+}
 
 /** 依戰鬥 log 算出預期的 cue 序列（同一份對應表與純函式）。 */
 function expectedBattleCues(b) {
@@ -224,29 +254,33 @@ async function bossBattle(page, testInfo, want, policy) {
     if (b.mode !== 'root') { await g.battleButton('返回'); continue; }
     await g.battleCommand(policy(b));
   }
-  return { g, b, got: await since(page, n, BATTLE), req: await battleRequests(page, rn), scene: await g.scene() };
+  return { g, b, got: await since(page, n, BATTLE), req: await battleRequests(page, rn), all: (await requests(page)).slice(rn), scene: await g.scene() };
 }
 
 test.describe('M6 P2 戰鬥音效', () => {
   test('一場戰鬥從開始到勝利：要求播放的序列與依 log 推出的預期序列完全相等，只容許同 cue 40 ms 內重複被略過，最後是勝利短樂句', async ({ page }, testInfo) => {
-    const { b, got, req } = await bossBattle(page, testInfo, 'victory', basicPolicy);
+    const { b, got, req, all } = await bossBattle(page, testInfo, 'victory', basicPolicy);
     expect(b.mode).toBe('result');
     const want = expectedBattleCues(b);
     expect(want.at(-1)).toBe('jingle_victory');
-    // 要求的序列與依 log 推出的預期序列完全相等；沒播出的只能是「同一個 cue 40 ms 內重複」（gap），不能是同時發聲上限
+    // 要求的序列與依 log 推出的預期序列完全相等；沒播出的都要有正當理由（unjustifiedDrops），相鄰戰鬥音效不能在同一影格（sameFrameBattleCues）
     expect(req.map((r) => r.id)).toEqual(want);
-    expect(req.filter((r) => r.result !== 'played' && r.result !== 'gap')).toEqual([]);
+    expect(unjustifiedDrops(all)).toEqual([]);
+    expect(sameFrameBattleCues(req)).toEqual([]);
+    expect(req.every((r) => Number.isInteger(r.f))).toBe(true);
     expect(got).toEqual(req.filter((r) => r.result === 'played').map((r) => r.id));
     expect(got.at(-1)).toBe('jingle_victory');
   });
 
   test('戰敗：預期序列是要求序列的前綴，最後是戰敗短樂句；重新挑戰不響探索音', async ({ page }, testInfo) => {
-    const { g, b, got, req, scene } = await bossBattle(page, testInfo, 'defeat', guardPolicy);
+    const { g, b, got, req, all, scene } = await bossBattle(page, testInfo, 'defeat', guardPolicy);
     expect(scene).toBe('GameOver');
     // 最後一次輸入時的 log 推得出的預期序列，必須是要求序列的前綴（之後的事件 log 已隨場景結束）
     const before = expectedBattleCues(b);
     expect(req.slice(0, before.length).map((r) => r.id)).toEqual(before);
-    expect(req.filter((r) => r.result !== 'played' && r.result !== 'gap')).toEqual([]);
+    expect(unjustifiedDrops(all)).toEqual([]);
+    expect(sameFrameBattleCues(req)).toEqual([]);
+    expect(req.every((r) => Number.isInteger(r.f))).toBe(true);
     expect(got.at(-1)).toBe('jingle_defeat');
     expect(got.filter((x) => x === 'jingle_defeat')).toHaveLength(1);
     expect(got).not.toContain('jingle_victory');

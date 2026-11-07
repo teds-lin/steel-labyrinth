@@ -146,6 +146,7 @@ export function initAudio(game, { test = false } = {}) {
       game.sound.pauseOnBlur = false;
     }
     const backend = makeBackend(game, test);
+    audio.frame = () => game.loop?.frame ?? null;
     audio.attach(backend);
     hookUnlock(game, backend);
     {

@@ -198,7 +198,8 @@ const SETUP_META = new Set([0x51, 0x58, 0x59, 0x03, 0x04]);
 /**
  * 取 [fromBar, toBar) 小節，重複 repeats 次。段前的設定（上表的 meta、sysex、每聲道最後的 program、
  * 每個控制器最後的值、pitch bend）移到 tick 0；段內開始的音照原長度，跨過段尾的在段尾補 note off；
- * 段前開始的音（及其 note off）不帶進來。同一 tick 上依序：note off → 其他事件（換樂器、控制器、彎音）→ note on。
+ * 段前開始的音（及其 note off）不帶進來。同一 tick 上依序：note off → 其他事件（換樂器、控制器、彎音）→ note on
+ *（零長度的音例外：它的 note off 緊接在自己的 note on 之後）。
  * 段內不得換速度；整個檔案只能有 tick 0 的拍號（小節換算用）。
  */
 export function loopSection(m, { fromBar, toBar, repeats }) {
@@ -256,10 +257,12 @@ export function loopSection(m, { fromBar, toBar, repeats }) {
       for (const pr of pairs) {
         if (pr.on.tick < start || pr.on.tick >= end) continue;
         const offTick = Math.min(pr.off ? pr.off.tick : end, end);
-        if (offTick <= pr.on.tick) continue; // 零長度的音（同一 tick 開又關）略過：排序後會變成先關後開，卡成長音
         const offBytes = pr.off ? [...pr.off.bytes] : [0x80 | (pr.on.bytes[0] & 0x0f), pr.on.bytes[1], 0];
+        // 零長度的音（同一 tick 開又關，打擊樂常用來表示一擊）：note off 和 note on 同優先序、緊接在自己的 note on 之後
+        //（不會卡成長音，也不會排到同 tick 同音高的下一個音後面把它切掉）
+        const zero = offTick <= pr.on.tick;
         body.push({ tick: pr.on.tick + off0, bytes: [...pr.on.bytes], prio: 2, seq: seq++ });
-        body.push({ tick: offTick + off0, bytes: offBytes, prio: 0, seq: seq++ });
+        body.push({ tick: (zero ? pr.on.tick : offTick) + off0, bytes: offBytes, prio: zero ? 2 : 0, seq: seq++ });
       }
       for (const e of tr) {
         if (e.tick < start || e.tick >= end || isEot(e) || isNoteOn(e) || isNoteOff(e)) continue;

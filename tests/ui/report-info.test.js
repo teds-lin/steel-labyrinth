@@ -98,6 +98,12 @@ describe('describeDevice：userAgent 精簡成作業系統＋瀏覽器名稱與�
 });
 
 describe('buildReportInfo：聲音（M6 P2 選配）', () => {
+  it('聲音開或靜音時有音效無法播放：附上數量', () => {
+    const lines = buildReportInfo({ state, data, env: env({ sound: { status: 'on', bgm: 2, amb: 2, sfx: 3, typing: true, broken: 3 } }) }).split('\n');
+    expect(lines.find((l) => l.startsWith('聲音：'))).toBe('聲音：開（音樂 50%、環境音 50%、音效 75%、打字音 開；3 個音效無法播放）');
+    const muted = buildReportInfo({ state, data, env: env({ sound: { status: 'muted', broken: 1 } }) }).split('\n');
+    expect(muted.find((l) => l.startsWith('聲音：'))).toBe('聲音：靜音（1 個音效無法播放）');
+  });
   it('env.sound 有給時，在裝置那行之後加一行：開（各通道音量）／靜音／未啟用（原因）', () => {
     const on = buildReportInfo({ state, data, env: env({ sound: { status: 'on', bgm: 2, amb: 0, sfx: 3, typing: false } }) }).split('\n');
     expect(on[4]).toBe('聲音：開（音樂 50%、環境音 關、音效 75%、打字音 關）');

@@ -124,9 +124,12 @@ const pct = (level) => (Number.isInteger(level) && level > 0 ? `${Math.min(4, le
 /** env.sound（{ status:'on'|'muted'|'off', ... }）→ 回報資訊的一行；不認得就不加（null）。 */
 function soundLine(x) {
   if (!isObj(x)) return null;
-  if (x.status === 'muted') return '聲音：靜音';
+  const broken = Number.isInteger(x.broken) && x.broken > 0 ? `${x.broken} 個音效無法播放` : '';
+  if (x.status === 'muted') return broken ? `聲音：靜音（${broken}）` : '聲音：靜音';
   if (x.status === 'off') return `聲音：未啟用（${SOUND_OFF_REASON[x.reason] ?? '原因不明'}）`;
-  if (x.status === 'on') return `聲音：開（音樂 ${pct(x.bgm)}、環境音 ${pct(x.amb)}、音效 ${pct(x.sfx)}、打字音 ${x.typing ? '開' : '關'}）`;
+  if (x.status === 'on') {
+    return `聲音：開（音樂 ${pct(x.bgm)}、環境音 ${pct(x.amb)}、音效 ${pct(x.sfx)}、打字音 ${x.typing ? '開' : '關'}${broken ? `；${broken}` : ''}）`;
+  }
   return null;
 }
 

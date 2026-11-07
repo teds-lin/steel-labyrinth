@@ -80,9 +80,19 @@ describe('soundStatus：AudioDirector 的摘要 → 回報資訊用的聲音狀�
   it('可以出聲：on＋各通道音量', () => {
     expect(soundStatus(info())).toEqual({ status: 'on', bgm: 2, amb: 2, sfx: 3, typing: true });
   });
-  it('靜音：muted（不管有沒有解鎖）', () => {
+  it('靜音：muted（不管有沒有解鎖）；但瀏覽器不支援時優先回報不支援', () => {
     expect(soundStatus(info({ settings: { ...AUDIO_DEFAULTS, mute: true } }))).toEqual({ status: 'muted' });
     expect(soundStatus(info({ unlocked: false, settings: { ...AUDIO_DEFAULTS, mute: true } }))).toEqual({ status: 'muted' });
+    expect(soundStatus(info({ backend: 'none', settings: { ...AUDIO_DEFAULTS, mute: true } }))).toEqual({ status: 'off', reason: 'unsupported' });
+    expect(soundStatus(info({ catalog: false, settings: { ...AUDIO_DEFAULTS, mute: true } }))).toEqual({ status: 'off', reason: 'catalog' });
+    expect(soundStatus(info({ broken: ['bgm_city'], settings: { ...AUDIO_DEFAULTS, mute: true } }))).toEqual({ status: 'muted', broken: 1 });
+  });
+  it('音效音量 0 時打字音算關（實際上不響）', () => {
+    expect(soundStatus(info({ settings: { ...AUDIO_DEFAULTS, sfx: 0, typing: true } }))).toMatchObject({ status: 'on', sfx: 0, typing: false });
+  });
+  it('有音檔載入失敗時附上數量（沒有就不加這個欄位）', () => {
+    expect(soundStatus(info({ broken: ['ui_error', 'bgm_city'] }))).toMatchObject({ status: 'on', broken: 2 });
+    expect(soundStatus(info({ broken: [] }))).not.toHaveProperty('broken');
   });
   it('未啟用：瀏覽器不支援／音效目錄載入失敗／尚未解鎖（依序判斷）', () => {
     expect(soundStatus(info({ backend: 'none' }))).toEqual({ status: 'off', reason: 'unsupported' });

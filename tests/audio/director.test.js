@@ -636,3 +636,20 @@ describe('第 1 輪審查修正（M6 P3）', () => {
     expect(d.backend.synths).toHaveLength(1);
   });
 });
+
+describe('播放要求記錄影格序號（E2E 檢查戰鬥音效沒有擠在同一影格）', () => {
+  it('有注入 frame 就記下 f；沒注入或丟錯時記 null，播放照常', () => {
+    const { d, b } = ready();
+    d.sfx('ui_move');
+    expect(d.info().requests.at(-1)).toMatchObject({ id: 'ui_move', result: 'played', f: null });
+    let n = 41;
+    d.frame = () => n;
+    d.sfx('ui_confirm');
+    expect(d.info().requests.at(-1)).toMatchObject({ id: 'ui_confirm', f: 41 });
+    d.frame = () => { throw new Error('no loop'); };
+    n = 0;
+    expect(() => d.sfx('text_tick')).not.toThrow();
+    expect(d.info().requests.at(-1)).toMatchObject({ id: 'text_tick', result: 'played', f: null });
+    expect(b.plays.map((p) => p[0])).toEqual(['ui_move', 'ui_confirm', 'text_tick']);
+  });
+});
